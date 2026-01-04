@@ -444,7 +444,26 @@
         }
 
         // UI HELPERS
-        window.toggleModal = (id) => document.getElementById(id).classList.toggle('hidden');
+        window.toggleModal = (modalId) => {
+            const modal = document.getElementById(modalId);
+            if (modal.classList.contains('hidden')) {
+                // Open: save focus, show modal, set ARIA, focus first element
+                modal.dataset.previousFocus = document.activeElement?.id || '';
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden', 'false');
+                const focusables = modal.querySelectorAll('input, select, textarea, button:not([disabled])');
+                if (focusables.length) focusables[0].focus();
+            } else {
+                // Close: hide modal, restore focus, reset ARIA
+                modal.classList.add('hidden');
+                modal.setAttribute('aria-hidden', 'true');
+                if (modal.dataset.previousFocus) {
+                    const el = document.getElementById(modal.dataset.previousFocus);
+                    if (el) el.focus();
+                }
+            }
+        };
+        
         window.toggleTenantInput = () => {
             const show = document.getElementById('propStatus').value === 'Occupied';
             document.getElementById('tenantInputGroup').classList.toggle('hidden', !show);
