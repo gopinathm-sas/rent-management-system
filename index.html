@@ -255,22 +255,23 @@
 
     <!-- FIREBASE MODULE LOGIC -->
     <script type="module">
+        // Imports MUST be at top level (not in try-catch)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
+            authDomain: "munirathnam-illam.firebaseapp.com",
+            projectId: "munirathnam-illam",
+            storageBucket: "munirathnam-illam.firebasestorage.app",
+            messagingSenderId: "852272424128",
+            appId: "1:852272424128:web:e5400d3d2f512d7e477925",
+            measurementId: "G-7NF6X62CKV"
+        };
+
         try {
-            import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-            import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-            import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-            // CONFIG
-            const firebaseConfig = {
-                apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
-                authDomain: "munirathnam-illam.firebaseapp.com",
-                projectId: "munirathnam-illam",
-                storageBucket: "munirathnam-illam.firebasestorage.app",
-                messagingSenderId: "852272424128",
-                appId: "1:852272424128:web:e5400d3d2f512d7e477925",
-                measurementId: "G-7NF6X62CKV"
-            };
-
             // Initialize Firebase
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
@@ -291,13 +292,14 @@
                 const errorMsg = document.getElementById('login-error');
                 errorMsg.classList.add('hidden');
                 try {
-                    await signInWithPopup(auth, provider);
-                    console.log("✓ Sign-in successful");
+                    const result = await signInWithPopup(auth, provider);
+                    console.log("✓ Sign-in successful:", result.user.email);
                 } catch (error) {
                     console.error("❌ Login failed:", error);
                     let message = "Login failed: " + error.message;
                     if (error.code === 'auth/unauthorized-domain') {
-                        message = `⚠️ Domain Unauthorized. Add to Firebase Console -> Auth -> Settings -> Authorized Domains.`;
+                        const domain = window.location.hostname;
+                        message = `⚠️ Domain Unauthorized: "${domain}"\n\nAdd this domain to Firebase Console:\n1. Go to Firebase Console\n2. Authentication → Settings\n3. Authorized Domains → Add Domain\n4. Enter: ${domain}`;
                     }
                     errorMsg.innerText = message;
                     errorMsg.classList.remove('hidden');
@@ -311,43 +313,45 @@
                 window.location.reload(); 
             };
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('user-name').innerText = user.displayName;
-                let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
-                document.getElementById('user-photo').src = photoURL;
-                document.getElementById('login-screen').classList.add('hidden-section');
-                document.getElementById('app-content').classList.remove('hidden-section');
-                initDataListener();
-            } else {
-                document.getElementById('login-screen').classList.remove('hidden-section');
-                document.getElementById('app-content').classList.add('hidden-section');
-            }
-        });
-
-        // DATA LISTENER
-        function initDataListener() {
-            const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
-            unsubscribe = onSnapshot(q, (snapshot) => {
-                allPropertiesData = [];
-                snapshot.forEach((doc) => {
-                    allPropertiesData.push({ id: doc.id, ...doc.data() });
-                });
-                window.applyFilters();
-            }, (error) => {
-                console.error("Data fetch error:", error);
-                if (error.code === 'permission-denied') {
-                    alert("Permission denied. Database rules might not be set to public/test mode.");
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    console.log("✓ User signed in:", user.email);
+                    document.getElementById('user-name').innerText = user.displayName;
+                    let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
+                    document.getElementById('user-photo').src = photoURL;
+                    document.getElementById('login-screen').classList.add('hidden-section');
+                    document.getElementById('app-content').classList.remove('hidden-section');
+                    initDataListener();
+                } else {
+                    console.log("User signed out");
+                    document.getElementById('login-screen').classList.remove('hidden-section');
+                    document.getElementById('app-content').classList.add('hidden-section');
                 }
             });
-        }
 
-        // RENDER & LOGIC
-        window.applyFilters = () => {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const filterStatus = document.getElementById('filterStatus').value;
-            const filterPayment = document.getElementById('filterPayment').value;
+            // DATA LISTENER
+            function initDataListener() {
+                const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
+                unsubscribe = onSnapshot(q, (snapshot) => {
+                    allPropertiesData = [];
+                    snapshot.forEach((doc) => {
+                        allPropertiesData.push({ id: doc.id, ...doc.data() });
+                    });
+                    window.applyFilters();
+                }, (error) => {
+                    console.error("Data fetch error:", error);
+                    if (error.code === 'permission-denied') {
+                        alert("Permission denied. Database rules might not be set to public/test mode.");
+                    }
+                });
+            }
+
+            // RENDER & LOGIC
+            window.applyFilters = () => {
+                const searchText = document.getElementById('searchInput').value.toLowerCase();
+                const filterStatus = document.getElementById('filterStatus').value;
+                const filterPayment = document.getElementById('filterPayment').value;
 
             const filteredData = allPropertiesData.filter(prop => {
                 const matchesSearch = (prop.name.toLowerCase().includes(searchText) || prop.tenant.toLowerCase().includes(searchText));
@@ -618,12 +622,13 @@
                 }
             });
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
-        }
+            }
         } catch (err) {
             console.error("❌ FATAL ERROR during module initialization:", err);
-            alert("Error: Module failed to load. Check console for details.");
+            alert("Error: Module failed to load. Check console for details.\n\n" + err.message);
             document.getElementById('login-error').innerText = "System Error: " + err.message;
             document.getElementById('login-error').classList.remove('hidden');
+        }
         }
     </script>
 </body>
