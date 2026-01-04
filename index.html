@@ -872,6 +872,7 @@
 
         function renderTenants(list) {
             const tbody = document.getElementById('tenant-list');
+            if (!tbody) return; // Element doesn't exist (removed from DOM)
             const occupied = list.filter(p => p.status === 'Occupied');
             if(!occupied.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">No tenants.</td></tr>'; return; }
             
