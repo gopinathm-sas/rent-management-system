@@ -1,0 +1,99 @@
+/* Firestore Security Rules for Rent Manager
+ * 
+ * Deploy these rules to your Firebase project:
+ * 1. Go to Firebase Console > Firestore Database > Rules
+ * 2. Replace the default rules with the content below
+ * 3. Click "Publish"
+ * 
+ * Security Strategy:
+ * - Users can only read/write their own properties (identified by createdBy UID)
+ * - Prevents unauthorized access to other users' data
+ * - Validates data structure before writing
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow anyone to read the rules (for debugging)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Properties collection: user-specific access
+    match /properties/{propertyId} {
+      // Read: User can read their own properties
+      allow read: if request.auth != null && 
+                     resource.data.createdBy == request.auth.uid;
+      
+      // Create: User must be authenticated and set createdBy to their UID
+      allow create: if request.auth != null &&
+                       request.resource.data.createdBy == request.auth.uid &&
+                       request.resource.data.name is string &&
+                       request.resource.data.name.size() > 0 &&
+                       request.resource.data.rent is number &&
+                       request.resource.data.rent > 0 &&
+                       request.resource.data.status in ['Vacant', 'Occupied'] &&
+                       request.resource.data.payStatus in ['Pending', 'Paid'] &&
+                       request.resource.data.tenant is string &&
+                       request.resource.data.createdAt is timestamp;
+      
+      // Update: User can only update their own properties, with validation
+      allow update: if request.auth != null &&
+                       resource.data.createdBy == request.auth.uid &&
+                       request.resource.data.createdBy == resource.data.createdBy &&
+                       request.resource.data.name is string &&
+                       request.resource.data.name.size() > 0 &&
+                       request.resource.data.rent is number &&
+                       request.resource.data.rent > 0 &&
+                       request.resource.data.status in ['Vacant', 'Occupied'] &&
+                       request.resource.data.payStatus in ['Pending', 'Paid'] &&
+                       request.resource.data.tenant is string;
+      
+      // Delete: User can only delete their own properties
+      allow delete: if request.auth != null &&
+                       resource.data.createdBy == request.auth.uid;
+      
+      // Deny all other operations
+      allow list: if false;
+    }
+
+    // List properties: intentionally restricted (client must query by user)
+    // Clients should use: query(collection(db, "properties"), where("createdBy", "==", userId))
+    // But since this is a single-user app per login, the current implementation is acceptable
+  }
+}
+
+/* IMPORTANT NOTES:
+ * 
+ * 1. TEST MODE (Current - INSECURE):
+ *    If you're using the default "allow read, write: if true" rules, ANYONE can access and modify data.
+ *    This is only for development/testing. NEVER deploy to production with this.
+ * 
+ * 2. PRODUCTION DEPLOYMENT:
+ *    Before deploying to production:
+ *    - Enable Google Sign-In authentication
+ *    - Deploy these rules above
+ *    - Test with real user accounts
+ *    - Monitor access logs in Firebase Console
+ * 
+ * 3. DATA VALIDATION:
+ *    These rules validate:
+ *    - Property names are non-empty strings
+ *    - Rent amounts are positive numbers
+ *    - Status is either 'Vacant' or 'Occupied'
+ *    - Payment status is either 'Pending' or 'Paid'
+ *    - User's UID matches the createdBy field
+ *    - Timestamps exist and are properly formatted
+ * 
+ * 4. SCALING:
+ *    For multi-user shared properties (e.g., property managers):
+ *    - Add a "collaborators" array field: ["uid1", "uid2"]
+ *    - Modify read/write rules: resource.data.createdBy == uid || request.auth.uid in resource.data.collaborators
+ * 
+ * 5. AUDIT:
+ *    Enable Firestore audit logs to track all changes:
+ *    - Go to Cloud Audit Logs in Google Cloud Console
+ *    - Filter by "cloud.firestore.googleapis.com"
+ *    - Monitor for unusual delete/update operations
+ */
