@@ -300,6 +300,61 @@
                 </div>
             </section>
 
+            <!-- Rent Details Section -->
+            <section id="rent-details" class="section-tab mb-10">
+                <h2 class="text-2xl font-bold mb-6 text-gray-700">Rent Details</h2>
+                <p class="text-gray-500 mb-4">Monthly rent payment status for all rooms - Click any month to toggle status (Pending/Paid/None)</p>
+                
+                <!-- Rent Details Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div style="width: 100%; overflow-x: auto;">
+                        <table id="rentDetailsTable" class="text-sm w-full border-collapse">
+                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                <tr>
+                                    <th class="border px-4 py-3 text-left font-semibold">Room ID</th>
+                                    <th class="border px-4 py-3 text-left font-semibold">Room No</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Jan</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Feb</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Mar</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Apr</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">May</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Jun</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Jul</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Aug</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Sep</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Oct</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Nov</th>
+                                    <th class="border px-4 py-3 text-center font-semibold">Dec</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rentDetailsBody" class="divide-y">
+                                <tr>
+                                    <td colspan="14" class="text-center py-10 text-gray-400">
+                                        Loading room data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="mt-6 flex justify-center gap-8 text-sm">
+                    <span class="flex items-center gap-2">
+                        <div class="w-4 h-4 bg-gray-200 border border-gray-400 rounded"></div>
+                        <span>No Record</span>
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <div class="w-4 h-4 bg-red-100 border-2 border-red-400 rounded"></div>
+                        <span>Pending</span>
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <div class="w-4 h-4 bg-green-100 border-2 border-green-400 rounded"></div>
+                        <span>Paid</span>
+                    </span>
+                </div>
+            </section>
+
             <!-- Rooms Section -->
             <section id="rooms" class="section-tab mb-10">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -942,110 +997,96 @@
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
         }
 
-        // RENT DETAILS FUNCTIONS
-        function populateRentDetailsSelect() {
-            const select = document.getElementById('rentDetailsSelect');
-            select.innerHTML = '<option value="">-- Choose a Tenant --</option>';
-            
-            // Filter occupied properties (those with tenants)
-            const occupied = allPropertiesData.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
-            
-            occupied.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.id;
-                option.textContent = `${escapeHtml(p.tenant)} - ${escapeHtml(p.name)} (₹${p.rent})`;
-                select.appendChild(option);
-            });
-        }
+        // RENT DETAILS FUNCTIONS - Populate table from dashboard tenant data
+        function renderRentDetailsTable() {
+            const tbody = document.getElementById('rentDetailsBody');
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const currentYear = new Date().getFullYear();
 
-        window.loadRentDetails = () => {
-            const select = document.getElementById('rentDetailsSelect');
-            const propId = select.value;
+            // Get all properties with tenant data (from allPropertiesData or dashboard inputs)
+            let roomsData = [];
             
-            if (!propId) {
-                document.getElementById('rentDetailsContent').innerHTML = '<p class="text-gray-400 text-center py-10">Select a tenant to view rent details</p>';
+            // First, collect data from dashboard table inputs (rows 0-11)
+            for (let i = 0; i < 12; i++) {
+                const roomNo = document.getElementById(`row-${i}-roomNo`)?.value.trim();
+                const roomId = document.getElementById(`row-${i}-roomId`)?.value.trim();
+                
+                if (roomNo && roomId) {
+                    roomsData.push({
+                        roomNo,
+                        roomId,
+                        paymentHistory: {}
+                    });
+                }
+            }
+
+            // Also include properties from allPropertiesData that have roomId
+            allPropertiesData.forEach(prop => {
+                if (prop.roomId && !roomsData.find(r => r.roomId === prop.roomId)) {
+                    roomsData.push({
+                        roomNo: prop.name || prop.roomNo || '',
+                        roomId: prop.roomId || prop.id,
+                        paymentHistory: prop.paymentHistory || {}
+                    });
+                }
+            });
+
+            if (roomsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">No room data found. Add rooms in Dashboard.</td></tr>';
                 return;
             }
 
-            const prop = allPropertiesData.find(p => p.id === propId);
-            if (!prop) return;
-
-            renderRentDetailsGrid(prop);
-        };
-
-        function renderRentDetailsGrid(prop) {
-            const history = prop.paymentHistory || {};
-            const currentYear = new Date().getFullYear();
-            const years = [currentYear - 1, currentYear, currentYear + 1];
-            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            
-            let html = `
-                <div class="mb-6 bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                    <p class="text-gray-700"><strong>Tenant:</strong> ${escapeHtml(prop.tenant)}</p>
-                    <p class="text-gray-700"><strong>Room:</strong> ${escapeHtml(prop.name)}</p>
-                    <p class="text-gray-700"><strong>Monthly Rent:</strong> ₹${prop.rent.toLocaleString()}</p>
-                </div>
-
-                <div class="space-y-8">
-            `;
-
-            // For each year, create a grid of months
-            years.forEach(year => {
-                html += `
-                    <div class="border rounded-lg p-5 bg-gray-50">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4">${year}</h3>
-                        <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+            // Render table rows
+            tbody.innerHTML = roomsData.map(room => {
+                const history = room.paymentHistory || {};
+                
+                let row = `
+                    <tr class="hover:bg-gray-50">
+                        <td class="border px-4 py-3 font-semibold">${escapeHtml(room.roomId)}</td>
+                        <td class="border px-4 py-3">${escapeHtml(room.roomNo)}</td>
                 `;
 
                 months.forEach(month => {
-                    const key = `${year}-${month}`;
+                    const key = `${currentYear}-${month}`;
                     const status = history[key] || 'None';
                     
-                    let boxClass = "bg-gray-200 text-gray-600";
-                    let icon = "-";
+                    let cellClass = "bg-gray-100 text-gray-600 border-gray-300";
                     
                     if (status === 'Pending') {
-                        boxClass = "bg-red-100 text-red-700 border-2 border-red-400";
-                        icon = '<i class="fa-solid fa-hourglass-end"></i>';
+                        cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
                     } else if (status === 'Paid') {
-                        boxClass = "bg-green-100 text-green-700 border-2 border-green-400";
-                        icon = '<i class="fa-solid fa-check-circle"></i>';
+                        cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
                     }
 
-                    html += `
-                        <div class="p-3 rounded-lg text-center font-semibold text-sm ${boxClass} cursor-pointer hover:shadow-md transition"
-                             onclick="toggleRentStatus('${prop.id}', '${key}', '${status}')">
-                            <div class="mb-1">${month}</div>
-                            <div class="text-xs">${icon}</div>
-                            <div class="text-xs mt-1 font-normal">${status === 'None' ? '-' : status}</div>
-                        </div>
+                    const displayText = status === 'None' ? '-' : (status === 'Paid' ? '✓' : '✗');
+
+                    row += `
+                        <td class="border px-4 py-3 text-center font-semibold ${cellClass}" 
+                            onclick="toggleMonthStatus('${room.roomId}', '${key}', '${status}')" 
+                            title="Click to toggle: ${status}">
+                            ${displayText}
+                        </td>
                     `;
                 });
 
-                html += `
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `
-                </div>
-                <div class="mt-6 text-xs text-gray-400 flex justify-center gap-6">
-                    <span><i class="fa-solid fa-circle text-gray-200 mr-2"></i> No Record</span>
-                    <span><i class="fa-solid fa-circle text-red-400 mr-2"></i> Pending</span>
-                    <span><i class="fa-solid fa-circle text-green-400 mr-2"></i> Paid</span>
-                </div>
-            `;
-
-            document.getElementById('rentDetailsContent').innerHTML = html;
+                row += `</tr>`;
+                return row;
+            }).join('');
         }
 
-        window.toggleRentStatus = async (propId, key, currentStatus) => {
+        window.toggleMonthStatus = async (roomId, key, currentStatus) => {
             let newStatus = 'Pending';
             if (currentStatus === 'Pending') newStatus = 'Paid';
             else if (currentStatus === 'Paid') newStatus = 'None';
 
-            const propRef = doc(db, "properties", propId);
+            // Find property matching roomId and update
+            const prop = allPropertiesData.find(p => (p.roomId === roomId) || (p.id === roomId));
+            if (!prop) {
+                alert('Property not found');
+                return;
+            }
+
+            const propRef = doc(db, "properties", prop.id);
             const updatePayload = {};
             
             if (newStatus === 'None') {
@@ -1056,19 +1097,19 @@
 
             try {
                 await updateDoc(propRef, updatePayload);
-                console.log(`✓ Updated ${key} to ${newStatus}`);
-                window.loadRentDetails(); // Refresh the grid
+                console.log(`✓ Updated ${key} for room ${roomId} to ${newStatus}`);
+                renderRentDetailsTable(); // Refresh the table
             } catch (e) {
                 console.error("Update failed", e);
                 alert("Failed to update status: " + e.message);
             }
         };
 
-        // Update applyFilters to also populate Rent Details select
+        // Hook into applyFilters to refresh rent details when data changes
         const originalApplyFilters = window.applyFilters;
         window.applyFilters = function() {
             originalApplyFilters();
-            populateRentDetailsSelect();
+            renderRentDetailsTable();
         };
 
     </script>
