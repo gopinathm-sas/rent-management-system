@@ -12,6 +12,9 @@
         /* Custom smooth scrolling */
         html { scroll-behavior: smooth; }
         .hidden-section { display: none !important; }
+        /* Ledger Grid Transition */
+        .month-box { transition: all 0.2s ease; }
+        .month-box:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
@@ -41,7 +44,7 @@
             <div class="container mx-auto px-4 py-3 flex justify-between items-center">
                 <div class="flex items-center space-x-2">
                     <i class="fa-solid fa-building-user text-2xl"></i>
-                    <span class="text-xl font-bold hidden md:inline">RentManager</span>
+                    <span class="text-xl font-bold hidden md:inline">RentManager v1.2</span>
                 </div>
                 
                 <div class="flex items-center space-x-4">
@@ -93,8 +96,9 @@
                     <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-orange-500 relative overflow-hidden">
                         <div class="flex justify-between items-center relative z-10">
                             <div>
-                                <p class="text-gray-500 text-sm">Pending Rent</p>
+                                <p class="text-gray-500 text-sm">Total Pending Rent</p>
                                 <p class="text-3xl font-bold" id="pending-rent">₹0</p>
+                                <p class="text-xs text-orange-400 mt-1">* Sum of all pending months</p>
                             </div>
                             <i class="fa-solid fa-file-invoice-dollar text-orange-500 text-3xl opacity-50"></i>
                         </div>
@@ -104,11 +108,38 @@
 
             <!-- Properties Section -->
             <section id="properties" class="mb-10">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <h2 class="text-2xl font-bold text-gray-700">Properties</h2>
-                    <button onclick="toggleModal('propertyModal')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center">
-                        <i class="fa-solid fa-plus mr-2"></i> Add Property
-                    </button>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                        <!-- Search & Filter Controls -->
+                        <div class="relative w-full sm:w-64">
+                            <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search..." class="pl-9 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full shadow-sm">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        
+                        <select id="filterStatus" onchange="applyFilters()" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="All">All Status</option>
+                            <option value="Occupied">Occupied</option>
+                            <option value="Vacant">Vacant</option>
+                        </select>
+                        
+                        <select id="filterPayment" onchange="applyFilters()" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="All">All Payments</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                        </select>
+
+                        <div class="flex gap-2">
+                            <button onclick="exportToCSV()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center justify-center">
+                                <i class="fa-solid fa-file-csv mr-2"></i> Export
+                            </button>
+
+                            <button onclick="toggleModal('propertyModal')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center justify-center">
+                                <i class="fa-solid fa-plus mr-2"></i> Add
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Property Grid -->
@@ -131,8 +162,8 @@
                                 <tr>
                                     <th class="py-3 px-6 text-left">Property</th>
                                     <th class="py-3 px-6 text-left">Tenant Name</th>
-                                    <th class="py-3 px-6 text-center">Rent Amount</th>
-                                    <th class="py-3 px-6 text-center">Status</th>
+                                    <th class="py-3 px-6 text-center">Monthly Rent</th>
+                                    <th class="py-3 px-6 text-center">Current Status</th>
                                 </tr>
                             </thead>
                             <tbody id="tenant-list" class="text-gray-600 text-sm font-light">
@@ -163,7 +194,6 @@
                     <input type="number" id="propRent" required min="1" step="1" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. 12000">
                 </div>
                 
-                <!-- Tenant Name Input (Shows only if Occupied) -->
                 <div class="mb-4">
                      <label class="block text-gray-700 text-sm font-bold mb-2">Status</label>
                      <select id="propStatus" onchange="toggleTenantInput()" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
@@ -195,14 +225,41 @@
         </div>
     </div>
 
+    <!-- RENT HISTORY MODAL (New Feature) -->
+    <div id="historyModal" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 relative">
+            <button onclick="closeHistoryModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            
+            <h3 class="text-xl font-bold text-gray-800 mb-1" id="history-title">Rent Ledger</h3>
+            <p class="text-sm text-gray-500 mb-6" id="history-subtitle">Track monthly payments</p>
+
+            <!-- Year Selector -->
+            <div class="flex justify-between items-center mb-4 bg-gray-50 p-3 rounded-lg">
+                <button onclick="changeLedgerYear(-1)" class="text-gray-600 hover:text-blue-600"><i class="fa-solid fa-chevron-left"></i></button>
+                <span id="ledger-year" class="text-lg font-bold text-blue-800">2025</span>
+                <button onclick="changeLedgerYear(1)" class="text-gray-600 hover:text-blue-600"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+
+            <!-- Month Grid -->
+            <div class="grid grid-cols-3 gap-3" id="ledger-grid">
+                <!-- Months generated by JS -->
+            </div>
+
+            <div class="mt-6 text-xs text-gray-400 flex justify-center gap-4">
+                <span class="flex items-center"><i class="fa-solid fa-circle text-gray-200 mr-1"></i> No Record</span>
+                <span class="flex items-center"><i class="fa-solid fa-circle text-red-500 mr-1"></i> Pending</span>
+                <span class="flex items-center"><i class="fa-solid fa-circle text-green-500 mr-1"></i> Paid</span>
+            </div>
+        </div>
+    </div>
+
     <!-- FIREBASE MODULE LOGIC -->
     <script type="module">
-        // Import Firebase SDKs
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Your Web App Config
+        // CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
             authDomain: "munirathnam-illam.firebaseapp.com",
@@ -213,97 +270,68 @@
             measurementId: "G-7NF6X62CKV"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        // --- GLOBAL VARIABLES (Available to window) ---
+        // GLOBAL STATE
         let currentUser = null;
-        let unsubscribe = null; // Listener cleaner
+        let unsubscribe = null;
+        let allPropertiesData = [];
+        let currentLedgerPropId = null;
+        let currentLedgerYear = new Date().getFullYear();
+        let allPropertiesData = [];
+        let currentLedgerPropId = null;
+        let currentLedgerYear = new Date().getFullYear();
 
-        // --- AUTHENTICATION LOGIC ---
-        
-        // Expose login/logout to window scope
+        // AUTH
         window.loginWithGoogle = async () => {
             const errorMsg = document.getElementById('login-error');
             errorMsg.classList.add('hidden');
             try {
                 await signInWithPopup(auth, provider);
-                // Auth state listener handles the redirect
             } catch (error) {
                 console.error("Login failed", error);
-                
                 let message = "Login failed: " + error.message;
-                
-                // Specific error handling for Unauthorized Domain
                 if (error.code === 'auth/unauthorized-domain') {
-                    const currentDomain = window.location.hostname;
-                    message = `⚠️ Domain Unauthorized\n\nPlease add this domain to Firebase:\n1. Go to Firebase Console -> Authentication -> Settings -> Authorized Domains\n2. Click "Add Domain"\n3. Enter: ${currentDomain}`;
+                    message = `⚠️ Domain Unauthorized. Add to Firebase Console -> Auth -> Settings -> Domains.`;
                 }
-                
                 errorMsg.innerText = message;
                 errorMsg.classList.remove('hidden');
             }
         };
 
         window.logout = async () => {
-            try {
-                if (unsubscribe) unsubscribe(); // Stop listening to DB
-                await signOut(auth);
-                window.location.reload(); // Refresh to clear state
-            } catch (error) {
-                console.error("Logout error", error);
-            }
+            if (unsubscribe) unsubscribe(); 
+            await signOut(auth);
+            window.location.reload(); 
         };
 
-        // Monitor Auth State
         onAuthStateChanged(auth, (user) => {
-            const loginScreen = document.getElementById('login-screen');
-            const appContent = document.getElementById('app-content');
-            
             if (user) {
-                // User is signed in
                 currentUser = user;
-                
-                // Update UI
                 document.getElementById('user-name').innerText = user.displayName;
-                
-                // Validate Photo URL protocol to avoid XSS
-                let photoURL = 'https://via.placeholder.com/150';
-                if (user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://'))) {
-                    photoURL = user.photoURL;
-                }
+                let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
                 document.getElementById('user-photo').src = photoURL;
-                
-                loginScreen.classList.add('hidden-section');
-                appContent.classList.remove('hidden-section');
-                
-                // Start listening to data
+                document.getElementById('login-screen').classList.add('hidden-section');
+                document.getElementById('app-content').classList.remove('hidden-section');
                 initDataListener();
             } else {
-                // User is signed out
-                loginScreen.classList.remove('hidden-section');
-                appContent.classList.add('hidden-section');
+                document.getElementById('login-screen').classList.remove('hidden-section');
+                document.getElementById('app-content').classList.add('hidden-section');
             }
         });
 
-        // --- DATABASE LOGIC (Real-time) ---
-
+        // DATA LISTENER
         function initDataListener() {
-            // Query properties ordered by creation time
             const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
-            
             unsubscribe = onSnapshot(q, (snapshot) => {
-                const properties = [];
+                allPropertiesData = [];
                 snapshot.forEach((doc) => {
-                    properties.push({ id: doc.id, ...doc.data() });
+                    allPropertiesData.push({ id: doc.id, ...doc.data() });
                 });
-                
-                renderProperties(properties);
-                renderTenants(properties);
-                updateStats(properties);
+                window.applyFilters();
             }, (error) => {
                 console.error("Data fetch error:", error);
                 if (error.code === 'permission-denied') {
@@ -312,72 +340,121 @@
             });
         }
 
-        // --- UI FUNCTIONS (Exposed to Window) ---
+        // RENDER & LOGIC
+        window.applyFilters = () => {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const filterStatus = document.getElementById('filterStatus').value;
+            const filterPayment = document.getElementById('filterPayment').value;
 
-        window.toggleModal = (modalId) => {
-            const modal = document.getElementById(modalId);
-            if (modal.classList.contains('hidden')) {
-                        // Open modal: save previously focused element, reveal and focus first control
-                        modal.dataset.previousFocus = document.activeElement && document.activeElement.id ? document.activeElement.id : '';
-                        modal.classList.remove('hidden');
-                        modal.setAttribute('aria-hidden', 'false');
-                        const focusable = modal.querySelectorAll('a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])');
-                        if (focusable.length) focusable[0].focus();
+            const filteredData = allPropertiesData.filter(prop => {
+                const matchesSearch = (prop.name.toLowerCase().includes(searchText) || prop.tenant.toLowerCase().includes(searchText));
+                const matchesStatus = (filterStatus === 'All') || (prop.status === filterStatus);
+                const matchesPayment = (filterPayment === 'All') || (prop.payStatus === filterPayment);
+                
+                return matchesSearch && matchesStatus && matchesPayment;
+            });
+            renderProperties(filteredData);
+            renderTenants(filteredData);
+            updateStats(allPropertiesData);
+        }
 
-                        // Key handler: Escape closes, Tab traps focus
-                        modal._keydown = function(e) {
-                            if (e.key === 'Escape') {
-                                window.toggleModal(modalId);
-                                return;
-                            }
-                            if (e.key === 'Tab') {
-                                const nodes = Array.from(modal.querySelectorAll('a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
-                                if (nodes.length === 0) { e.preventDefault(); return; }
-                                const idx = nodes.indexOf(document.activeElement);
-                                if (e.shiftKey && idx === 0) {
-                                    e.preventDefault();
-                                    nodes[nodes.length - 1].focus();
-                                } else if (!e.shiftKey && idx === nodes.length - 1) {
-                                    e.preventDefault();
-                                    nodes[0].focus();
-                                }
-                            }
-                        };
-                        document.addEventListener('keydown', modal._keydown);
-                    } else {
-                        // Close modal: restore focus and cleanup
-                        modal.classList.add('hidden');
-                        modal.setAttribute('aria-hidden', 'true');
-                        const prev = modal.dataset.previousFocus;
-                        if (prev) {
-                            const el = document.getElementById(prev);
-                            if (el) el.focus();
-                        }
-                        if (modal._keydown) { document.removeEventListener('keydown', modal._keydown); delete modal._keydown; }
-                    }
+        // RENT HISTORY LOGIC
+        window.openHistory = (propId) => {
+            currentLedgerPropId = propId;
+            const prop = allPropertiesData.find(p => p.id === propId);
+            document.getElementById('history-title').innerText = prop.name;
+            document.getElementById('history-subtitle').innerText = `Rent: ₹${prop.rent}/month | Tenant: ${prop.tenant}`;
+            document.getElementById('historyModal').classList.remove('hidden');
+            renderLedger();
+        }
+
+        window.closeHistoryModal = () => {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        window.changeLedgerYear = (delta) => {
+            currentLedgerYear += delta;
+            renderLedger();
+        }
+
+        window.renderLedger = () => {
+            document.getElementById('ledger-year').innerText = currentLedgerYear;
+            const grid = document.getElementById('ledger-grid');
+            grid.innerHTML = '';
+            
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const prop = allPropertiesData.find(p => p.id === currentLedgerPropId);
+            const history = prop.paymentHistory || {}; 
+
+            months.forEach(month => {
+                const key = `${currentLedgerYear}-${month}`;
+                const status = history[key] || 'None';
+                
+                let btnClass = "bg-gray-100 text-gray-500 hover:bg-gray-200";
+                let icon = "";
+                
+                if (status === 'Pending') {
+                    btnClass = "bg-red-100 text-red-600 border border-red-200 shadow-sm";
+                    icon = '<i class="fa-solid fa-circle-exclamation mr-1"></i>';
+                } else if (status === 'Paid') {
+                    btnClass = "bg-green-100 text-green-700 border border-green-200 shadow-sm";
+                    icon = '<i class="fa-solid fa-check mr-1"></i>';
                 }
 
-        window.toggleTenantInput = () => {
-            const status = document.getElementById('propStatus').value;
-            const inputGroup = document.getElementById('tenantInputGroup');
-            if (status === 'Occupied') {
-                inputGroup.classList.remove('hidden');
+                const div = document.createElement('div');
+                div.className = `month-box p-3 rounded-lg cursor-pointer text-center font-semibold text-sm select-none ${btnClass}`;
+                div.innerHTML = `<div>${month}</div><div class="text-xs font-normal mt-1">${icon}${status === 'None' ? '-' : status}</div>`;
+                div.onclick = () => togglePaymentStatus(key, status);
+                grid.appendChild(div);
+            });
+        }
+
+        window.togglePaymentStatus = async (key, currentStatus) => {
+            let newStatus = 'Pending';
+            if (currentStatus === 'Pending') newStatus = 'Paid';
+            else if (currentStatus === 'Paid') newStatus = 'None';
+
+            const propRef = doc(db, "properties", currentLedgerPropId);
+            const updatePayload = {};
+            
+            if (newStatus === 'None') {
+                 // In a real app we'd delete the field, but setting to null works for our check
+                 updatePayload[`paymentHistory.${key}`] = null; 
             } else {
-                inputGroup.classList.add('hidden');
+                updatePayload[`paymentHistory.${key}`] = newStatus;
+            }
+
+            try {
+                await updateDoc(propRef, updatePayload);
+            } catch (e) {
+                console.error("Update failed", e);
+                alert("Failed to update status: " + e.message);
             }
         }
 
-        // Add Property
-        const form = document.getElementById('addPropertyForm');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // Validate Auth
-            if (!currentUser) {
-                alert("You must be logged in to perform this action.");
-                return;
-            }
+        // CSV EXPORT
+        window.exportToCSV = () => {
+            if (allPropertiesData.length === 0) { alert("No data"); return; }
+            let csv = "Property,Tenant,Rent,Status,Payment Status\n";
+            allPropertiesData.forEach(p => csv += `"${p.name}","${p.tenant}",${p.rent},${p.status},${p.payStatus}\n`);
+            const link = document.createElement("a");
+            link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
+            link.download = "rent_data.csv";
+            link.click();
+        }
 
+        // UI HELPERS
+        window.toggleModal = (id) => document.getElementById(id).classList.toggle('hidden');
+        window.toggleTenantInput = () => {
+            const show = document.getElementById('propStatus').value === 'Occupied';
+            document.getElementById('tenantInputGroup').classList.toggle('hidden', !show);
+        }
+
+        // ADD PROPERTY
+        document.getElementById('addPropertyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return alert("Please login");
+            
             const btnText = document.getElementById('btn-text');
             const btnLoader = document.getElementById('btn-loader');
             
@@ -385,69 +462,51 @@
             const rent = parseFloat(document.getElementById('propRent').value);
             const status = document.getElementById('propStatus').value;
             const payStatus = document.getElementById('payStatus').value;
-            const tenantNameInput = document.getElementById('tenantName').value.trim();
-            
-            // Validate Input
-            if (!name) {
-                alert("Property name cannot be empty.");
-                return;
-            }
-            if (isNaN(rent) || rent <= 0) {
-                alert("Rent must be a valid positive number.");
-                return;
-            }
+            const tName = document.getElementById('tenantName').value.trim();
+            const tenant = (status === 'Occupied' && tName) ? tName : (status === 'Occupied' ? 'Assigned' : 'None');
 
-            // Show loading
+            if (!name) { alert("Property Name is required"); return; }
+            if (isNaN(rent) || rent <= 0) { alert("Invalid Rent Amount"); return; }
+
             btnText.innerText = "Saving...";
             btnLoader.classList.remove('hidden');
 
-            const tenant = (status === 'Occupied' && tenantNameInput) ? tenantNameInput : (status === 'Occupied' ? 'Assigned' : 'None');
-
             try {
                 await addDoc(collection(db, "properties"), {
-                    name: name,
-                    rent: rent,
-                    status: status,
-                    payStatus: payStatus,
-                    tenant: tenant,
+                    name, rent, status, payStatus, tenant,
                     createdAt: serverTimestamp(),
-                    createdBy: currentUser.uid
+                    createdBy: currentUser.uid,
+                    paymentHistory: {} 
                 });
-                
-                // Reset form
-                form.reset();
+                e.target.reset();
                 window.toggleModal('propertyModal');
-                window.toggleTenantInput(); // hide tenant input
-            } catch (error) {
-                console.error("Error adding document: ", error);
-                alert("Error saving property: " + error.message);
+            } catch (err) {
+                console.error("Add failed", err);
+                alert("Error saving: " + err.message);
             } finally {
                 btnText.innerText = "Save Property";
                 btnLoader.classList.add('hidden');
             }
         });
 
-        // Delete Property (Exposed to window)
         window.deleteProperty = async (id) => {
             if (!currentUser) {
-                alert("You must be logged in to delete items.");
+                alert("You must be logged in to delete.");
                 return;
             }
-            if(confirm('Are you sure you want to delete this property?')) {
+            if (confirm('Are you sure you want to delete this property?')) {
                 try {
                     await deleteDoc(doc(db, "properties", id));
                 } catch (error) {
                     console.error("Error deleting: ", error);
-                    alert("Failed to delete.");
+                    alert("Failed to delete: " + error.message);
                 }
             }
         }
 
-        // --- RENDER FUNCTIONS ---
-
-        function escapeHtml(text) {
-            if (!text) return text;
-            return text.toString()
+        // RENDER
+        function escapeHtml(text) { 
+            return (text || "").toString()
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
@@ -455,83 +514,82 @@
                 .replace(/'/g, "&#039;");
         }
 
-        function renderProperties(properties) {
+        function renderProperties(list) {
             const grid = document.getElementById('property-grid');
-            
-            if (properties.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full text-center py-10 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
-                        <i class="fa-regular fa-folder-open text-4xl mb-2"></i>
-                        <p>No properties found in cloud.</p>
-                    </div>`;
-                return;
-            }
+            if (!list.length) { grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No properties found.</p>'; return; }
 
-            grid.innerHTML = properties.map(prop => {
-                const safeName = escapeHtml(prop.name);
-                const safeTenant = escapeHtml(prop.tenant);
-                const statusColor = prop.status === 'Occupied' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                const payColor = prop.payStatus === 'Paid' ? 'text-green-600' : 'text-orange-600';
+            grid.innerHTML = list.map(p => {
+                // Determine display status: Use ledger if available for current month, else fallback to main status
+                const history = p.paymentHistory || {};
+                const currentMonthKey = `${new Date().getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][new Date().getMonth()]}`;
+                
+                let displayStatus = p.payStatus; // Default to main status
+                if (history[currentMonthKey]) {
+                    displayStatus = history[currentMonthKey]; // Override with ledger if exists
+                }
+
+                let statusBadge = displayStatus === 'Paid' ? '<span class="text-green-600 font-bold text-xs"><i class="fa-solid fa-check-circle"></i> Paid</span>' 
+                                : displayStatus === 'Pending' ? '<span class="text-red-600 font-bold text-xs"><i class="fa-solid fa-circle-exclamation"></i> Pending</span>'
+                                : '<span class="text-gray-400 text-xs">No status</span>';
 
                 return `
-                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden">
-                    <div class="h-32 bg-gray-200 flex items-center justify-center">
-                        <i class="fa-solid fa-city text-4xl text-gray-400"></i>
+                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition p-5 border-t-4 ${p.status === 'Occupied' ? 'border-blue-500' : 'border-gray-300'}">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-lg text-gray-800">${escapeHtml(p.name)}</h3>
+                        <span class="px-2 py-1 rounded text-xs font-semibold ${p.status === 'Occupied' ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'}">${escapeHtml(p.status)}</span>
                     </div>
-                    <div class="p-4">
-                        <div class="flex justify-between items-start">
-                            <h3 class="font-bold text-lg text-gray-800 mb-1">${safeName}</h3>
-                            <span class="${statusColor} text-xs px-2 py-1 rounded-full font-semibold">
-                                ${escapeHtml(prop.status)}
-                            </span>
-                        </div>
-                        <p class="text-gray-600 text-sm mb-2"><i class="fa-solid fa-tag mr-1"></i> ₹${prop.rent} / month</p>
-                        <p class="text-xs font-semibold mb-4 ${payColor}">
-                             <i class="fa-solid fa-circle text-[8px] mr-1"></i> ${escapeHtml(prop.payStatus)}
-                        </p>
-                        
-                        <div class="flex justify-between items-center border-t pt-3 mt-2">
-                            <span class="text-xs text-gray-500 truncate max-w-[100px]">Tenant: ${safeTenant}</span>
-                            <button onclick="deleteProperty('${prop.id}')" class="text-red-500 hover:text-red-700 text-sm">
-                                <i class="fa-solid fa-trash"></i> Delete
-                            </button>
-                        </div>
+                    <p class="text-gray-500 text-sm mb-4"><i class="fa-solid fa-user mr-1"></i> ${escapeHtml(p.tenant)}</p>
+                    
+                    <div class="bg-gray-50 p-3 rounded mb-4 flex justify-between items-center">
+                        <span class="font-bold text-gray-700">₹${p.rent.toLocaleString()}</span>
+                        ${statusBadge}
                     </div>
-                </div>
-            `}).join('');
+
+                    <div class="flex gap-2">
+                        <button onclick="openHistory('${p.id}')" class="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded text-sm font-medium transition">
+                            <i class="fa-solid fa-calendar-days mr-1"></i> Manage Rent
+                        </button>
+                        <button onclick="deleteProperty('${p.id}')" class="px-3 text-gray-400 hover:text-red-500 transition">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
-        function renderTenants(properties) {
-            const list = document.getElementById('tenant-list');
-            const occupiedProps = properties.filter(p => p.status === 'Occupied');
-
-            if (occupiedProps.length === 0) {
-                list.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-400">No active tenants found.</td></tr>`;
-                return;
-            }
-
-            list.innerHTML = occupiedProps.map(prop => `
-                <tr class="border-b border-gray-200 hover:bg-gray-50">
-                    <td class="py-3 px-6 text-left whitespace-nowrap font-medium">${escapeHtml(prop.name)}</td>
-                    <td class="py-3 px-6 text-left">${escapeHtml(prop.tenant)}</td>
-                    <td class="py-3 px-6 text-center">₹${prop.rent}</td>
-                    <td class="py-3 px-6 text-center">
-                        <span class="${prop.payStatus === 'Paid' ? 'bg-green-200 text-green-700' : 'bg-orange-200 text-orange-700'} py-1 px-3 rounded-full text-xs">
-                            ${escapeHtml(prop.payStatus)}
-                        </span>
-                    </td>
+        function renderTenants(list) {
+            const tbody = document.getElementById('tenant-list');
+            const occupied = list.filter(p => p.status === 'Occupied');
+            if(!occupied.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">No tenants.</td></tr>'; return; }
+            
+            tbody.innerHTML = occupied.map(p => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-3 px-6">${escapeHtml(p.name)}</td>
+                    <td class="py-3 px-6 font-medium">${escapeHtml(p.tenant)}</td>
+                    <td class="py-3 px-6 text-center">₹${p.rent.toLocaleString()}</td>
+                    <td class="py-3 px-6 text-center text-xs text-gray-500">${escapeHtml(p.payStatus)}</td>
                 </tr>
             `).join('');
         }
 
-        function updateStats(properties) {
-            document.getElementById('total-properties').innerText = properties.length;
-            const occupied = properties.filter(p => p.status === 'Occupied').length;
-            document.getElementById('total-tenants').innerText = occupied;
-            const pendingTotal = properties
-                .filter(p => p.payStatus === 'Pending')
-                .reduce((sum, p) => sum + (Number(p.rent) || 0), 0);
-            document.getElementById('pending-rent').innerText = '₹' + pendingTotal.toLocaleString();
+        function updateStats(list) {
+            document.getElementById('total-properties').innerText = list.length;
+            document.getElementById('total-tenants').innerText = list.filter(p => p.status === 'Occupied').length;
+            
+            // Smart Pending Calculation: Counts ledger items OR falls back to general status
+            let totalPending = 0;
+            list.forEach(p => {
+                const history = p.paymentHistory || {};
+                const ledgerPendingCount = Object.values(history).filter(v => v === 'Pending').length;
+                
+                if (ledgerPendingCount > 0) {
+                    totalPending += (ledgerPendingCount * (p.rent || 0));
+                } else if (p.payStatus === 'Pending') {
+                    // Fallback for migration/simple use
+                    totalPending += (p.rent || 0);
+                }
+            });
+            document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
         }
     </script>
 </body>
