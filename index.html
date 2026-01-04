@@ -255,7 +255,7 @@
 
     <!-- FIREBASE MODULE LOGIC -->
     <script type="module">
-        // Imports MUST be at top level (not in try-catch)
+        // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -271,87 +271,87 @@
             measurementId: "G-7NF6X62CKV"
         };
 
-        try {
-            // Initialize Firebase
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            const provider = new GoogleAuthProvider();
-            console.log("✓ Firebase initialized successfully");
+        // Initialize Firebase (variables at module scope so functions can access them)
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        console.log("✓ Firebase initialized successfully");
 
-            // GLOBAL STATE
-            let currentUser = null;
-            let unsubscribe = null;
-            let allPropertiesData = [];
-            let currentLedgerPropId = null;
-            let currentLedgerYear = new Date().getFullYear();
+        // GLOBAL STATE
+        let currentUser = null;
+        let unsubscribe = null;
+        let allPropertiesData = [];
+        let currentLedgerPropId = null;
+        let currentLedgerYear = new Date().getFullYear();
 
-            // AUTH - Expose to window (CRITICAL for onclick handlers)
-            window.loginWithGoogle = async () => {
-                console.log("loginWithGoogle clicked");
-                const errorMsg = document.getElementById('login-error');
-                errorMsg.classList.add('hidden');
-                try {
-                    const result = await signInWithPopup(auth, provider);
-                    console.log("✓ Sign-in successful:", result.user.email);
-                } catch (error) {
-                    console.error("❌ Login failed:", error);
-                    let message = "Login failed: " + error.message;
-                    if (error.code === 'auth/unauthorized-domain') {
-                        const domain = window.location.hostname;
-                        message = `⚠️ Domain Unauthorized: "${domain}"\n\nAdd this domain to Firebase Console:\n1. Go to Firebase Console\n2. Authentication → Settings\n3. Authorized Domains → Add Domain\n4. Enter: ${domain}`;
-                    }
-                    errorMsg.innerText = message;
-                    errorMsg.classList.remove('hidden');
+        // AUTH FUNCTIONS - Expose to window
+        window.loginWithGoogle = async () => {
+            console.log("✓ loginWithGoogle clicked");
+            const errorMsg = document.getElementById('login-error');
+            errorMsg.classList.add('hidden');
+            try {
+                const result = await signInWithPopup(auth, provider);
+                console.log("✓ Sign-in successful:", result.user.email);
+            } catch (error) {
+                console.error("❌ Login failed:", error);
+                let message = "Login failed: " + error.message;
+                if (error.code === 'auth/unauthorized-domain') {
+                    const domain = window.location.hostname;
+                    message = `⚠️ Domain Unauthorized: "${domain}"\n\nAdd to Firebase:\n1. Console → Authentication\n2. Settings → Authorized Domains\n3. Add: ${domain}`;
                 }
-            };
+                errorMsg.innerText = message;
+                errorMsg.classList.remove('hidden');
+            }
+        };
 
-            window.logout = async () => {
-                console.log("logout clicked");
-                if (unsubscribe) unsubscribe(); 
-                await signOut(auth);
-                window.location.reload(); 
-            };
+        window.logout = async () => {
+            console.log("✓ logout clicked");
+            if (unsubscribe) unsubscribe();
+            await signOut(auth);
+            window.location.reload();
+        };
 
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    currentUser = user;
-                    console.log("✓ User signed in:", user.email);
-                    document.getElementById('user-name').innerText = user.displayName;
-                    let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
-                    document.getElementById('user-photo').src = photoURL;
-                    document.getElementById('login-screen').classList.add('hidden-section');
-                    document.getElementById('app-content').classList.remove('hidden-section');
-                    initDataListener();
-                } else {
-                    console.log("User signed out");
-                    document.getElementById('login-screen').classList.remove('hidden-section');
-                    document.getElementById('app-content').classList.add('hidden-section');
+        // Auth State Listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("✓ User signed in:", user.email);
+                document.getElementById('user-name').innerText = user.displayName || 'User';
+                let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
+                document.getElementById('user-photo').src = photoURL;
+                document.getElementById('login-screen').classList.add('hidden-section');
+                document.getElementById('app-content').classList.remove('hidden-section');
+                initDataListener();
+            } else {
+                console.log("✓ User signed out");
+                document.getElementById('login-screen').classList.remove('hidden-section');
+                document.getElementById('app-content').classList.add('hidden-section');
+            }
+        });
+
+        // DATA LISTENER
+        function initDataListener() {
+            const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                allPropertiesData = [];
+                snapshot.forEach((doc) => {
+                    allPropertiesData.push({ id: doc.id, ...doc.data() });
+                });
+                window.applyFilters();
+            }, (error) => {
+                console.error("Data fetch error:", error);
+                if (error.code === 'permission-denied') {
+                    alert("Permission denied. Database rules might not be set to public/test mode.");
                 }
             });
+        }
 
-            // DATA LISTENER
-            function initDataListener() {
-                const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
-                unsubscribe = onSnapshot(q, (snapshot) => {
-                    allPropertiesData = [];
-                    snapshot.forEach((doc) => {
-                        allPropertiesData.push({ id: doc.id, ...doc.data() });
-                    });
-                    window.applyFilters();
-                }, (error) => {
-                    console.error("Data fetch error:", error);
-                    if (error.code === 'permission-denied') {
-                        alert("Permission denied. Database rules might not be set to public/test mode.");
-                    }
-                });
-            }
-
-            // RENDER & LOGIC
-            window.applyFilters = () => {
-                const searchText = document.getElementById('searchInput').value.toLowerCase();
-                const filterStatus = document.getElementById('filterStatus').value;
-                const filterPayment = document.getElementById('filterPayment').value;
+        // RENDER & LOGIC
+        window.applyFilters = () => {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const filterStatus = document.getElementById('filterStatus').value;
+            const filterPayment = document.getElementById('filterPayment').value;
 
             const filteredData = allPropertiesData.filter(prop => {
                 const matchesSearch = (prop.name.toLowerCase().includes(searchText) || prop.tenant.toLowerCase().includes(searchText));
@@ -363,7 +363,7 @@
             renderProperties(filteredData);
             renderTenants(filteredData);
             updateStats(allPropertiesData);
-        }
+        };
 
         // RENT HISTORY LOGIC
         window.openHistory = (propId) => {
@@ -372,17 +372,17 @@
             document.getElementById('history-title').innerText = prop.name;
             document.getElementById('history-subtitle').innerText = `Rent: ₹${prop.rent}/month | Tenant: ${prop.tenant}`;
             document.getElementById('historyModal').classList.remove('hidden');
-            renderLedger();
-        }
+            window.renderLedger();
+        };
 
         window.closeHistoryModal = () => {
             document.getElementById('historyModal').classList.add('hidden');
-        }
+        };
 
         window.changeLedgerYear = (delta) => {
             currentLedgerYear += delta;
-            renderLedger();
-        }
+            window.renderLedger();
+        };
 
         window.renderLedger = () => {
             document.getElementById('ledger-year').innerText = currentLedgerYear;
@@ -411,10 +411,10 @@
                 const div = document.createElement('div');
                 div.className = `month-box p-3 rounded-lg cursor-pointer text-center font-semibold text-sm select-none ${btnClass}`;
                 div.innerHTML = `<div>${month}</div><div class="text-xs font-normal mt-1">${icon}${status === 'None' ? '-' : status}</div>`;
-                div.onclick = () => togglePaymentStatus(key, status);
+                div.onclick = () => window.togglePaymentStatus(key, status);
                 grid.appendChild(div);
             });
-        }
+        };
 
         window.togglePaymentStatus = async (key, currentStatus) => {
             let newStatus = 'Pending';
@@ -425,8 +425,7 @@
             const updatePayload = {};
             
             if (newStatus === 'None') {
-                 // In a real app we'd delete the field, but setting to null works for our check
-                 updatePayload[`paymentHistory.${key}`] = null; 
+                updatePayload[`paymentHistory.${key}`] = null; 
             } else {
                 updatePayload[`paymentHistory.${key}`] = newStatus;
             }
@@ -437,7 +436,7 @@
                 console.error("Update failed", e);
                 alert("Failed to update status: " + e.message);
             }
-        }
+        };
 
         // CSV EXPORT
         window.exportToCSV = () => {
@@ -448,20 +447,18 @@
             link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
             link.download = "rent_data.csv";
             link.click();
-        }
+        };
 
         // UI HELPERS
         window.toggleModal = (modalId) => {
             const modal = document.getElementById(modalId);
             if (modal.classList.contains('hidden')) {
-                // Open: save focus, show modal, set ARIA, focus first element
                 modal.dataset.previousFocus = document.activeElement?.id || '';
                 modal.classList.remove('hidden');
                 modal.setAttribute('aria-hidden', 'false');
                 const focusables = modal.querySelectorAll('input, select, textarea, button:not([disabled])');
                 if (focusables.length) focusables[0].focus();
             } else {
-                // Close: hide modal, restore focus, reset ARIA
                 modal.classList.add('hidden');
                 modal.setAttribute('aria-hidden', 'true');
                 if (modal.dataset.previousFocus) {
@@ -474,7 +471,7 @@
         window.toggleTenantInput = () => {
             const show = document.getElementById('propStatus').value === 'Occupied';
             document.getElementById('tenantInputGroup').classList.toggle('hidden', !show);
-        }
+        };
 
         // ADD PROPERTY
         const formElement = document.getElementById('addPropertyForm');
@@ -534,9 +531,9 @@
                     alert("Failed to delete: " + error.message);
                 }
             }
-        }
+        };
 
-        // RENDER
+        // RENDER HELPERS
         function escapeHtml(text) { 
             return (text || "").toString()
                 .replace(/&/g, "&amp;")
@@ -551,13 +548,12 @@
             if (!list.length) { grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No properties found.</p>'; return; }
 
             grid.innerHTML = list.map(p => {
-                // Determine display status: Use ledger if available for current month, else fallback to main status
                 const history = p.paymentHistory || {};
                 const currentMonthKey = `${new Date().getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][new Date().getMonth()]}`;
                 
-                let displayStatus = p.payStatus; // Default to main status
+                let displayStatus = p.payStatus;
                 if (history[currentMonthKey]) {
-                    displayStatus = history[currentMonthKey]; // Override with ledger if exists
+                    displayStatus = history[currentMonthKey];
                 }
 
                 let statusBadge = displayStatus === 'Paid' ? '<span class="text-green-600 font-bold text-xs"><i class="fa-solid fa-check-circle"></i> Paid</span>' 
@@ -578,10 +574,10 @@
                     </div>
 
                     <div class="flex gap-2">
-                        <button onclick="openHistory('${p.id}')" class="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded text-sm font-medium transition">
+                        <button onclick="window.openHistory('${p.id}')" class="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 py-2 rounded text-sm font-medium transition">
                             <i class="fa-solid fa-calendar-days mr-1"></i> Manage Rent
                         </button>
-                        <button onclick="deleteProperty('${p.id}')" class="px-3 text-gray-400 hover:text-red-500 transition">
+                        <button onclick="window.deleteProperty('${p.id}')" class="px-3 text-gray-400 hover:text-red-500 transition">
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
@@ -608,7 +604,6 @@
             document.getElementById('total-properties').innerText = list.length;
             document.getElementById('total-tenants').innerText = list.filter(p => p.status === 'Occupied').length;
             
-            // Smart Pending Calculation: Counts ledger items OR falls back to general status
             let totalPending = 0;
             list.forEach(p => {
                 const history = p.paymentHistory || {};
@@ -617,19 +612,12 @@
                 if (ledgerPendingCount > 0) {
                     totalPending += (ledgerPendingCount * (p.rent || 0));
                 } else if (p.payStatus === 'Pending') {
-                    // Fallback for migration/simple use
                     totalPending += (p.rent || 0);
                 }
             });
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
-            }
-        } catch (err) {
-            console.error("❌ FATAL ERROR during module initialization:", err);
-            alert("Error: Module failed to load. Check console for details.\n\n" + err.message);
-            document.getElementById('login-error').innerText = "System Error: " + err.message;
-            document.getElementById('login-error').classList.remove('hidden');
         }
-        }
+
     </script>
 </body>
 </html>
