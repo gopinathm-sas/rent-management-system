@@ -59,6 +59,7 @@
                 <div class="flex items-center space-x-4">
                     <div class="hidden md:flex space-x-4 text-sm font-medium">
                         <a href="#" onclick="showSection('dashboard')" class="hover:text-blue-200 transition cursor-pointer">Dashboard</a>
+                        <a href="#" onclick="showSection('rent-details')" class="hover:text-blue-200 transition cursor-pointer">Rent Details</a>
                         <a href="#" onclick="showSection('rooms')" class="hover:text-blue-200 transition cursor-pointer">Rooms</a>
                         <a href="#" onclick="showSection('tenants')" class="hover:text-blue-200 transition cursor-pointer">Tenants</a>
                     </div>
@@ -120,10 +121,10 @@
                 <div class="mt-8 overflow-auto bg-white rounded-lg p-4 shadow">
                     <h3 class="text-lg font-semibold mb-2">Tenants Details</h3>
                     <p class="text-sm text-gray-500 mb-4">Edit the fields and click <strong>Save</strong> to persist. Rows reflect in other pages by Room ID / Room No.</p>
-                    <div style="width: 100%; max-height: 600px; overflow-y: auto; overflow-x: hidden;">
+                    <div style="width: 100%; max-height: 600px; overflow-y: auto; overflow-x: auto;">
                         <table id="dashboard-table" class="text-xs w-full" style="width: 100%; table-layout: fixed;">
                             <thead class="bg-gray-100 text-gray-600 uppercase sticky top-0">
-                                <tr>
+                                <tr>"
                                     <th class="py-2 px-2 text-left">Room No</th>
                                     <th class="py-2 px-2 text-left">Room ID</th>
                                     <th class="py-2 px-2 text-left">Key No</th>
@@ -345,8 +346,34 @@
                 </div>
             </section>
 
+            <!-- Rent Details Section (before Rooms) -->
+            <section id="rent-details" class="section-tab mb-10">
+                <h2 class="text-2xl font-bold mb-6 text-gray-700">Rent Details</h2>
+                <p class="text-gray-500 mb-6">View and manage tenant rent payouts by year and month</p>
+                
+                <!-- Tenant Selector -->
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold mb-2">Select Tenant</label>
+                    <select id="rentDetailsSelect" onchange="loadRentDetails()" class="w-full md:w-80 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">-- Choose a Tenant --</option>
+                    </select>
+                </div>
+
+                <!-- Rent Details Grid (Year + Month) -->
+                <div id="rentDetailsContent" class="bg-white rounded-lg shadow p-6">
+                    <p class="text-gray-400 text-center py-10">Select a tenant to view rent details</p>
+                </div>
+            </section>
 
         </main>
+
+        <!-- Floating Left-Side Button for Rent Details (25% from top) -->
+        <button onclick="showSection('rent-details')" 
+            class="fixed left-6 text-white bg-purple-600 hover:bg-purple-700 rounded-full w-16 h-16 flex items-center justify-center shadow-lg transition z-30" 
+            style="top: 25%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"
+            title="View Rent Details">
+            <i class="fa-solid fa-receipt text-xl"></i>
+        </button>
     </div>
 
     <!-- Add Room Modal -->
@@ -654,7 +681,7 @@
         // CSV EXPORT
         window.exportToCSV = () => {
             if (allPropertiesData.length === 0) { alert("No data"); return; }
-            let csv = "Property,Tenant,Rent,Status,Payment Status\n";
+            let csv = "Room,Tenant,Rent,Status,Payment Status\n";
             allPropertiesData.forEach(p => csv += `"${p.name}","${p.tenant}",${p.rent},${p.status},${p.payStatus}\n`);
             const link = document.createElement("a");
             link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
@@ -703,7 +730,7 @@
                 const tName = document.getElementById('tenantName').value.trim();
                 const tenant = (status === 'Occupied' && tName) ? tName : (status === 'Occupied' ? 'Assigned' : 'None');
 
-                if (!name) { alert("Property Name is required"); return; }
+                if (!name) { alert("Room No/Address is required"); return; }
                 if (isNaN(rent) || rent <= 0) { alert("Invalid Rent Amount"); return; }
 
                 btnText.innerText = "Saving...";
@@ -723,7 +750,7 @@
                     console.error("Add failed", err);
                     alert("Error saving: " + err.message);
                 } finally {
-                    btnText.innerText = "Save Property";
+                    btnText.innerText = "Save Room";
                     btnLoader.classList.add('hidden');
                 }
             });
@@ -746,7 +773,7 @@
             }
         };
 
-        // SAVE DASHBOARD ROW (Persist room metadata to Firestore)
+        // SAVE DASHBOARD ROW (Persist room metadata to Firestore) and sync to properties
         window.saveDashboardRow = async (rowIndex) => {
             if (!currentUser) {
                 alert("Please login first");
@@ -765,7 +792,7 @@
             const deposit = document.getElementById(`row-${rowIndex}-deposit`).value ? parseFloat(document.getElementById(`row-${rowIndex}-deposit`).value) : 0;
             const relocate = document.getElementById(`row-${rowIndex}-relocate`).value;
 
-            // Validate: Room ID must be present and unique
+            // Validate: Room ID and Room No must be present
             if (!roomId) {
                 alert("Room ID is required");
                 return;
@@ -774,12 +801,6 @@
                 alert("Room No is required");
                 return;
             }
-
-            // Check for duplicate Room ID (excluding current row)
-            const isDuplicate = allPropertiesData.some(prop => {
-                const propRoomId = prop.roomId || prop.id;
-                return propRoomId === roomId && prop.id !== roomId; // Basic check
-            });
 
             // Prepare room metadata document
             const roomMetadata = {
@@ -798,18 +819,36 @@
             };
 
             try {
-                // Store/update in a "rooms" collection keyed by roomId for persistence
+                // Store/update in the "rooms" collection keyed by roomId
                 const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
                 const roomRef = doc(db, "rooms", roomId);
-                
-                // setDoc with merge: true creates doc if not exists, or merges if exists
                 await setDoc(roomRef, roomMetadata, { merge: true });
 
-                // Show success message
+                // Attempt to sync into the main "properties" collection when a matching property exists
+                const matched = allPropertiesData.find(p => (p.roomId === roomId) || (p.id === roomId) || (p.name === roomNo));
+                if (matched) {
+                    try {
+                        const propRef = doc(db, "properties", matched.id);
+                        await updateDoc(propRef, {
+                            tenant: tenantName || matched.tenant || 'None',
+                            rent: rent || matched.rent || 0,
+                            contact: contact || matched.contact || '',
+                            deposit: deposit || matched.deposit || 0,
+                            roomNo,
+                            roomId,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser.uid
+                        });
+                        console.log(`✓ Synced room metadata to property ${matched.id}`);
+                    } catch (syncErr) {
+                        console.warn("⚠️ Failed to sync to properties collection:", syncErr);
+                    }
+                }
+
                 alert(`✓ Room ${roomId} saved successfully!`);
                 console.log(`✓ Saved dashboard row ${rowIndex} with roomId: ${roomId}`);
 
-                // Trigger data refresh (optional: reload properties from Firestore)
+                // Refresh views
                 window.applyFilters();
             } catch (error) {
                 console.error("Save failed:", error);
@@ -902,6 +941,135 @@
             });
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
         }
+
+        // RENT DETAILS FUNCTIONS
+        function populateRentDetailsSelect() {
+            const select = document.getElementById('rentDetailsSelect');
+            select.innerHTML = '<option value="">-- Choose a Tenant --</option>';
+            
+            // Filter occupied properties (those with tenants)
+            const occupied = allPropertiesData.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
+            
+            occupied.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = `${escapeHtml(p.tenant)} - ${escapeHtml(p.name)} (₹${p.rent})`;
+                select.appendChild(option);
+            });
+        }
+
+        window.loadRentDetails = () => {
+            const select = document.getElementById('rentDetailsSelect');
+            const propId = select.value;
+            
+            if (!propId) {
+                document.getElementById('rentDetailsContent').innerHTML = '<p class="text-gray-400 text-center py-10">Select a tenant to view rent details</p>';
+                return;
+            }
+
+            const prop = allPropertiesData.find(p => p.id === propId);
+            if (!prop) return;
+
+            renderRentDetailsGrid(prop);
+        };
+
+        function renderRentDetailsGrid(prop) {
+            const history = prop.paymentHistory || {};
+            const currentYear = new Date().getFullYear();
+            const years = [currentYear - 1, currentYear, currentYear + 1];
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            
+            let html = `
+                <div class="mb-6 bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                    <p class="text-gray-700"><strong>Tenant:</strong> ${escapeHtml(prop.tenant)}</p>
+                    <p class="text-gray-700"><strong>Room:</strong> ${escapeHtml(prop.name)}</p>
+                    <p class="text-gray-700"><strong>Monthly Rent:</strong> ₹${prop.rent.toLocaleString()}</p>
+                </div>
+
+                <div class="space-y-8">
+            `;
+
+            // For each year, create a grid of months
+            years.forEach(year => {
+                html += `
+                    <div class="border rounded-lg p-5 bg-gray-50">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">${year}</h3>
+                        <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+                `;
+
+                months.forEach(month => {
+                    const key = `${year}-${month}`;
+                    const status = history[key] || 'None';
+                    
+                    let boxClass = "bg-gray-200 text-gray-600";
+                    let icon = "-";
+                    
+                    if (status === 'Pending') {
+                        boxClass = "bg-red-100 text-red-700 border-2 border-red-400";
+                        icon = '<i class="fa-solid fa-hourglass-end"></i>';
+                    } else if (status === 'Paid') {
+                        boxClass = "bg-green-100 text-green-700 border-2 border-green-400";
+                        icon = '<i class="fa-solid fa-check-circle"></i>';
+                    }
+
+                    html += `
+                        <div class="p-3 rounded-lg text-center font-semibold text-sm ${boxClass} cursor-pointer hover:shadow-md transition"
+                             onclick="toggleRentStatus('${prop.id}', '${key}', '${status}')">
+                            <div class="mb-1">${month}</div>
+                            <div class="text-xs">${icon}</div>
+                            <div class="text-xs mt-1 font-normal">${status === 'None' ? '-' : status}</div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                </div>
+                <div class="mt-6 text-xs text-gray-400 flex justify-center gap-6">
+                    <span><i class="fa-solid fa-circle text-gray-200 mr-2"></i> No Record</span>
+                    <span><i class="fa-solid fa-circle text-red-400 mr-2"></i> Pending</span>
+                    <span><i class="fa-solid fa-circle text-green-400 mr-2"></i> Paid</span>
+                </div>
+            `;
+
+            document.getElementById('rentDetailsContent').innerHTML = html;
+        }
+
+        window.toggleRentStatus = async (propId, key, currentStatus) => {
+            let newStatus = 'Pending';
+            if (currentStatus === 'Pending') newStatus = 'Paid';
+            else if (currentStatus === 'Paid') newStatus = 'None';
+
+            const propRef = doc(db, "properties", propId);
+            const updatePayload = {};
+            
+            if (newStatus === 'None') {
+                updatePayload[`paymentHistory.${key}`] = null; 
+            } else {
+                updatePayload[`paymentHistory.${key}`] = newStatus;
+            }
+
+            try {
+                await updateDoc(propRef, updatePayload);
+                console.log(`✓ Updated ${key} to ${newStatus}`);
+                window.loadRentDetails(); // Refresh the grid
+            } catch (e) {
+                console.error("Update failed", e);
+                alert("Failed to update status: " + e.message);
+            }
+        };
+
+        // Update applyFilters to also populate Rent Details select
+        const originalApplyFilters = window.applyFilters;
+        window.applyFilters = function() {
+            originalApplyFilters();
+            populateRentDetailsSelect();
+        };
 
     </script>
 </body>

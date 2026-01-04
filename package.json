@@ -1,0 +1,27 @@
+{
+  "name": "my-new-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "delete_collections.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gopinathm-sas/rent-management-system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gopinathm-sas/rent-management-system/issues"
+  },
+  "homepage": "https://github.com/gopinathm-sas/rent-management-system#readme",
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
+  }
+}
