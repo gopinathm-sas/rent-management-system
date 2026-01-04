@@ -12,6 +12,9 @@
         /* Custom smooth scrolling */
         html { scroll-behavior: smooth; }
         .hidden-section { display: none !important; }
+        /* Section Tab Visibility */
+        .section-tab { display: none !important; }
+        .section-tab.active { display: block !important; }
         /* Ledger Grid Transition */
         .month-box { transition: all 0.2s ease; }
         .month-box:active { transform: scale(0.95); }
@@ -49,9 +52,9 @@
                 
                 <div class="flex items-center space-x-4">
                     <div class="hidden md:flex space-x-4 text-sm font-medium">
-                        <a href="#dashboard" class="hover:text-blue-200 transition">Dashboard</a>
-                        <a href="#properties" class="hover:text-blue-200 transition">Rooms</a>
-                        <a href="#tenants" class="hover:text-blue-200 transition">Tenants</a>
+                        <a href="#" onclick="showSection('dashboard')" class="hover:text-blue-200 transition cursor-pointer">Dashboard</a>
+                        <a href="#" onclick="showSection('rooms')" class="hover:text-blue-200 transition cursor-pointer">Rooms</a>
+                        <a href="#" onclick="showSection('tenants')" class="hover:text-blue-200 transition cursor-pointer">Tenants</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -69,7 +72,7 @@
         <main class="container mx-auto px-4 py-8">
             
             <!-- Dashboard Summary -->
-            <section id="dashboard" class="mb-10">
+            <section id="dashboard" class="section-tab active mb-10">
                 <h2 class="text-2xl font-bold mb-4 text-gray-700">Dashboard Overview</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Card 1 -->
@@ -107,7 +110,7 @@
             </section>
 
             <!-- Rooms Section -->
-            <section id="properties" class="mb-10">
+            <section id="rooms" class="section-tab mb-10">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <h2 class="text-2xl font-bold text-gray-700">Rooms</h2>
                     
@@ -153,7 +156,7 @@
             </section>
 
             <!-- Tenants Section -->
-            <section id="tenants" class="mb-10">
+            <section id="tenants" class="section-tab mb-10">
                 <h2 class="text-2xl font-bold text-gray-700 mb-4">Tenants Directory</h2>
                 <div class="bg-white rounded-lg shadow-md overflow-hidden">
                     <div class="overflow-x-auto">
@@ -304,12 +307,28 @@
                 errorMsg.classList.remove('hidden');
             }
         };
-
         window.logout = async () => {
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
             await signOut(auth);
             window.location.reload();
+        };
+
+        // SECTION NAVIGATION
+        window.showSection = (sectionName) => {
+            // Hide all sections
+            document.querySelectorAll('.section-tab').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show the selected section
+            const activeSection = document.getElementById(sectionName);
+            if (activeSection) {
+                activeSection.classList.add('active');
+            }
+            
+            console.log("✓ Showing section:", sectionName);
+        };
         };
 
         // Auth State Listener - Check Authorization
