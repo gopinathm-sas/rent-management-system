@@ -312,17 +312,42 @@
             window.location.reload();
         };
 
-        // Auth State Listener
-        onAuthStateChanged(auth, (user) => {
+        // Auth State Listener - Check Authorization
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
-                currentUser = user;
                 console.log("✓ User signed in:", user.email);
-                document.getElementById('user-name').innerText = user.displayName || 'User';
-                let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
-                document.getElementById('user-photo').src = photoURL;
-                document.getElementById('login-screen').classList.add('hidden-section');
-                document.getElementById('app-content').classList.remove('hidden-section');
-                initDataListener();
+                
+                // Check authorization against Firestore authorizedUsers collection
+                try {
+                    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+                    const authRef = doc(db, "authorizedUsers", user.email);
+                    const authSnapshot = await getDoc(authRef);
+                    
+                    if (!authSnapshot.exists()) {
+                        // User not authorized - sign them out
+                        console.error("❌ Unauthorized user:", user.email);
+                        await signOut(auth);
+                        document.getElementById('login-error').innerText = `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                        document.getElementById('login-error').classList.remove('hidden');
+                        return;
+                    }
+                    
+                    // User is authorized - proceed with login
+                    currentUser = user;
+                    console.log("✓ User authorized:", user.email);
+                    document.getElementById('user-name').innerText = user.displayName || 'User';
+                    let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
+                    document.getElementById('user-photo').src = photoURL;
+                    document.getElementById('login-screen').classList.add('hidden-section');
+                    document.getElementById('app-content').classList.remove('hidden-section');
+                    document.getElementById('login-error').classList.add('hidden');
+                    initDataListener();
+                } catch (err) {
+                    console.error("Authorization check error:", err);
+                    await signOut(auth);
+                    document.getElementById('login-error').innerText = `⚠️ System Error\n\n${err.message}\n\nPlease try again.`;
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
             } else {
                 console.log("✓ User signed out");
                 document.getElementById('login-screen').classList.remove('hidden-section');
