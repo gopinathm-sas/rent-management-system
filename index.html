@@ -635,9 +635,11 @@
                 });
                 
                 // Also load rooms collection to populate dashboard inputs
-                loadDashboardDataFromFirestore();
-                
-                window.applyFilters();
+                loadDashboardDataFromFirestore().then(() => {
+                    // After loading dashboard data, refresh all views including Rent Details
+                    console.log("✓ Dashboard data loaded, refreshing views...");
+                    window.applyFilters();
+                });
             }, (error) => {
                 console.error("Data fetch error:", error);
                 if (error.code === 'permission-denied') {
@@ -658,27 +660,35 @@
                     roomsMap[doc.id] = doc.data();
                 });
 
+                console.log(`📦 Found ${Object.keys(roomsMap).length} rooms in Firestore`);
+
                 // Populate dashboard inputs with rooms data (limit to first 12 rows)
                 let rowIndex = 0;
                 Object.entries(roomsMap).forEach(([roomId, roomData]) => {
                     if (rowIndex < 12) {
-                        document.getElementById(`row-${rowIndex}-roomNo`).value = roomData.roomNo || '';
-                        document.getElementById(`row-${rowIndex}-roomId`).value = roomData.roomId || roomId;
-                        document.getElementById(`row-${rowIndex}-keyNo`).value = roomData.keyNo || '';
-                        document.getElementById(`row-${rowIndex}-ebServNo`).value = roomData.ebServNo || '';
-                        document.getElementById(`row-${rowIndex}-ebAcNo`).value = roomData.ebAcNo || '';
-                        document.getElementById(`row-${rowIndex}-tenantName`).value = roomData.tenantName || '';
-                        document.getElementById(`row-${rowIndex}-rent`).value = roomData.rent || '';
-                        document.getElementById(`row-${rowIndex}-contact`).value = roomData.contact || '';
-                        document.getElementById(`row-${rowIndex}-deposit`).value = roomData.deposit || '';
-                        document.getElementById(`row-${rowIndex}-relocate`).value = roomData.relocate || '';
-                        rowIndex++;
+                        const row = document.getElementById(`row-${rowIndex}-roomNo`);
+                        if (row) {
+                            document.getElementById(`row-${rowIndex}-roomNo`).value = roomData.roomNo || '';
+                            document.getElementById(`row-${rowIndex}-roomId`).value = roomData.roomId || roomId;
+                            document.getElementById(`row-${rowIndex}-keyNo`).value = roomData.keyNo || '';
+                            document.getElementById(`row-${rowIndex}-ebServNo`).value = roomData.ebServNo || '';
+                            document.getElementById(`row-${rowIndex}-ebAcNo`).value = roomData.ebAcNo || '';
+                            document.getElementById(`row-${rowIndex}-tenantName`).value = roomData.tenantName || '';
+                            document.getElementById(`row-${rowIndex}-rent`).value = roomData.rent || '';
+                            document.getElementById(`row-${rowIndex}-contact`).value = roomData.contact || '';
+                            document.getElementById(`row-${rowIndex}-deposit`).value = roomData.deposit || '';
+                            document.getElementById(`row-${rowIndex}-relocate`).value = roomData.relocate || '';
+                            console.log(`✓ Loaded room ${rowIndex}: ${roomData.roomNo} (${roomData.roomId})`);
+                            rowIndex++;
+                        }
                     }
                 });
 
-                console.log(`✓ Loaded ${Object.keys(roomsMap).length} rooms from Firestore`);
+                console.log(`✓ Populated ${rowIndex} dashboard rows`);
+                return true;
             } catch (error) {
-                console.error("Error loading dashboard data:", error);
+                console.error("❌ Error loading dashboard data:", error);
+                return false;
             }
         }
 
@@ -698,6 +708,7 @@
             renderProperties(filteredData);
             renderTenants(filteredData);
             updateStats(allPropertiesData);
+            renderRentDetailsTable(); // Refresh Rent Details table when data changes
         };
 
         // RENT HISTORY LOGIC
@@ -1143,13 +1154,6 @@
                 console.error("Update failed", e);
                 alert("Failed to update status: " + e.message);
             }
-        };
-
-        // Hook into applyFilters to refresh rent details when data changes
-        const originalApplyFilters = window.applyFilters;
-        window.applyFilters = function() {
-            originalApplyFilters();
-            renderRentDetailsTable();
         };
 
     </script>
