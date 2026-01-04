@@ -255,58 +255,61 @@
 
     <!-- FIREBASE MODULE LOGIC -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        try {
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+            import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+            import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // CONFIG
-        const firebaseConfig = {
-            apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
-            authDomain: "munirathnam-illam.firebaseapp.com",
-            projectId: "munirathnam-illam",
-            storageBucket: "munirathnam-illam.firebasestorage.app",
-            messagingSenderId: "852272424128",
-            appId: "1:852272424128:web:e5400d3d2f512d7e477925",
-            measurementId: "G-7NF6X62CKV"
-        };
+            // CONFIG
+            const firebaseConfig = {
+                apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
+                authDomain: "munirathnam-illam.firebaseapp.com",
+                projectId: "munirathnam-illam",
+                storageBucket: "munirathnam-illam.firebasestorage.app",
+                messagingSenderId: "852272424128",
+                appId: "1:852272424128:web:e5400d3d2f512d7e477925",
+                measurementId: "G-7NF6X62CKV"
+            };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const provider = new GoogleAuthProvider();
+            // Initialize Firebase
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const provider = new GoogleAuthProvider();
+            console.log("✓ Firebase initialized successfully");
 
-        // GLOBAL STATE
-        let currentUser = null;
-        let unsubscribe = null;
-        let allPropertiesData = [];
-        let currentLedgerPropId = null;
-        let currentLedgerYear = new Date().getFullYear();
-        let allPropertiesData = [];
-        let currentLedgerPropId = null;
-        let currentLedgerYear = new Date().getFullYear();
+            // GLOBAL STATE
+            let currentUser = null;
+            let unsubscribe = null;
+            let allPropertiesData = [];
+            let currentLedgerPropId = null;
+            let currentLedgerYear = new Date().getFullYear();
 
-        // AUTH
-        window.loginWithGoogle = async () => {
-            const errorMsg = document.getElementById('login-error');
-            errorMsg.classList.add('hidden');
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error("Login failed", error);
-                let message = "Login failed: " + error.message;
-                if (error.code === 'auth/unauthorized-domain') {
-                    message = `⚠️ Domain Unauthorized. Add to Firebase Console -> Auth -> Settings -> Domains.`;
+            // AUTH - Expose to window (CRITICAL for onclick handlers)
+            window.loginWithGoogle = async () => {
+                console.log("loginWithGoogle clicked");
+                const errorMsg = document.getElementById('login-error');
+                errorMsg.classList.add('hidden');
+                try {
+                    await signInWithPopup(auth, provider);
+                    console.log("✓ Sign-in successful");
+                } catch (error) {
+                    console.error("❌ Login failed:", error);
+                    let message = "Login failed: " + error.message;
+                    if (error.code === 'auth/unauthorized-domain') {
+                        message = `⚠️ Domain Unauthorized. Add to Firebase Console -> Auth -> Settings -> Authorized Domains.`;
+                    }
+                    errorMsg.innerText = message;
+                    errorMsg.classList.remove('hidden');
                 }
-                errorMsg.innerText = message;
-                errorMsg.classList.remove('hidden');
-            }
-        };
+            };
 
-        window.logout = async () => {
-            if (unsubscribe) unsubscribe(); 
-            await signOut(auth);
-            window.location.reload(); 
-        };
+            window.logout = async () => {
+                console.log("logout clicked");
+                if (unsubscribe) unsubscribe(); 
+                await signOut(auth);
+                window.location.reload(); 
+            };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -615,6 +618,12 @@
                 }
             });
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
+        }
+        } catch (err) {
+            console.error("❌ FATAL ERROR during module initialization:", err);
+            alert("Error: Module failed to load. Check console for details.");
+            document.getElementById('login-error').innerText = "System Error: " + err.message;
+            document.getElementById('login-error').classList.remove('hidden');
         }
     </script>
 </body>
