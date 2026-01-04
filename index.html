@@ -121,21 +121,21 @@
                 <div class="mt-8 overflow-auto bg-white rounded-lg p-4 shadow">
                     <h3 class="text-lg font-semibold mb-2">Tenants Details</h3>
                     <p class="text-sm text-gray-500 mb-4">Edit the fields and click <strong>Save</strong> to persist. Rows reflect in other pages by Room ID / Room No.</p>
-                    <div class="overflow-x-auto">
-                        <table id="dashboard-table" class="min-w-full text-sm">
-                            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                    <div class="overflow-x-auto" style="width: 100%; max-height: 600px; overflow-y: auto;">
+                        <table id="dashboard-table" class="text-sm" style="min-width: 1400px;">
+                            <thead class="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0">
                                 <tr>
-                                    <th class="py-2 px-3 text-left">Room No</th>
-                                    <th class="py-2 px-3 text-left">Room ID</th>
-                                    <th class="py-2 px-3 text-left">Key No</th>
-                                    <th class="py-2 px-3 text-left">EB Serv No.(Meter No)</th>
-                                    <th class="py-2 px-3 text-left">EB A/C No</th>
-                                    <th class="py-2 px-3 text-left">Tenant Name</th>
-                                    <th class="py-2 px-3 text-right">Rent</th>
-                                    <th class="py-2 px-3 text-left">Contact Number</th>
-                                    <th class="py-2 px-3 text-right">Deposit Amnt</th>
-                                    <th class="py-2 px-3 text-left">Date Relocation</th>
-                                    <th class="py-2 px-3 text-center">Actions</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 120px;">Room No</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 100px;">Room ID</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 100px;">Key No</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 140px;">EB Serv No.(Meter No)</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 130px;">EB A/C No</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 150px;">Tenant Name</th>
+                                    <th class="py-2 px-3 text-right" style="min-width: 100px;">Rent</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 130px;">Contact Number</th>
+                                    <th class="py-2 px-3 text-right" style="min-width: 120px;">Deposit Amnt</th>
+                                    <th class="py-2 px-3 text-left" style="min-width: 130px;">Date Relocation</th>
+                                    <th class="py-2 px-3 text-center" style="min-width: 90px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -346,27 +346,7 @@
                 </div>
             </section>
 
-            <!-- Tenants Section -->
-            <section id="tenants" class="section-tab mb-10">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">Tenants Directory</h2>
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full bg-white">
-                            <thead class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
-                                <tr>
-                                    <th class="py-3 px-6 text-left">Room No</th>
-                                    <th class="py-3 px-6 text-left">Tenant Name</th>
-                                    <th class="py-3 px-6 text-center">Monthly Rent</th>
-                                    <th class="py-3 px-6 text-center">Current Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tenant-list" class="text-gray-600 text-sm font-light">
-                                <!-- Tenants injected via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+
         </main>
     </div>
 
