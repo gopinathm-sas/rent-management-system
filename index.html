@@ -470,43 +470,49 @@
         }
 
         // ADD PROPERTY
-        document.getElementById('addPropertyForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) return alert("Please login");
-            
-            const btnText = document.getElementById('btn-text');
-            const btnLoader = document.getElementById('btn-loader');
-            
-            const name = document.getElementById('propName').value.trim();
-            const rent = parseFloat(document.getElementById('propRent').value);
-            const status = document.getElementById('propStatus').value;
-            const payStatus = document.getElementById('payStatus').value;
-            const tName = document.getElementById('tenantName').value.trim();
-            const tenant = (status === 'Occupied' && tName) ? tName : (status === 'Occupied' ? 'Assigned' : 'None');
+        const formElement = document.getElementById('addPropertyForm');
+        if (formElement) {
+            formElement.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!currentUser) return alert("Please login");
+                
+                const btnText = document.getElementById('btn-text');
+                const btnLoader = document.getElementById('btn-loader');
+                
+                const name = document.getElementById('propName').value.trim();
+                const rent = parseFloat(document.getElementById('propRent').value);
+                const status = document.getElementById('propStatus').value;
+                const payStatus = document.getElementById('payStatus').value;
+                const tName = document.getElementById('tenantName').value.trim();
+                const tenant = (status === 'Occupied' && tName) ? tName : (status === 'Occupied' ? 'Assigned' : 'None');
 
-            if (!name) { alert("Property Name is required"); return; }
-            if (isNaN(rent) || rent <= 0) { alert("Invalid Rent Amount"); return; }
+                if (!name) { alert("Property Name is required"); return; }
+                if (isNaN(rent) || rent <= 0) { alert("Invalid Rent Amount"); return; }
 
-            btnText.innerText = "Saving...";
-            btnLoader.classList.remove('hidden');
+                btnText.innerText = "Saving...";
+                btnLoader.classList.remove('hidden');
 
-            try {
-                await addDoc(collection(db, "properties"), {
-                    name, rent, status, payStatus, tenant,
-                    createdAt: serverTimestamp(),
-                    createdBy: currentUser.uid,
-                    paymentHistory: {} 
-                });
-                e.target.reset();
-                window.toggleModal('propertyModal');
-            } catch (err) {
-                console.error("Add failed", err);
-                alert("Error saving: " + err.message);
-            } finally {
-                btnText.innerText = "Save Property";
-                btnLoader.classList.add('hidden');
-            }
-        });
+                try {
+                    await addDoc(collection(db, "properties"), {
+                        name, rent, status, payStatus, tenant,
+                        createdAt: serverTimestamp(),
+                        createdBy: currentUser.uid,
+                        paymentHistory: {} 
+                    });
+                    e.target.reset();
+                    window.toggleModal('propertyModal');
+                    window.toggleTenantInput();
+                } catch (err) {
+                    console.error("Add failed", err);
+                    alert("Error saving: " + err.message);
+                } finally {
+                    btnText.innerText = "Save Property";
+                    btnLoader.classList.add('hidden');
+                }
+            });
+        } else {
+            console.warn('addPropertyForm element not found');
+        }
 
         window.deleteProperty = async (id) => {
             if (!currentUser) {
