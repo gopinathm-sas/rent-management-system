@@ -729,7 +729,7 @@
                 showNotification(`✓ Status updated to ${newStatus}${newStatus === 'Vacant' ? ' - Tenant details archived' : ''}`, "success");
 
                 // Wait for Firestore to sync
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Refresh the modal immediately to show updated data
                 if (roomNo) {
@@ -1392,11 +1392,12 @@
                     
                     // Close modal
                     window.closeAddTenantModal();
-
-                    // Refresh views with slight delay to ensure data propagates
+                    // Refresh views with delay to ensure Firestore data fully propagates
                     setTimeout(() => {
-                        window.applyFilters();
-                    }, 500);
+                        window.generateRoomCards();
+                        window.renderRentDetailsTable();
+                        window.updateOccupancyMetrics();
+                    }, 1500);
                 } catch (err) {
                     console.error("❌ Add tenant failed", err);
                     showNotification("Error: " + err.message, "error");
