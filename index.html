@@ -687,6 +687,11 @@
                     return;
                 }
 
+                // Get the room number from immutable data for reopening modal
+                const roomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+
                 // Prepare update payload
                 const updatePayload = { status: newStatus };
 
@@ -711,11 +716,20 @@
                 console.log(`✓ Updated Room ${roomId} status to ${newStatus}`);
                 alert(`✓ Status updated to ${newStatus}${newStatus === 'Vacant' ? ' - Tenant details archived' : ''}`);
 
-                // Refresh all views - onSnapshot listener will automatically update allPropertiesData
-                setTimeout(() => {
-                    window.generateRoomCards();
-                    window.renderRentDetailsTable();
-                }, 300);
+                // Wait for Firestore to sync
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // Refresh the modal immediately to show updated data
+                if (roomNo) {
+                    window.closeRoomDetailModal();
+                    setTimeout(() => {
+                        window.openRoomDetailModal(roomNo);
+                    }, 100);
+                }
+
+                // Refresh all views
+                window.generateRoomCards();
+                window.renderRentDetailsTable();
             } catch (error) {
                 console.error("Error updating room status:", error);
                 alert("Error updating status: " + error.message);
