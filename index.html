@@ -483,8 +483,9 @@
         let allPropertiesData = [];
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
+        let roomsInitialized = false;
 
-        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (Sorted Ascending by Room No)
+        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (numbering skips 3 intentionally)
         const IMMUTABLE_ROOMS = [
             { roomNo: 1, roomId: '101', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
             { roomNo: 2, roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
@@ -502,6 +503,9 @@
 
         // Ensure 12 immutable rooms exist in Firestore
         async function initializeFixedRooms(userContext = currentUser) {
+            if (roomsInitialized) {
+                return;
+            }
             try {
                 const createdBy = (userContext && userContext.uid) ? userContext.uid : 'system';
                 const snapshot = await getDocs(collection(db, "rooms"));
@@ -522,6 +526,7 @@
                         createdBy
                     });
                 }
+                roomsInitialized = true;
                 console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${missingRooms.length}`);
             } catch (error) {
                 console.error("❌ Failed to initialize fixed rooms", error);
