@@ -2399,14 +2399,20 @@
 
                     if (occupied && status === 'Pending') {
                         cellClass = "bg-red-100 text-red-800 border-red-300";
+                        displayText = "0";
+                        title = 'Pending = 0';
+                    }
+
+                    if (occupied && status === 'Rent Only') {
+                        cellClass = "bg-purple-100 text-purple-800 border-purple-300";
                         if (Number.isFinite(rentOnlyAmount) && rentOnlyAmount > 0) {
                             const asInt = Math.round(rentOnlyAmount);
                             const isWhole = Math.abs(rentOnlyAmount - asInt) < 0.0001;
                             displayText = isWhole ? String(asInt) : rentOnlyAmount.toFixed(2);
-                            title = `Pending (Rent only) = ₹${rentOnlyAmount.toLocaleString('en-IN')}`;
+                            title = `Rent Only = ₹${rentOnlyAmount.toLocaleString('en-IN')}`;
                         } else {
                             displayText = "-";
-                            title = 'Pending, but rent not available';
+                            title = 'Rent Only, but rent not available';
                         }
                     }
 
