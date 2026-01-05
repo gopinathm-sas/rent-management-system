@@ -1622,6 +1622,14 @@
             document.getElementById('addTenantForm').reset();
 
             const waterRateEl = document.getElementById('tenantWaterRate');
+            const titleEl = document.getElementById('add-tenant-modal-title');
+            const saveBtnEl = document.getElementById('saveTenantBtn');
+
+            if (titleEl) titleEl.textContent = roomId ? 'Edit Tenant' : 'Add New Tenant';
+            if (saveBtnEl) {
+                saveBtnEl.innerHTML = `<i class="fa-solid fa-save mr-2"></i>${roomId ? 'Update Tenant' : 'Save Tenant'}`;
+            }
+
             if (waterRateEl) waterRateEl.value = String(DEFAULT_WATER_RATE);
             
             // If roomId is provided, pre-select the room
@@ -1633,8 +1641,43 @@
 
                     const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                     const existing = roomData ? findTenantForRoom(roomData) : null;
-                    const existingRate = Number(existing?.waterRate);
-                    if (waterRateEl && Number.isFinite(existingRate)) waterRateEl.value = String(existingRate);
+
+                    // Prefill all tenant fields so Edit Tenant doesn't require retyping everything
+                    if (existing) {
+                        const nameEl = document.getElementById('tenantNameInput');
+                        const contactEl = document.getElementById('tenantContact');
+                        const rentEl = document.getElementById('tenantRent');
+                        const depositEl = document.getElementById('tenantDeposit');
+                        const relocateEl = document.getElementById('tenantRelocateDate');
+
+                        if (nameEl) nameEl.value = String(existing?.tenant || '').trim();
+                        if (contactEl) contactEl.value = String(existing?.contact || '').trim();
+                        if (rentEl) rentEl.value = existing?.rent !== null && existing?.rent !== undefined ? String(existing.rent) : '';
+                        if (depositEl) depositEl.value = existing?.deposit !== null && existing?.deposit !== undefined ? String(existing.deposit) : '';
+
+                        const relocateDate = parseDateValue(existing?.relocate);
+                        if (relocateEl) {
+                            if (relocateDate) {
+                                const yyyy = relocateDate.getFullYear();
+                                const mm = String(relocateDate.getMonth() + 1).padStart(2, '0');
+                                const dd = String(relocateDate.getDate()).padStart(2, '0');
+                                relocateEl.value = `${yyyy}-${mm}-${dd}`;
+                            } else {
+                                relocateEl.value = '';
+                            }
+                        }
+
+                        const existingRate = Number(existing?.waterRate);
+                        if (waterRateEl) {
+                            if (Number.isFinite(existingRate)) waterRateEl.value = String(existingRate);
+                            else waterRateEl.value = String(getDefaultWaterRateForRoom(roomData?.roomNo));
+                        }
+                    } else if (waterRateEl) {
+                        waterRateEl.value = String(getDefaultWaterRateForRoom(roomData?.roomNo));
+                    }
+
+                    // Enable save button if form is already valid
+                    try { window.validateAddTenantForm(); } catch (e) { console.warn('⚠️ validateAddTenantForm failed:', e); }
                 }
             }
         };
