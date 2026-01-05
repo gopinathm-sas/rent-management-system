@@ -523,6 +523,11 @@
         // GENERATE 12 FIXED ROOM CARDS
         window.generateRoomCards = () => {
             const grid = document.getElementById('roomCardsGrid');
+            if (!grid) {
+                console.warn("roomCardsGrid element not found");
+                return;
+            }
+            
             const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
             
             grid.innerHTML = roomNos.map(roomNo => {
@@ -536,7 +541,38 @@
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-700';
                 
                 return `
-                    <div class=\"${bgColor} rounded-lg shadow-md border-l-4 ${borderColor} p-5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105\" onclick=\"window.openAddTenantModal('${roomData.roomId}')\">\n                        <!-- Header with Room Info -->\n                        <div class=\"flex justify-between items-start mb-3\">\n                            <div>\n                                <h4 class=\"text-lg font-bold text-gray-800\">Room ${roomData.roomNo}</h4>\n                                <p class=\"text-xs text-gray-500 mt-1\">ID: <span class=\"font-mono\">${roomData.roomId}</span></p>\n                            </div>\n                            <span class=\"px-2 py-1 rounded text-xs font-semibold ${statusColor}\">\n                                ${isOccupied ? 'Occupied' : 'Vacant'}\n                            </span>\n                        </div>\n                        \n                        <!-- Tenant Name -->\n                        <div class=\"bg-white rounded p-3 mb-3 border border-gray-200\">\n                            <p class=\"text-xs text-gray-500\">Tenant</p>\n                            <p class=\"text-sm font-semibold text-gray-800 truncate\">${tenantName}</p>\n                        </div>\n                        \n                        <!-- Room Details (Compact) -->\n                        <div class=\"grid grid-cols-2 gap-2 text-xs mb-3\">\n                            <div>\n                                <p class=\"text-gray-500\">Key No</p>\n                                <p class=\"font-semibold text-gray-700\">${roomData.keyNo}</p>\n                            </div>\n                            <div>\n                                <p class=\"text-gray-500\">EB Service</p>\n                                <p class=\"font-semibold text-gray-700\">${roomData.ebServNo}</p>\n                            </div>\n                        </div>\n                        \n                        <!-- Action Button -->\n                        <button onclick=\"window.openAddTenantModal('${roomData.roomId}'); event.stopPropagation();\" class=\"w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded font-semibold transition\">\n                            ${isOccupied ? 'Edit Tenant' : 'Add Tenant'}\n                        </button>\n                    </div>\n                `;
+                    <div class="${bgColor} rounded-lg shadow-md border-l-4 ${borderColor} p-5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105" onclick="window.openAddTenantModal('${roomData.roomId}')">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="text-lg font-bold text-gray-800">Room ${roomData.roomNo}</h4>
+                                <p class="text-xs text-gray-500 mt-1">ID: <span class="font-mono">${roomData.roomId}</span></p>
+                            </div>
+                            <span class="px-2 py-1 rounded text-xs font-semibold ${statusColor}">
+                                ${isOccupied ? 'Occupied' : 'Vacant'}
+                            </span>
+                        </div>
+                        
+                        <div class="bg-white rounded p-3 mb-3 border border-gray-200">
+                            <p class="text-xs text-gray-500">Tenant</p>
+                            <p class="text-sm font-semibold text-gray-800 truncate">${tenantName}</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+                            <div>
+                                <p class="text-gray-500">Key No</p>
+                                <p class="font-semibold text-gray-700">${roomData.keyNo}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">EB Service</p>
+                                <p class="font-semibold text-gray-700">${roomData.ebServNo}</p>
+                            </div>
+                        </div>
+                        
+                        <button onclick="window.openAddTenantModal('${roomData.roomId}'); event.stopPropagation();" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded font-semibold transition">
+                            ${isOccupied ? 'Edit Tenant' : 'Add Tenant'}
+                        </button>
+                    </div>
+                `;
             }).join('');
         };
 
@@ -558,10 +594,15 @@
                 }
             });
             
-            document.getElementById('occupied-count').innerText = occupiedCount;
-            document.getElementById('vacant-count').innerText = vacantCount;
-            document.getElementById('occupancy-rate').innerText = occupancyRate + '%';
-            document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
+            const occupiedEl = document.getElementById('occupied-count');
+            const vacantEl = document.getElementById('vacant-count');
+            const rateEl = document.getElementById('occupancy-rate');
+            const pendingEl = document.getElementById('pending-rent');
+            
+            if (occupiedEl) occupiedEl.innerText = occupiedCount;
+            if (vacantEl) vacantEl.innerText = vacantCount;
+            if (rateEl) rateEl.innerText = occupancyRate + '%';
+            if (pendingEl) pendingEl.innerText = '₹' + totalPending.toLocaleString();
         };
 
         // AUTH FUNCTIONS - Expose to window
@@ -1014,24 +1055,36 @@
 
         // FORM VALIDATION FOR MANDATORY FIELDS
         window.validateAddTenantForm = () => {
-            const roomSelector = document.getElementById('roomSelector').value;
-            const tenantName = document.getElementById('tenantNameInput').value.trim();
-            const contact = document.getElementById('tenantContact').value.trim();
-            const rent = document.getElementById('tenantRent').value;
-            const deposit = document.getElementById('tenantDeposit').value;
-            const relocateDate = document.getElementById('tenantRelocateDate').value;
+            const roomSelectorEl = document.getElementById('roomSelector');
+            const tenantNameEl = document.getElementById('tenantNameInput');
+            const contactEl = document.getElementById('tenantContact');
+            const rentEl = document.getElementById('tenantRent');
+            const depositEl = document.getElementById('tenantDeposit');
+            const relocateDateEl = document.getElementById('tenantRelocateDate');
+            const saveBtnEl = document.getElementById('saveTenantBtn');
+            
+            if (!saveBtnEl) {
+                console.warn("saveTenantBtn not found");
+                return;
+            }
+            
+            const roomSelector = roomSelectorEl?.value || '';
+            const tenantName = tenantNameEl?.value.trim() || '';
+            const contact = contactEl?.value.trim() || '';
+            const rent = rentEl?.value || '';
+            const deposit = depositEl?.value || '';
+            const relocateDate = relocateDateEl?.value || '';
 
             const isValid = roomSelector && tenantName && contact && rent && deposit && relocateDate;
             
-            const saveBtn = document.getElementById('saveTenantBtn');
             if (isValid) {
-                saveBtn.disabled = false;
-                saveBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                saveBtnEl.disabled = false;
+                saveBtnEl.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                saveBtnEl.classList.add('bg-blue-600', 'hover:bg-blue-700');
             } else {
-                saveBtn.disabled = true;
-                saveBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
-                saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                saveBtnEl.disabled = true;
+                saveBtnEl.classList.add('bg-gray-400', 'cursor-not-allowed');
+                saveBtnEl.classList.remove('bg-blue-600', 'hover:bg-blue-700');
             }
         };
 
@@ -1102,12 +1155,19 @@
             });
 
             // Add event listeners to mandatory fields for form validation
-            document.getElementById('roomSelector').addEventListener('change', window.validateAddTenantForm);
-            document.getElementById('tenantNameInput').addEventListener('input', window.validateAddTenantForm);
-            document.getElementById('tenantContact').addEventListener('input', window.validateAddTenantForm);
-            document.getElementById('tenantRent').addEventListener('input', window.validateAddTenantForm);
-            document.getElementById('tenantDeposit').addEventListener('input', window.validateAddTenantForm);
-            document.getElementById('tenantRelocateDate').addEventListener('change', window.validateAddTenantForm);
+            const roomSelector = document.getElementById('roomSelector');
+            const tenantName = document.getElementById('tenantNameInput');
+            const tenantContact = document.getElementById('tenantContact');
+            const tenantRent = document.getElementById('tenantRent');
+            const tenantDeposit = document.getElementById('tenantDeposit');
+            const relocateDate = document.getElementById('tenantRelocateDate');
+            
+            if (roomSelector) roomSelector.addEventListener('change', window.validateAddTenantForm);
+            if (tenantName) tenantName.addEventListener('input', window.validateAddTenantForm);
+            if (tenantContact) tenantContact.addEventListener('input', window.validateAddTenantForm);
+            if (tenantRent) tenantRent.addEventListener('input', window.validateAddTenantForm);
+            if (tenantDeposit) tenantDeposit.addEventListener('input', window.validateAddTenantForm);
+            if (relocateDate) relocateDate.addEventListener('change', window.validateAddTenantForm);
         }
 
         // ADD PROPERTY
