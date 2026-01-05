@@ -437,6 +437,11 @@
                         <label class="block text-gray-700 font-semibold mb-2">Date of Relocation <span class="text-red-500">*</span></label>
                         <input type="date" id="tenantRelocateDate" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Last Rent Revision Date</label>
+                        <input type="date" id="tenantLastRevisionDate" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Set when rent is revised; used for next 1-year trigger.</p>
+                    </div>
                 </div>
                 <div class="flex justify-end gap-3 mt-6 border-t pt-4">
                     <button type="button" onclick="closeAddTenantModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
@@ -603,6 +608,48 @@
             return anniversary;
         }
 
+        function formatDateForInput(date) {
+            const d = date instanceof Date ? date : parseDateValue(date);
+            if (!d) return '';
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function formatDateForDisplay(date, fallback = 'N/A') {
+            const d = date instanceof Date ? date : parseDateValue(date);
+            return d ? d.toLocaleDateString('en-IN') : fallback;
+        }
+
+        function addYears(date, years = 1) {
+            const d = date instanceof Date ? date : parseDateValue(date);
+            if (!d) return null;
+            const out = new Date(d);
+            out.setHours(0, 0, 0, 0);
+            out.setFullYear(out.getFullYear() + years);
+            return out;
+        }
+
+        // Rent revision is considered due 1 year after last revision date.
+        // If last revision is missing, fallback to relocation date.
+        function getRentRevisionDates(tenantData, today = new Date()) {
+            const t = tenantData || {};
+            const relocateDate = parseDateValue(t.relocate);
+            const lastRevisionDate = parseDateValue(t.lastRentRevisionAt);
+            const base = lastRevisionDate || relocateDate;
+
+            const normalizedToday = new Date(today);
+            normalizedToday.setHours(0, 0, 0, 0);
+
+            const nextDue = base ? addYears(base, 1) : null;
+            const daysTo = nextDue
+                ? Math.round((nextDue.getTime() - normalizedToday.getTime()) / (1000 * 60 * 60 * 24))
+                : null;
+
+            return { relocateDate, lastRevisionDate, nextDue, daysTo };
+        }
+
         // GLOBAL STATE
         let currentUser = null;
         let unsubscribe = null;
@@ -754,6 +801,10 @@
                 
                 const isOccupied = isOccupiedRecord(tenantData);
                 const tenantName = tenantData?.tenant || 'No Tenant';
+                const revisionInfo = isOccupied ? getRentRevisionDates(tenantData) : null;
+                const lastRevisionLabel = revisionInfo?.lastRevisionDate ? formatDateForDisplay(revisionInfo.lastRevisionDate, '-') : '-';
+                const showRevisionPending = isOccupied && revisionInfo?.daysTo !== null && revisionInfo?.daysTo !== undefined && revisionInfo.daysTo <= 0;
+                const revisionPendingBadge = showRevisionPending ? `<span class="ml-2 text-xs font-bold text-red-600">Revision Pending</span>` : '';
                 const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
                 const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
@@ -774,6 +825,7 @@
                             <p class="text-base text-gray-700 font-semibold truncate" title="${tenantName}">
                                 <i class="fa-solid fa-user mr-2 text-blue-600"></i>${tenantName}
                             </p>
+                            <p class="text-xs text-gray-500 mt-2">Last revision: <span class="font-semibold text-gray-700">${lastRevisionLabel}</span>${revisionPendingBadge}</p>
                         </div>
                     </div>
                 `;
@@ -794,7 +846,18 @@
             const contact = tenantData?.contact || 'N/A';
             const rent = tenantData?.rent || 'N/A';
             const deposit = tenantData?.deposit || 'N/A';
-            const relocate = tenantData?.relocate || 'N/A';
+            const revisionInfo = isOccupied ? getRentRevisionDates(tenantData) : null;
+            const relocateDate = revisionInfo?.relocateDate || parseDateValue(tenantData?.relocate);
+            const lastRevisionDate = revisionInfo?.lastRevisionDate || parseDateValue(tenantData?.lastRentRevisionAt);
+            const nextDue = revisionInfo?.nextDue || null;
+            const daysTo = revisionInfo?.daysTo;
+            const revisionStatus = (isOccupied && daysTo !== null && daysTo !== undefined)
+                ? (daysTo < 0
+                    ? `Overdue by ${Math.abs(daysTo)} day${Math.abs(daysTo) === 1 ? '' : 's'}`
+                    : (daysTo === 0
+                        ? 'Due today'
+                        : `Due in ${daysTo} day${daysTo === 1 ? '' : 's'}`))
+                : 'N/A';
             
             const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
             const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
@@ -869,7 +932,15 @@
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-600 font-semibold">Relocation Date</p>
-                                        <p class="text-lg font-bold text-gray-800">${relocate !== 'N/A' ? new Date(relocate).toLocaleDateString('en-IN') : 'N/A'}</p>
+                                        <p class="text-lg font-bold text-gray-800">${formatDateForDisplay(relocateDate)}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-semibold">Last Rent Revision</p>
+                                        <p class="text-lg font-bold text-gray-800">${formatDateForDisplay(lastRevisionDate)}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-semibold">Next Revision</p>
+                                        <p class="text-lg font-bold ${daysTo !== null && daysTo !== undefined && daysTo <= 0 ? 'text-red-700' : 'text-gray-800'}">${nextDue ? formatDateForDisplay(nextDue) : 'N/A'} <span class="text-xs font-semibold ml-2">(${revisionStatus})</span></p>
                                     </div>
                                 </div>
                             </div>
@@ -1087,43 +1158,52 @@
                 const tenantData = findTenantForRoom(roomData);
                 if (!isOccupiedRecord(tenantData)) continue;
 
-                const relocateDate = parseDateValue(tenantData?.relocate);
-                if (!relocateDate) continue;
+                const { relocateDate, lastRevisionDate, nextDue, daysTo } = getRentRevisionDates(tenantData, today);
+                if (!nextDue || daysTo === null || daysTo === undefined) continue;
 
-                const nextRevision = getNextAnniversaryDate(relocateDate, today);
-                if (!nextRevision) continue;
-
-                const daysTo = Math.round((nextRevision.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                if (daysTo < 0 || daysTo > RENT_REVISION_WINDOW_DAYS) continue;
+                // Include tenants already overdue (crossed 1 year) and those due soon within window.
+                if (daysTo > RENT_REVISION_WINDOW_DAYS) continue;
 
                 due.push({
                     roomNo: roomData.roomNo,
                     roomId: roomData.roomId,
                     tenant: tenantData?.tenant || 'Tenant',
                     relocateDate,
-                    nextRevision,
+                    lastRevisionDate,
+                    nextDue,
                     daysTo
                 });
             }
 
-            due.sort((a, b) => a.daysTo - b.daysTo);
+            // Overdue first, then soonest upcoming
+            due.sort((a, b) => {
+                const aOver = a.daysTo < 0;
+                const bOver = b.daysTo < 0;
+                if (aOver !== bOver) return aOver ? -1 : 1;
+                return a.daysTo - b.daysTo;
+            });
             if (countEl) countEl.textContent = String(due.length);
 
             if (due.length === 0) {
-                listEl.innerHTML = `<p class="text-gray-400">No tenants due for rent revision in the next ${RENT_REVISION_WINDOW_DAYS} days.</p>`;
+                listEl.innerHTML = `<p class="text-gray-400">No tenants due/overdue for rent revision.</p>`;
                 return;
             }
 
             listEl.innerHTML = due.map(item => {
-                const daysLabel = item.daysTo === 0 ? 'Due today' : `Due in ${item.daysTo} day${item.daysTo === 1 ? '' : 's'}`;
+                const daysLabel = item.daysTo < 0
+                    ? `Overdue by ${Math.abs(item.daysTo)} day${Math.abs(item.daysTo) === 1 ? '' : 's'}`
+                    : (item.daysTo === 0 ? 'Due today' : `Due in ${item.daysTo} day${item.daysTo === 1 ? '' : 's'}`);
+                const badgeClass = item.daysTo < 0
+                    ? 'bg-red-100 text-red-800 border-red-200'
+                    : 'bg-purple-100 text-purple-800 border-purple-200';
                 return `
                     <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-200 transition" onclick="window.showSection('dashboard'); window.openRoomDetailModal('${item.roomNo}')">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="font-semibold text-gray-800">Room ${item.roomNo} • ${item.tenant}</p>
-                                <p class="text-xs text-gray-500 mt-1">Relocation: ${item.relocateDate.toLocaleDateString('en-IN')} • Revision: ${item.nextRevision.toLocaleDateString('en-IN')}</p>
+                                <p class="text-xs text-gray-500 mt-1">Relocation: ${formatDateForDisplay(item.relocateDate)} • Last revision: ${formatDateForDisplay(item.lastRevisionDate)} • Next: ${formatDateForDisplay(item.nextDue)}</p>
                             </div>
-                            <span class="shrink-0 inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">${daysLabel}</span>
+                            <span class="shrink-0 inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${badgeClass} border">${daysLabel}</span>
                         </div>
                     </button>
                 `;
@@ -1649,6 +1729,7 @@
                         const rentEl = document.getElementById('tenantRent');
                         const depositEl = document.getElementById('tenantDeposit');
                         const relocateEl = document.getElementById('tenantRelocateDate');
+                        const lastRevEl = document.getElementById('tenantLastRevisionDate');
 
                         if (nameEl) nameEl.value = String(existing?.tenant || '').trim();
                         if (contactEl) contactEl.value = String(existing?.contact || '').trim();
@@ -1656,16 +1737,10 @@
                         if (depositEl) depositEl.value = existing?.deposit !== null && existing?.deposit !== undefined ? String(existing.deposit) : '';
 
                         const relocateDate = parseDateValue(existing?.relocate);
-                        if (relocateEl) {
-                            if (relocateDate) {
-                                const yyyy = relocateDate.getFullYear();
-                                const mm = String(relocateDate.getMonth() + 1).padStart(2, '0');
-                                const dd = String(relocateDate.getDate()).padStart(2, '0');
-                                relocateEl.value = `${yyyy}-${mm}-${dd}`;
-                            } else {
-                                relocateEl.value = '';
-                            }
-                        }
+                        if (relocateEl) relocateEl.value = relocateDate ? formatDateForInput(relocateDate) : '';
+
+                        const lastRevDate = parseDateValue(existing?.lastRentRevisionAt);
+                        if (lastRevEl) lastRevEl.value = lastRevDate ? formatDateForInput(lastRevDate) : '';
 
                         const existingRate = Number(existing?.waterRate);
                         if (waterRateEl) {
@@ -1751,6 +1826,8 @@
                 const ebAcNo = document.getElementById('tenantEbAcNo').value.trim();
                 const keyNo = document.getElementById('tenantKeyNo').value.trim();
                 const relocate = document.getElementById('tenantRelocateDate').value;
+                const lastRentRevisionAtInput = document.getElementById('tenantLastRevisionDate')?.value || '';
+                const lastRentRevisionAt = String(lastRentRevisionAtInput).trim() ? String(lastRentRevisionAtInput).trim() : null;
 
                 const existingForRoom = findTenantForRoom({ roomNo, roomId });
 
@@ -1793,6 +1870,7 @@
                             ebAcNo: ebAcNo,
                             keyNo: keyNo,
                             relocate: relocate,
+                            lastRentRevisionAt: lastRentRevisionAt,
                             status: 'Occupied',
                             payStatus: existingForRoom?.payStatus || 'Pending',
                             updatedAt: serverTimestamp(),
@@ -1818,6 +1896,7 @@
                             ebAcNo: ebAcNo,
                             keyNo: keyNo,
                             relocate: relocate,
+                            lastRentRevisionAt: lastRentRevisionAt,
                             status: 'Occupied',
                             payStatus: 'Pending',
                             createdAt: serverTimestamp(),
@@ -1842,6 +1921,7 @@
                         window.generateRoomCards();
                         window.renderRentDetailsTable();
                         window.updateOccupancyMetrics();
+                        try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                     }, 1500);
                 } catch (err) {
                     console.error("❌ Add tenant failed", err);
