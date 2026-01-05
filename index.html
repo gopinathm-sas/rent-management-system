@@ -476,6 +476,38 @@
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
 
+        // HELPERS (room matching + occupancy)
+        function isOccupiedRecord(record) {
+            if (!record) return false;
+            const status = String(record.status || '').trim().toLowerCase();
+            if (status === 'occupied') return true;
+            // Fallback: if tenant details exist but status wasn't updated, treat as occupied
+            const tenant = String(record.tenant || '').trim().toLowerCase();
+            return Boolean(tenant) && tenant !== 'none' && tenant !== 'assigned';
+        }
+
+        function findTenantForRoom(roomData) {
+            if (!roomData) return null;
+            const roomId = String(roomData.roomId || '').trim();
+            const roomNo = String(roomData.roomNo || '').trim();
+
+            // Primary: match by roomId (intended canonical key)
+            let match = allPropertiesData.find(p => String(p.roomId || '').trim() === roomId);
+            if (match) return match;
+
+            // Fallbacks: older/alternate shapes
+            match = allPropertiesData.find(p => String(p.roomNo || '').trim() === roomNo);
+            if (match) return match;
+
+            const expectedNames = new Set([
+                roomNo,
+                `Room ${roomNo}`,
+                roomId
+            ]);
+            match = allPropertiesData.find(p => expectedNames.has(String(p.name || '').trim()));
+            return match || null;
+        }
+
         // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (From Image)
         const IMMUTABLE_ROOMS_DATA = {
             '01': { roomNo: '01', roomId: 'G01', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
@@ -526,9 +558,9 @@
             
             const htmlCards = roomNos.map(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-                const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
+                const tenantData = findTenantForRoom(roomData);
                 
-                const isOccupied = tenantData && tenantData.status === 'Occupied';
+                const isOccupied = isOccupiedRecord(tenantData);
                 const tenantName = tenantData?.tenant || 'No Tenant';
                 const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
                 const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
@@ -561,8 +593,8 @@
             const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
             if (!roomData) return;
             
-            const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
-            const isOccupied = tenantData && tenantData.status === 'Occupied';
+            const tenantData = findTenantForRoom(roomData);
+            const isOccupied = isOccupiedRecord(tenantData);
             const tenantName = tenantData?.tenant || 'No Tenant';
             const contact = tenantData?.contact || 'N/A';
             const rent = tenantData?.rent || 'N/A';
@@ -801,15 +833,14 @@
             
             Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-                const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
+                const tenantData = findTenantForRoom(roomData);
                 
-                // Count as occupied if status is 'Occupied'
-                if (tenantData && tenantData.status === 'Occupied') {
+                if (isOccupiedRecord(tenantData)) {
                     occupiedCount++;
                     
                     // Calculate pending rent for this room
-                    const history = tenantData.paymentHistory || {};
-                    const rent = parseFloat(tenantData.rent) || 0;
+                    const history = tenantData?.paymentHistory || {};
+                    const rent = parseFloat(tenantData?.rent) || 0;
                     
                     // Count all pending months in payment history
                     Object.values(history).forEach(status => {
@@ -817,6 +848,11 @@
                             totalPending += rent;
                         }
                     });
+
+                    // Legacy fallback: if no ledger entries but payStatus is Pending
+                    if (Object.keys(history || {}).length === 0 && String(tenantData?.payStatus || '') === 'Pending') {
+                        totalPending += rent;
+                    }
                     
                     console.log(`Room ${roomNo} (${tenantData.tenant}): Rent=${rent}, History=`, history);
                 }
@@ -840,7 +876,7 @@
         window.loginWithGoogle = async () => {
             console.log("✓ loginWithGoogle clicked");
             const errorMsg = document.getElementById('login-error');
-            errorMsg.classList.add('hidden');
+            if (errorMsg) errorMsg.classList.add('hidden');
             try {
                 const result = await signInWithPopup(auth, provider);
                 console.log("✓ Sign-in successful:", result.user.email);
@@ -856,8 +892,10 @@
                     const domain = window.location.hostname;
                     message = `⚠️ Domain Unauthorized: "${domain}"\n\nAdd to Firebase:\n1. Console → Authentication\n2. Settings → Authorized Domains\n3. Add: ${domain}`;
                 }
-                errorMsg.innerText = message;
-                errorMsg.classList.remove('hidden');
+                if (errorMsg) {
+                    errorMsg.innerText = message;
+                    errorMsg.classList.remove('hidden');
+                }
             }
         };
         
@@ -866,6 +904,7 @@
             console.log("✓ Page loaded, initializing room cards");
             window.generateRoomCards();
         });
+
         window.logout = async () => {
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
@@ -1681,15 +1720,16 @@
             // Build table rows using immutable rooms + tenant data
             tbody.innerHTML = roomNos.map(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-                const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
+                const tenantData = findTenantForRoom(roomData);
+                const occupied = isOccupiedRecord(tenantData);
                 
                 // Only show tenant if status is 'Occupied'
-                if (!tenantData || tenantData.status !== 'Occupied') {
+                if (!tenantData || !occupied) {
                     return ''; // Skip this row if tenant is not occupied
                 }
                 
                 const tenantName = tenantData?.tenant || 'No Tenant';
-                const tenantStatus = tenantData?.status || 'Vacant';
+                const tenantStatus = occupied ? 'Occupied' : (tenantData?.status || 'Vacant');
                 const history = tenantData?.paymentHistory || {};
                 
                 let row = `
