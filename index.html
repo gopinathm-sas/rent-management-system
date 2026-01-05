@@ -696,10 +696,11 @@
                 console.log(`✓ Updated Room ${roomId} status to ${newStatus}`);
                 alert(`✓ Status updated to ${newStatus}`);
 
-                // Refresh all views
-                await loadPropertiesData();
-                window.generateRoomCards();
-                window.renderRentDetailsTable();
+                // Refresh all views - onSnapshot listener will automatically update allPropertiesData
+                setTimeout(() => {
+                    window.generateRoomCards();
+                    window.renderRentDetailsTable();
+                }, 300);
             } catch (error) {
                 console.error("Error updating room status:", error);
                 alert("Error updating status: " + error.message);
