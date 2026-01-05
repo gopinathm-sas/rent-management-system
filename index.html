@@ -401,22 +401,14 @@
                 </div>
             </section>
 
-            <!-- Rent Details Section (before Rooms) -->
+            <!-- Rent Details Section -->
             <section id="rent-details" class="section-tab mb-10">
-                <h2 class="text-2xl font-bold mb-6 text-gray-700">Rent Details</h2>
-                <p class="text-gray-500 mb-6">View and manage tenant rent payouts by year and month</p>
+                <h2 class="text-2xl font-bold mb-2 text-gray-700">Tenant Details</h2>
+                <p class="text-gray-500 mb-6">Click on any tenant box to view detailed information</p>
                 
-                <!-- Tenant Selector -->
-                <div class="mb-6">
-                    <label class="block text-gray-700 font-semibold mb-2">Select Tenant</label>
-                    <select id="rentDetailsSelect" onchange="loadRentDetails()" class="w-full md:w-80 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                        <option value="">-- Choose a Tenant --</option>
-                    </select>
-                </div>
-
-                <!-- Rent Details Grid (Year + Month) -->
-                <div id="rentDetailsContent" class="bg-white rounded-lg shadow p-6">
-                    <p class="text-gray-400 text-center py-10">Select a tenant to view rent details</p>
+                <!-- Tenant Cards Grid -->
+                <div id="tenantDetailsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <p class="col-span-full text-center py-10 text-gray-400">Loading tenant details...</p>
                 </div>
             </section>
 
@@ -429,6 +421,20 @@
             title="View Rent Details">
             <i class="fa-solid fa-receipt text-xl"></i>
         </button>
+    </div>
+
+    <!-- TENANT DETAILS MODAL -->
+    <div id="tenantDetailsModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="tenant-modal-title" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50" tabindex="-1">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-8 transform transition-all scale-100 m-4 overflow-y-auto max-h-screen">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h3 id="tenant-modal-title" class="text-2xl font-bold text-gray-800">Tenant Details</h3>
+                <button onclick="closeTenantDetailsModal()" class="text-gray-500 hover:text-red-500 text-2xl" aria-label="Close modal">&times;</button>
+            </div>
+            
+            <div id="tenantDetailsModalContent" class="space-y-6">
+                <!-- Details will be populated by JavaScript -->
+            </div>
+        </div>
     </div>
 
     <!-- Add Room Modal -->
@@ -685,6 +691,8 @@
                 });
 
                 console.log(`✓ Populated ${rowIndex} dashboard rows`);
+                // After populating dashboard, render Rent Details table
+                renderRentDetailsTable();
                 return true;
             } catch (error) {
                 console.error("❌ Error loading dashboard data:", error);
@@ -708,7 +716,147 @@
             renderProperties(filteredData);
             renderTenants(filteredData);
             updateStats(allPropertiesData);
-            renderRentDetailsTable(); // Refresh Rent Details table when data changes
+            renderTenantDetailsCards(allPropertiesData);
+            // renderRentDetailsTable(); // Now called after dashboard data loads
+        };
+
+        // TENANT DETAILS RENDERING
+        window.renderTenantDetailsCards = (tenantList) => {
+            const grid = document.getElementById('tenantDetailsGrid');
+            if (!tenantList || tenantList.length === 0) {
+                grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No tenants found.</p>';
+                return;
+            }
+
+            // Only show occupied properties
+            const occupiedTenants = tenantList.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
+            
+            if (occupiedTenants.length === 0) {
+                grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No occupied units at the moment.</p>';
+                return;
+            }
+
+            grid.innerHTML = occupiedTenants.map(tenant => `
+                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition cursor-pointer border-l-4 border-blue-500 p-6" onclick="openTenantDetailsModal('${tenant.id}')">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">${escapeHtml(tenant.tenant)}</h3>
+                            <p class="text-sm text-gray-600"><i class="fa-solid fa-door-open mr-1"></i>Room: ${escapeHtml(tenant.name || 'N/A')}</p>
+                        </div>
+                        <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Occupied</span>
+                    </div>
+                    <div class="border-t pt-3 space-y-2">
+                        <p class="text-sm"><span class="font-semibold text-gray-700">Rent:</span> <span class="text-blue-600 font-bold">₹${tenant.rent || 0}</span></p>
+                        <p class="text-sm"><span class="font-semibold text-gray-700">Contact:</span> ${escapeHtml(tenant.contact || 'N/A')}</p>
+                    </div>
+                    <button class="w-full mt-4 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-sm font-semibold">
+                        View Details
+                    </button>
+                </div>
+            `).join('');
+        };
+
+        window.openTenantDetailsModal = (tenantId) => {
+            const tenant = allPropertiesData.find(p => p.id === tenantId);
+            if (!tenant) return;
+
+            const relocateDate = tenant.relocate ? new Date(tenant.relocate) : null;
+            let nextRevisionDate = 'N/A';
+            
+            if (relocateDate && !isNaN(relocateDate.getTime())) {
+                const nextRevision = new Date(relocateDate);
+                nextRevision.setFullYear(nextRevision.getFullYear() + 1);
+                nextRevisionDate = nextRevision.toLocaleDateString('en-IN', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                });
+            }
+
+            const relocateDateFormatted = relocateDate && !isNaN(relocateDate.getTime()) 
+                ? relocateDate.toLocaleDateString('en-IN', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                })
+                : 'N/A';
+
+            const content = `
+                <div class="space-y-5">
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                        <h4 class="font-bold text-blue-900 mb-2">Basic Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Tenant Name</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.tenant || 'N/A')}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Room Number</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.name || 'N/A')}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Room ID</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.roomId || 'N/A')}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Contact</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.contact || 'N/A')}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                        <h4 class="font-bold text-green-900 mb-2">Financial Details</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Monthly Rent</p>
+                                <p class="text-2xl font-bold text-green-700">₹${tenant.rent || 0}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Security Deposit</p>
+                                <p class="text-lg font-bold text-green-700">₹${tenant.deposit || 0}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                        <h4 class="font-bold text-purple-900 mb-2">Utility Details</h4>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">EB Service No.</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.ebServNo || 'N/A')}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">EB Account No.</p>
+                                <p class="text-lg font-bold text-gray-800">${escapeHtml(tenant.ebAcNo || 'N/A')}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
+                        <h4 class="font-bold text-orange-900 mb-2">Tenancy Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Date of Relocation</p>
+                                <p class="text-lg font-bold text-gray-800">${relocateDateFormatted}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 uppercase tracking-wide">Next Rent Revision</p>
+                                <p class="text-lg font-bold text-orange-700">${nextRevisionDate}</p>
+                                <p class="text-xs text-gray-600 mt-1">(After 1 year from relocation)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('tenant-modal-title').innerText = `${escapeHtml(tenant.tenant || 'Tenant')} - ${escapeHtml(tenant.name || 'Room')}`;
+            document.getElementById('tenantDetailsModalContent').innerHTML = content;
+            document.getElementById('tenantDetailsModal').classList.remove('hidden');
+        };
+
+        window.closeTenantDetailsModal = () => {
+            document.getElementById('tenantDetailsModal').classList.add('hidden');
         };
 
         // RENT HISTORY LOGIC
