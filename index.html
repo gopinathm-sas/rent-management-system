@@ -152,7 +152,7 @@
                     <div id="rentRevisionList" class="space-y-3">
                         <p class="text-gray-400">Loading...</p>
                     </div>
-                    <p class="text-xs text-gray-500 mt-4">Based on relocation date anniversary. Click a tenant to open their room card and edit rent.</p>
+                    <p class="text-xs text-gray-500 mt-4">Based on last rent revision date (fallback: relocation date). Click a tenant to open their room card and edit rent.</p>
                 </div>
 
                 <!-- 12 Immutable Rooms Section -->
@@ -1827,7 +1827,7 @@
                 const keyNo = document.getElementById('tenantKeyNo').value.trim();
                 const relocate = document.getElementById('tenantRelocateDate').value;
                 const lastRentRevisionAtInput = document.getElementById('tenantLastRevisionDate')?.value || '';
-                const lastRentRevisionAt = String(lastRentRevisionAtInput).trim() ? String(lastRentRevisionAtInput).trim() : null;
+                let lastRentRevisionAt = String(lastRentRevisionAtInput).trim() ? String(lastRentRevisionAtInput).trim() : null;
 
                 const existingForRoom = findTenantForRoom({ roomNo, roomId });
 
@@ -1857,6 +1857,15 @@
                     // IMPORTANT: Prefer updating an existing room record to avoid duplicates
                     // (duplicates cause cards to sometimes match an older/vacant doc after re-login).
                     if (existingForRoom?.id) {
+                        // If rent changed and user didn't explicitly set a revision date,
+                        // auto-set last revision to today.
+                        const prevRent = parseFloat(existingForRoom?.rent);
+                        const newRent = parseFloat(rent);
+                        const rentChanged = Number.isFinite(prevRent) && Number.isFinite(newRent) && Math.abs(prevRent - newRent) > 0.0001;
+                        if (rentChanged && !lastRentRevisionAt) {
+                            lastRentRevisionAt = formatDateForInput(new Date());
+                        }
+
                         const updatePayload = {
                             name: roomNo,
                             roomId: roomId,
