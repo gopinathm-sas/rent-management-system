@@ -801,14 +801,6 @@
                 
                 const isOccupied = isOccupiedRecord(tenantData);
                 const tenantName = tenantData?.tenant || 'No Tenant';
-                const revisionInfo = isOccupied ? getRentRevisionDates(tenantData) : null;
-                const lastRevisionLabel = revisionInfo?.lastRevisionDate ? formatDateForDisplay(revisionInfo.lastRevisionDate, '-') : '-';
-                const showRevisionPending = isOccupied && revisionInfo?.daysTo !== null && revisionInfo?.daysTo !== undefined && revisionInfo.daysTo <= 0;
-                const revisionPendingBadge = showRevisionPending ? `<span class="ml-2 text-xs font-bold text-red-600">Revision Pending</span>` : '';
-                const unRevisedRentValue = tenantData?.unRevisedRent;
-                const hasUnRevisedRent = unRevisedRentValue !== null && unRevisedRentValue !== undefined && String(unRevisedRentValue).trim() !== '';
-                const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRentValue) : NaN;
-                const unRevisedRentLabel = Number.isFinite(unRevisedRentNum) ? `₹${unRevisedRentNum.toLocaleString('en-IN')}` : String(unRevisedRentValue);
                 const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
                 const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
@@ -829,8 +821,6 @@
                             <p class="text-base text-gray-700 font-semibold truncate" title="${tenantName}">
                                 <i class="fa-solid fa-user mr-2 text-blue-600"></i>${tenantName}
                             </p>
-                            <p class="text-xs text-gray-500 mt-2">Last revision: <span class="font-semibold text-gray-700">${lastRevisionLabel}</span>${revisionPendingBadge}</p>
-                            ${hasUnRevisedRent ? `<p class="text-xs text-gray-500 mt-1">Unrevised rent: <span class="font-semibold text-gray-700">${unRevisedRentLabel}</span></p>` : ''}
                         </div>
                     </div>
                 `;
