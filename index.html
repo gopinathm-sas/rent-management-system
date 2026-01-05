@@ -809,11 +809,16 @@
                     
                     // Calculate pending rent for this room
                     const history = tenantData.paymentHistory || {};
-                    const pendingMonths = Object.values(history).filter(v => v === 'Pending').length;
+                    const rent = parseFloat(tenantData.rent) || 0;
                     
-                    if (pendingMonths > 0) {
-                        totalPending += (pendingMonths * (tenantData.rent || 0));
-                    }
+                    // Count all pending months in payment history
+                    Object.values(history).forEach(status => {
+                        if (status === 'Pending') {
+                            totalPending += rent;
+                        }
+                    });
+                    
+                    console.log(`Room ${roomNo} (${tenantData.tenant}): Rent=${rent}, History=`, history);
                 }
             });
             
@@ -943,6 +948,7 @@
                 loadDashboardDataFromFirestore().then(() => {
                     // After loading dashboard data, refresh all views including Rent Details
                     console.log("✓ Dashboard data loaded, refreshing views...");
+                    window.updateOccupancyMetrics();
                     window.applyFilters();
                     // Extra force to generate room cards
                     setTimeout(() => {
