@@ -71,7 +71,6 @@
                     <div class="flex items-center gap-5 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
-                        <a href="#" data-section="rooms" onclick="showSection('rooms')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rooms</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -118,25 +117,25 @@
                         </div>
                     </div>
                     
-                    <!-- Card 3: Occupancy Rate -->
-                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-purple-500 hover:shadow-2xl transition transform hover:scale-105">
+                    <!-- Card 3: Total Rent Received (Current Month) -->
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-green-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
-                                <p class="text-gray-500 text-base font-semibold mb-3">Occupancy Rate</p>
-                                <p class="text-5xl md:text-6xl lg:text-7xl font-bold text-purple-600" id="occupancy-rate">0%</p>
-                                <p class="text-base text-gray-400 mt-4">Capacity</p>
+                                <p class="text-gray-500 text-base font-semibold mb-3">Rent Received</p>
+                                <p class="text-4xl md:text-5xl lg:text-6xl font-bold text-green-600" id="rent-received">₹0</p>
+                                <p class="text-base text-gray-400 mt-4">This month</p>
                             </div>
-                            <i class="fa-solid fa-chart-pie text-purple-500 text-5xl md:text-6xl opacity-20"></i>
+                            <i class="fa-solid fa-circle-check text-green-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
                     </div>
                     
-                    <!-- Card 4: Total Pending Rent -->
+                    <!-- Card 4: Pending Rent (Current Month) -->
                     <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Pending Rent</p>
                                 <p class="text-4xl md:text-5xl lg:text-6xl font-bold text-orange-600" id="pending-rent">₹0</p>
-                                <p class="text-base text-gray-400 mt-4">All months</p>
+                                <p class="text-base text-gray-400 mt-4">This month</p>
                             </div>
                             <i class="fa-solid fa-exclamation-triangle text-orange-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
@@ -153,8 +152,20 @@
 
             <!-- Rent Details Section -->
             <section id="rent-details" class="section-tab mb-10">
-                <h2 class="text-2xl font-bold mb-6 text-gray-700">Rent Details</h2>
-                <p class="text-gray-500 mb-4">Monthly rent payment status for all rooms - Click any month to toggle status (Pending/Paid/None)</p>
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                    <h2 class="text-2xl font-bold text-gray-700">Rent Details</h2>
+                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                        <span class="font-semibold">Year</span>
+                        <button type="button" onclick="changeRentDetailsYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span id="rent-details-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
+                        <button type="button" onclick="changeRentDetailsYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-gray-500 mb-4">Monthly rent payment status for all rooms - select a year, then click any month to toggle (Pending/Rent Only/Paid/None)</p>
                 
                 <!-- Rent Details Table -->
                 <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -476,6 +487,7 @@
         let allPropertiesData = [];
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
+        let currentRentDetailsYear = new Date().getFullYear();
 
         // HELPERS (room matching + occupancy)
         function isOccupiedRecord(record) {
@@ -881,6 +893,10 @@
             // Count only the 12 immutable rooms
             let occupiedCount = 0;
             let totalPending = 0;
+            let totalReceived = 0;
+
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][now.getMonth()]}`;
             
             Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
@@ -888,39 +904,30 @@
                 
                 if (isOccupiedRecord(tenantData)) {
                     occupiedCount++;
-                    
-                    // Calculate pending rent for this room
+
                     const history = tenantData?.paymentHistory || {};
                     const rent = parseFloat(tenantData?.rent) || 0;
-                    
-                    // Count all pending months in payment history
-                    Object.values(history).forEach(status => {
-                        if (status === 'Pending') {
-                            totalPending += rent;
-                        }
-                    });
+                    const status = history[currentMonthKey] || tenantData?.payStatus || 'None';
 
-                    // Legacy fallback: if no ledger entries but payStatus is Pending
-                    if (Object.keys(history || {}).length === 0 && String(tenantData?.payStatus || '') === 'Pending') {
+                    if (status === 'Pending') {
                         totalPending += rent;
+                    } else if (status === 'Paid' || status === 'Rent Only') {
+                        totalReceived += rent;
                     }
-                    
-                    console.log(`Room ${roomNo} (${tenantData.tenant}): Rent=${rent}, History=`, history);
                 }
             });
             
             const vacantCount = 12 - occupiedCount;
-            const occupancyRate = Math.round((occupiedCount / 12) * 100);
             
             const occupiedEl = document.getElementById('occupied-count');
             const vacantEl = document.getElementById('vacant-count');
-            const rateEl = document.getElementById('occupancy-rate');
             const pendingEl = document.getElementById('pending-rent');
+            const receivedEl = document.getElementById('rent-received');
             
             if (occupiedEl) occupiedEl.innerText = occupiedCount;
             if (vacantEl) vacantEl.innerText = vacantCount;
-            if (rateEl) rateEl.innerText = occupancyRate + '%';
             if (pendingEl) pendingEl.innerText = '₹' + totalPending.toLocaleString();
+            if (receivedEl) receivedEl.innerText = '₹' + totalReceived.toLocaleString();
         };
 
         // AUTH FUNCTIONS - Expose to window
@@ -1305,6 +1312,11 @@
         window.changeLedgerYear = (delta) => {
             currentLedgerYear += delta;
             window.renderLedger();
+        };
+
+        window.changeRentDetailsYear = (delta) => {
+            currentRentDetailsYear += delta;
+            window.renderRentDetailsTable();
         };
 
         window.renderLedger = () => {
@@ -1809,15 +1821,15 @@
             const totalTenantsEl = document.getElementById('total-tenants');
             if (totalTenantsEl) totalTenantsEl.innerText = list.filter(p => p.status === 'Occupied').length;
             
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][now.getMonth()]}`;
+
             let totalPending = 0;
             list.forEach(p => {
-                const history = p.paymentHistory || {};
-                const ledgerPendingCount = Object.values(history).filter(v => v === 'Pending').length;
-                
-                if (ledgerPendingCount > 0) {
-                    totalPending += (ledgerPendingCount * (p.rent || 0));
-                } else if (p.payStatus === 'Pending') {
-                    totalPending += (p.rent || 0);
+                const history = p?.paymentHistory || {};
+                const status = history[currentMonthKey] || p?.payStatus || 'None';
+                if (status === 'Pending') {
+                    totalPending += (Number(p?.rent) || 0);
                 }
             });
             const pendingRentEl = document.getElementById('pending-rent');
@@ -1829,7 +1841,12 @@
             const tbody = document.getElementById('rentDetailsBody');
             if (!tbody) return;
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const currentYear = new Date().getFullYear();
+            const selectedYear = (typeof currentRentDetailsYear === 'number' && Number.isFinite(currentRentDetailsYear))
+                ? currentRentDetailsYear
+                : new Date().getFullYear();
+
+            const yearLabel = document.getElementById('rent-details-year');
+            if (yearLabel) yearLabel.innerText = String(selectedYear);
 
             // Use immutable rooms data as base
             const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
@@ -1857,7 +1874,7 @@
                 `;
 
                 months.forEach(month => {
-                    const key = `${currentYear}-${month}`;
+                    const key = `${selectedYear}-${month}`;
                     const status = history[key] || 'None';
                     
                     // If room is vacant, always show gray cells
