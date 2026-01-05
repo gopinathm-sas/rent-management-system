@@ -581,12 +581,13 @@
                         </div>
                         
                         <div class="p-8 space-y-6">
-                            <!-- Status Badge -->
-                            <div class="flex items-center gap-3">
-                                <span class="px-4 py-2 rounded-lg text-sm font-bold ${statusColor} border">
-                                    ${isOccupied ? '✓ Occupied' : '◯ Vacant'}
-                                </span>
-                                <span class="text-lg font-semibold text-gray-700">${isOccupied ? 'Active' : 'Available'}</span>
+                            <!-- Status Dropdown -->
+                            <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-6">
+                                <label class="text-sm font-bold text-gray-700 mb-2 block">Room Status</label>
+                                <select id="roomStatusDropdown_${roomData.roomId}" class="w-full px-4 py-2 border-2 border-yellow-300 rounded-lg font-semibold text-lg cursor-pointer" onchange="window.updateRoomStatus('${roomData.roomId}', this.value)">
+                                    <option value="Occupied" ${isOccupied ? 'selected' : ''}>✓ Occupied - Tenant Present</option>
+                                    <option value="Vacant" ${!isOccupied ? 'selected' : ''}>◯ Vacant - No Tenant</option>
+                                </select>
                             </div>
                             
                             <!-- Tenant Information Section -->
@@ -674,6 +675,35 @@
                 modal.innerHTML = '';
             }
             console.log("✓ Closed room detail modal");
+        };
+
+        // UPDATE ROOM STATUS (Occupied/Vacant)
+        window.updateRoomStatus = async (roomId, newStatus) => {
+            try {
+                // Find the tenant record with this roomId
+                const tenantRecord = allPropertiesData.find(p => p.roomId === roomId);
+                if (!tenantRecord) {
+                    alert("Cannot update status: Tenant record not found");
+                    return;
+                }
+
+                // Update the Firestore document
+                const tenantDocRef = doc(db, "properties", tenantRecord.id);
+                await updateDoc(tenantDocRef, {
+                    status: newStatus
+                });
+
+                console.log(`✓ Updated Room ${roomId} status to ${newStatus}`);
+                alert(`✓ Status updated to ${newStatus}`);
+
+                // Refresh all views
+                await loadPropertiesData();
+                window.generateRoomCards();
+                window.renderRentDetailsTable();
+            } catch (error) {
+                console.error("Error updating room status:", error);
+                alert("Error updating status: " + error.message);
+            }
         };
 
         // UPDATE OCCUPANCY METRICS
@@ -1550,6 +1580,11 @@
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
                 
+                // Only show tenant if status is 'Occupied'
+                if (!tenantData || tenantData.status !== 'Occupied') {
+                    return ''; // Skip this row if tenant is not occupied
+                }
+                
                 const tenantName = tenantData?.tenant || 'No Tenant';
                 const history = tenantData?.paymentHistory || {};
                 
@@ -1589,7 +1624,7 @@
 
                 row += `</tr>`;
                 return row;
-            }).join('');
+            }).filter(row => row !== '').join('');
         }
 
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
