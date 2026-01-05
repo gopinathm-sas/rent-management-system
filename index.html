@@ -1164,11 +1164,17 @@
         };
 
         window.closeAddTenantModal = () => {
-            document.getElementById('addTenantModal').classList.add('hidden');
-            document.getElementById('addTenantForm').reset();
-            document.getElementById('saveTenantBtn').disabled = true;
-            document.getElementById('saveTenantBtn').classList.add('bg-gray-400', 'cursor-not-allowed');
-            document.getElementById('saveTenantBtn').classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            const modal = document.getElementById('addTenantModal');
+            const form = document.getElementById('addTenantForm');
+            const btn = document.getElementById('saveTenantBtn');
+            
+            if (modal) modal.classList.add('hidden');
+            if (form) form.reset();
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            }
         };
 
         // FORM VALIDATION FOR MANDATORY FIELDS
@@ -1257,17 +1263,25 @@
                         paymentHistory: {}
                     });
 
+                    console.log("✓ Tenant added successfully to Firestore");
+                    
                     // Reset form
-                    e.target.reset();
+                    const formToReset = document.getElementById('addTenantForm');
+                    if (formToReset) {
+                        formToReset.reset();
+                    }
+                    
                     alert("✓ Tenant added successfully!");
                     
                     // Close modal
                     window.closeAddTenantModal();
 
-                    // Refresh views
-                    window.applyFilters();
+                    // Refresh views with slight delay to ensure data propagates
+                    setTimeout(() => {
+                        window.applyFilters();
+                    }, 500);
                 } catch (err) {
-                    console.error("Add tenant failed", err);
+                    console.error("❌ Add tenant failed", err);
                     alert("Error adding tenant: " + err.message);
                 }
             });
