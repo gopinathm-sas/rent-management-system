@@ -486,26 +486,69 @@
             return Boolean(tenant) && tenant !== 'none' && tenant !== 'assigned';
         }
 
+        function getRecordSortTimeMs(record) {
+            if (!record) return 0;
+            const ts = record.updatedAt ?? record.createdAt;
+            if (!ts) return 0;
+            if (typeof ts === 'number') return ts;
+            if (typeof ts === 'string') {
+                const parsed = Date.parse(ts);
+                return Number.isNaN(parsed) ? 0 : parsed;
+            }
+            if (typeof ts?.toMillis === 'function') return ts.toMillis();
+            if (typeof ts?.seconds === 'number') {
+                const nanos = typeof ts?.nanoseconds === 'number' ? ts.nanoseconds : 0;
+                return (ts.seconds * 1000) + Math.floor(nanos / 1e6);
+            }
+            return 0;
+        }
+
+        function pickBestRoomRecord(records) {
+            if (!Array.isArray(records) || records.length === 0) return null;
+            const sorted = [...records].sort((a, b) => {
+                const occA = isOccupiedRecord(a) ? 1 : 0;
+                const occB = isOccupiedRecord(b) ? 1 : 0;
+                if (occA !== occB) return occB - occA;
+
+                const timeA = getRecordSortTimeMs(a);
+                const timeB = getRecordSortTimeMs(b);
+                if (timeA !== timeB) return timeB - timeA;
+
+                const tenantA = String(a?.tenant || '').trim();
+                const tenantB = String(b?.tenant || '').trim();
+                if (!!tenantA !== !!tenantB) return tenantB ? 1 : -1;
+
+                return 0;
+            });
+            return sorted[0] || null;
+        }
+
         function findTenantForRoom(roomData) {
             if (!roomData) return null;
             const roomId = String(roomData.roomId || '').trim();
             const roomNo = String(roomData.roomNo || '').trim();
 
-            // Primary: match by roomId (intended canonical key)
-            let match = allPropertiesData.find(p => String(p.roomId || '').trim() === roomId);
-            if (match) return match;
-
-            // Fallbacks: older/alternate shapes
-            match = allPropertiesData.find(p => String(p.roomNo || '').trim() === roomNo);
-            if (match) return match;
-
+            // NOTE: There can be multiple docs per room in `properties` (older data, manual adds).
+            // Prefer an occupied record, then the most recently updated/created.
             const expectedNames = new Set([
                 roomNo,
                 `Room ${roomNo}`,
                 roomId
-            ]);
-            match = allPropertiesData.find(p => expectedNames.has(String(p.name || '').trim()));
-            return match || null;
+            ].filter(Boolean));
+
+            const candidates = allPropertiesData.filter(p => {
+                const pRoomId = String(p?.roomId || '').trim();
+                const pRoomNo = String(p?.roomNo || '').trim();
+                const pName = String(p?.name || '').trim();
+
+                if (roomId && pRoomId === roomId) return true;
+                if (roomNo && pRoomNo === roomNo) return true;
+                if (roomNo && pName === roomNo) return true;
+                if (expectedNames.size && expectedNames.has(pName)) return true;
+                return false;
+            });
+
+            return pickBestRoomRecord(candidates);
         }
 
         // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (From Image)
@@ -716,8 +759,14 @@
         // UPDATE ROOM STATUS (Occupied/Vacant)
         window.updateRoomStatus = async (roomId, newStatus) => {
             try {
-                // Find the tenant record with this roomId
-                const tenantRecord = allPropertiesData.find(p => p.roomId === roomId);
+                // Find the best matching tenant record for this roomId.
+                // (There may be multiple docs for a room; pick occupied/newest.)
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(IMMUTABLE_ROOMS_DATA[immutableRoomNo])
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
                 if (!tenantRecord) {
                     showNotification("Cannot update status: Tenant record not found", "error");
                     return;
@@ -732,9 +781,7 @@
                 }
 
                 // Get the room number from immutable data for reopening modal
-                const roomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
-                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
-                );
+                const roomNo = immutableRoomNo;
 
                 // Prepare update payload
                 const updatePayload = { status: newStatus };
@@ -1390,13 +1437,6 @@
                 e.preventDefault();
                 if (!currentUser) return showNotification("Please login first", "warning");
 
-                // Check tenant count
-                const occupiedTenants = allPropertiesData.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None').length;
-                if (occupiedTenants >= 12) {
-                    showNotification("Maximum 12 tenants allowed. Please delete an existing tenant first.", "warning");
-                    return;
-                }
-
                 const roomNo = document.getElementById('tenantRoomNo').value.trim();
                 const roomId = document.getElementById('tenantRoomId').value.trim();
                 const tenantName = document.getElementById('tenantNameInput').value.trim();
@@ -1408,6 +1448,19 @@
                 const keyNo = document.getElementById('tenantKeyNo').value.trim();
                 const relocate = document.getElementById('tenantRelocateDate').value;
 
+                const existingForRoom = findTenantForRoom({ roomNo, roomId });
+
+                // Check tenant count (unique rooms only). Allow edits even when full.
+                let occupiedRoomsCount = 0;
+                Object.keys(IMMUTABLE_ROOMS_DATA).forEach(no => {
+                    const t = findTenantForRoom(IMMUTABLE_ROOMS_DATA[no]);
+                    if (isOccupiedRecord(t)) occupiedRoomsCount++;
+                });
+                if (occupiedRoomsCount >= 12 && !isOccupiedRecord(existingForRoom)) {
+                    showNotification("Maximum 12 tenants allowed. Please delete an existing tenant first.", "warning");
+                    return;
+                }
+
                 if (!roomNo || !roomId || !tenantName || isNaN(rent)) {
                     showNotification("Please fill all required fields: Room No, Room ID, Tenant Name, Rent", "warning");
                     return;
@@ -1415,26 +1468,53 @@
 
                 try {
                     // Save to Firestore
-                    await addDoc(collection(db, "properties"), {
-                        name: roomNo,
-                        roomId: roomId,
-                        roomNo: roomNo,
-                        tenant: tenantName,
-                        rent: rent,
-                        contact: contact,
-                        deposit: deposit,
-                        ebServNo: ebServNo,
-                        ebAcNo: ebAcNo,
-                        keyNo: keyNo,
-                        relocate: relocate,
-                        status: 'Occupied',
-                        payStatus: 'Pending',
-                        createdAt: serverTimestamp(),
-                        createdBy: currentUser.uid,
-                        paymentHistory: {}
-                    });
+                    // IMPORTANT: Prefer updating an existing room record to avoid duplicates
+                    // (duplicates cause cards to sometimes match an older/vacant doc after re-login).
+                    if (existingForRoom?.id) {
+                        const updatePayload = {
+                            name: roomNo,
+                            roomId: roomId,
+                            roomNo: roomNo,
+                            tenant: tenantName,
+                            rent: rent,
+                            contact: contact,
+                            deposit: deposit,
+                            ebServNo: ebServNo,
+                            ebAcNo: ebAcNo,
+                            keyNo: keyNo,
+                            relocate: relocate,
+                            status: 'Occupied',
+                            payStatus: existingForRoom?.payStatus || 'Pending',
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser.uid,
+                            paymentHistory: existingForRoom?.paymentHistory || {}
+                        };
+                        if (!existingForRoom?.createdAt) updatePayload.createdAt = serverTimestamp();
+                        if (!existingForRoom?.createdBy) updatePayload.createdBy = currentUser.uid;
 
-                    console.log("✓ Tenant added successfully to Firestore");
+                        await updateDoc(doc(db, "properties", existingForRoom.id), updatePayload);
+                        console.log("✓ Tenant updated successfully in Firestore");
+                    } else {
+                        await addDoc(collection(db, "properties"), {
+                            name: roomNo,
+                            roomId: roomId,
+                            roomNo: roomNo,
+                            tenant: tenantName,
+                            rent: rent,
+                            contact: contact,
+                            deposit: deposit,
+                            ebServNo: ebServNo,
+                            ebAcNo: ebAcNo,
+                            keyNo: keyNo,
+                            relocate: relocate,
+                            status: 'Occupied',
+                            payStatus: 'Pending',
+                            createdAt: serverTimestamp(),
+                            createdBy: currentUser.uid,
+                            paymentHistory: {}
+                        });
+                        console.log("✓ Tenant added successfully to Firestore");
+                    }
                     
                     // Reset form
                     const formToReset = document.getElementById('addTenantForm');
