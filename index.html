@@ -279,15 +279,52 @@
             </div>
             
             <form id="addTenantForm" class="space-y-4">
+                <!-- Room Selector -->
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Select Room <span class="text-red-500">*</span></label>
+                    <select id="roomSelector" onchange="window.prefillRoomDetails()" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">-- Choose a room --</option>
+                        <option value="01">Room 01 (G01)</option>
+                        <option value="02">Room 02 (G02)</option>
+                        <option value="04">Room 04 (102)</option>
+                        <option value="05">Room 05 (201)</option>
+                        <option value="06">Room 06 (202)</option>
+                        <option value="07">Room 07 (203)</option>
+                        <option value="08">Room 08 (301)</option>
+                        <option value="09">Room 09 (302)</option>
+                        <option value="10">Room 10 (303)</option>
+                        <option value="11">Room 11 (401)</option>
+                        <option value="12">Room 12 (402)</option>
+                        <option value="13">Room 13 (403)</option>
+                    </select>
+                </div>
+
+                <!-- Auto-filled Immutable Room Details (Read-only) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Room No</label>
+                        <input type="text" id="tenantRoomNo" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Room ID</label>
+                        <input type="text" id="tenantRoomId" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Key No</label>
+                        <input type="text" id="tenantKeyNo" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">EB Service No</label>
+                        <input type="text" id="tenantEbServNo" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-2">EB Account No</label>
+                        <input type="text" id="tenantEbAcNo" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed">
+                    </div>
+                </div>
+
+                <!-- Tenant Details (User Input) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Room No/Address <span class="text-red-500">*</span></label>
-                        <input type="text" id="tenantRoomNo" required placeholder="e.g. 101" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Room ID <span class="text-red-500">*</span></label>
-                        <input type="text" id="tenantRoomId" required placeholder="e.g. R01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Tenant Name <span class="text-red-500">*</span></label>
                         <input type="text" id="tenantNameInput" required placeholder="e.g. Ramesh" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -303,18 +340,6 @@
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹) <span class="text-red-500">*</span></label>
                         <input type="number" id="tenantDeposit" required min="0" placeholder="e.g. 25000" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">EB Service No.</label>
-                        <input type="text" id="tenantEbServNo" placeholder="e.g. 1011011" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">EB Account No.</label>
-                        <input type="text" id="tenantEbAcNo" placeholder="e.g. 1011010" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Key No.</label>
-                        <input type="text" id="tenantKeyNo" placeholder="e.g. K01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Date of Relocation <span class="text-red-500">*</span></label>
@@ -439,6 +464,43 @@
         let allPropertiesData = [];
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
+
+        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (From Image)
+        const IMMUTABLE_ROOMS_DATA = {
+            '01': { roomNo: '01', roomId: 'G01', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
+            '02': { roomNo: '02', roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
+            '04': { roomNo: '04', roomId: '102', keyNo: '76', ebServNo: '19780', ebAcNo: '5097783' },
+            '05': { roomNo: '05', roomId: '201', keyNo: '151', ebServNo: '19779', ebAcNo: '5097782' },
+            '06': { roomNo: '06', roomId: '202', keyNo: '185', ebServNo: '19782', ebAcNo: '5097785' },
+            '07': { roomNo: '07', roomId: '203', keyNo: '101', ebServNo: '19783', ebAcNo: '5097786' },
+            '08': { roomNo: '08', roomId: '301', keyNo: '403', ebServNo: '19784', ebAcNo: '5097787' },
+            '09': { roomNo: '09', roomId: '302', keyNo: '249', ebServNo: '19785', ebAcNo: '5097788' },
+            '10': { roomNo: '10', roomId: '303', keyNo: '123', ebServNo: '19789', ebAcNo: '5097792' },
+            '11': { roomNo: '11', roomId: '401', keyNo: '35', ebServNo: '19788', ebAcNo: '5097791' },
+            '12': { roomNo: '12', roomId: '402', keyNo: '144', ebServNo: '19787', ebAcNo: '5097790' },
+            '13': { roomNo: '13', roomId: '403', keyNo: '120', ebServNo: '19786', ebAcNo: '5097789' }
+        };
+
+        // PREFILL ROOM DETAILS FROM SELECTOR
+        window.prefillRoomDetails = () => {
+            const roomNo = document.getElementById('roomSelector').value;
+            const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+            
+            if (roomData) {
+                document.getElementById('tenantRoomNo').value = roomData.roomNo;
+                document.getElementById('tenantRoomId').value = roomData.roomId;
+                document.getElementById('tenantKeyNo').value = roomData.keyNo;
+                document.getElementById('tenantEbServNo').value = roomData.ebServNo;
+                document.getElementById('tenantEbAcNo').value = roomData.ebAcNo;
+            } else {
+                // Clear fields if no room selected
+                document.getElementById('tenantRoomNo').value = '';
+                document.getElementById('tenantRoomId').value = '';
+                document.getElementById('tenantKeyNo').value = '';
+                document.getElementById('tenantEbServNo').value = '';
+                document.getElementById('tenantEbAcNo').value = '';
+            }
+        };
 
         // AUTH FUNCTIONS - Expose to window
         window.loginWithGoogle = async () => {
@@ -877,13 +939,14 @@
 
         // FORM VALIDATION FOR MANDATORY FIELDS
         window.validateAddTenantForm = () => {
+            const roomSelector = document.getElementById('roomSelector').value;
             const tenantName = document.getElementById('tenantNameInput').value.trim();
             const contact = document.getElementById('tenantContact').value.trim();
             const rent = document.getElementById('tenantRent').value;
             const deposit = document.getElementById('tenantDeposit').value;
             const relocateDate = document.getElementById('tenantRelocateDate').value;
 
-            const isValid = tenantName && contact && rent && deposit && relocateDate;
+            const isValid = roomSelector && tenantName && contact && rent && deposit && relocateDate;
             
             const saveBtn = document.getElementById('saveTenantBtn');
             if (isValid) {
@@ -964,6 +1027,7 @@
             });
 
             // Add event listeners to mandatory fields for form validation
+            document.getElementById('roomSelector').addEventListener('change', window.validateAddTenantForm);
             document.getElementById('tenantNameInput').addEventListener('input', window.validateAddTenantForm);
             document.getElementById('tenantContact').addEventListener('input', window.validateAddTenantForm);
             document.getElementById('tenantRent').addEventListener('input', window.validateAddTenantForm);
