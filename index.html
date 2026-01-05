@@ -143,6 +143,18 @@
                     </div>
                 </div>
 
+                <!-- Rent Revision Due Card -->
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-purple-500 mb-12">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h3 class="text-xl md:text-2xl font-bold text-gray-800">Rent Revision Due Soon</h3>
+                        <span id="rent-revision-count" class="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-semibold bg-purple-50 text-purple-800 border border-purple-200">0</span>
+                    </div>
+                    <div id="rentRevisionList" class="space-y-3">
+                        <p class="text-gray-400">Loading...</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">Based on relocation date anniversary. Click a tenant to open their room card and edit rent.</p>
+                </div>
+
                 <!-- 12 Immutable Rooms Section -->
                 <h3 class="text-3xl font-bold text-gray-800 mb-8">Room Details</h3>
                 <div id="roomCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -542,10 +554,53 @@
         const DISCOUNTED_WATER_RATE = 0.20;
         const DISCOUNTED_WATER_ROOMS = new Set(['11', '12', '13']);
 
+        const RENT_REVISION_WINDOW_DAYS = 30;
+
         function getDefaultWaterRateForRoom(roomNo) {
             const room = String(roomNo || '').trim();
             if (DISCOUNTED_WATER_ROOMS.has(room)) return DISCOUNTED_WATER_RATE;
             return DEFAULT_WATER_RATE;
+        }
+
+        function parseDateValue(value) {
+            if (!value) return null;
+            if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+            if (typeof value?.toDate === 'function') {
+                const d = value.toDate();
+                return d && !Number.isNaN(d.getTime()) ? d : null;
+            }
+            if (typeof value?.toMillis === 'function') {
+                const d = new Date(value.toMillis());
+                return !Number.isNaN(d.getTime()) ? d : null;
+            }
+            if (typeof value === 'number') {
+                const d = new Date(value);
+                return !Number.isNaN(d.getTime()) ? d : null;
+            }
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed) return null;
+                const d = new Date(trimmed);
+                return !Number.isNaN(d.getTime()) ? d : null;
+            }
+            return null;
+        }
+
+        function getNextAnniversaryDate(relocateDate, now = new Date()) {
+            const base = relocateDate instanceof Date ? relocateDate : parseDateValue(relocateDate);
+            if (!base) return null;
+
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+
+            const anniversary = new Date(base);
+            anniversary.setHours(0, 0, 0, 0);
+            anniversary.setFullYear(today.getFullYear());
+
+            if (anniversary < today) {
+                anniversary.setFullYear(anniversary.getFullYear() + 1);
+            }
+            return anniversary;
         }
 
         // GLOBAL STATE
@@ -1014,6 +1069,67 @@
             if (receivedEl) receivedEl.innerText = '₹' + totalReceived.toLocaleString();
         };
 
+        // DASHBOARD: RENT REVISION DUE SOON (based on relocation anniversary)
+        window.renderRentRevisionDueCard = () => {
+            const listEl = document.getElementById('rentRevisionList');
+            const countEl = document.getElementById('rent-revision-count');
+            if (!listEl) return;
+
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+            const due = [];
+
+            for (const roomNo of roomNos) {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+                if (!isOccupiedRecord(tenantData)) continue;
+
+                const relocateDate = parseDateValue(tenantData?.relocate);
+                if (!relocateDate) continue;
+
+                const nextRevision = getNextAnniversaryDate(relocateDate, today);
+                if (!nextRevision) continue;
+
+                const daysTo = Math.round((nextRevision.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysTo < 0 || daysTo > RENT_REVISION_WINDOW_DAYS) continue;
+
+                due.push({
+                    roomNo: roomData.roomNo,
+                    roomId: roomData.roomId,
+                    tenant: tenantData?.tenant || 'Tenant',
+                    relocateDate,
+                    nextRevision,
+                    daysTo
+                });
+            }
+
+            due.sort((a, b) => a.daysTo - b.daysTo);
+            if (countEl) countEl.textContent = String(due.length);
+
+            if (due.length === 0) {
+                listEl.innerHTML = `<p class="text-gray-400">No tenants due for rent revision in the next ${RENT_REVISION_WINDOW_DAYS} days.</p>`;
+                return;
+            }
+
+            listEl.innerHTML = due.map(item => {
+                const daysLabel = item.daysTo === 0 ? 'Due today' : `Due in ${item.daysTo} day${item.daysTo === 1 ? '' : 's'}`;
+                return `
+                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-200 transition" onclick="window.showSection('dashboard'); window.openRoomDetailModal('${item.roomNo}')">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-semibold text-gray-800">Room ${item.roomNo} • ${item.tenant}</p>
+                                <p class="text-xs text-gray-500 mt-1">Relocation: ${item.relocateDate.toLocaleDateString('en-IN')} • Revision: ${item.nextRevision.toLocaleDateString('en-IN')}</p>
+                            </div>
+                            <span class="shrink-0 inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">${daysLabel}</span>
+                        </div>
+                    </button>
+                `;
+            }).join('');
+        };
+
         // AUTH FUNCTIONS - Expose to window
         window.loginWithGoogle = async () => {
             console.log("✓ loginWithGoogle clicked");
@@ -1026,6 +1142,7 @@
                 setTimeout(() => {
                     window.generateRoomCards();
                     window.updateOccupancyMetrics();
+                    try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                 }, 100);
             } catch (error) {
                 console.error("❌ Login failed:", error);
@@ -1045,6 +1162,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log("✓ Page loaded, initializing room cards");
             window.generateRoomCards();
+            try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
         });
 
         window.logout = async () => {
@@ -1144,6 +1262,7 @@
                 try { window.updateOccupancyMetrics(); } catch (e) { console.warn("⚠️ updateOccupancyMetrics failed:", e); }
                 try { window.safeApplyFilters(); } catch (e) { console.warn("⚠️ safeApplyFilters failed:", e); }
                 try { window.generateRoomCards(); } catch (e) { console.warn("⚠️ generateRoomCards failed:", e); }
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                 try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
             }, (error) => {
                 console.error("Data fetch error:", error);
@@ -1192,6 +1311,7 @@
                 console.log(`✓ Populated ${rowIndex} dashboard rows`);
                 // After populating dashboard, render Rent Details table
                 renderRentDetailsTable();
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                 try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
                 return true;
             } catch (error) {
@@ -1234,6 +1354,7 @@
             window.generateRoomCards();
             window.updateOccupancyMetrics();
             renderTenantDetailsCards(allPropertiesData);
+            try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
             try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
             // renderRentDetailsTable(); // Now called after dashboard data loads
         };
