@@ -179,18 +179,22 @@
                 </div>
 
                 <!-- Legend -->
-                <div class="mt-6 flex justify-center gap-8 text-sm">
+                <div class="mt-6 flex justify-center gap-8 text-sm flex-wrap">
                     <span class="flex items-center gap-2">
                         <div class="w-5 h-5 bg-gray-200 border border-gray-400 rounded flex items-center justify-center text-xs">-</div>
                         <span>No Record</span>
                     </span>
                     <span class="flex items-center gap-2">
                         <div class="w-5 h-5 bg-red-100 border-2 border-red-400 rounded flex items-center justify-center text-red-600 font-bold text-xs">✗</div>
-                        <span>Pending (Rent Not Paid)</span>
+                        <span>Pending (Not Paid)</span>
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <div class="w-5 h-5 bg-purple-100 border-2 border-purple-400 rounded flex items-center justify-center text-purple-600 font-bold text-xs">✓</div>
+                        <span>Rent Only (No Water Bill)</span>
                     </span>
                     <span class="flex items-center gap-2">
                         <div class="w-5 h-5 bg-green-100 border-2 border-green-400 rounded flex items-center justify-center text-green-600 font-bold text-xs">✓</div>
-                        <span>Paid (Rent Received)</span>
+                        <span>Complete (Rent + Water)</span>
                     </span>
                 </div>
             </section>
@@ -1637,6 +1641,10 @@
                         cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
                         displayText = "✗";
                         icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
+                    } else if (status === 'Rent Only') {
+                        cellClass = "bg-purple-100 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-200";
+                        displayText = "✓";
+                        icon = '<i class="fa-solid fa-check text-purple-600"></i>';
                     } else if (status === 'Paid') {
                         cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
                         displayText = "✓";
@@ -1659,7 +1667,8 @@
 
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
             let newStatus = 'Pending';
-            if (currentStatus === 'Pending') newStatus = 'Paid';
+            if (currentStatus === 'Pending') newStatus = 'Rent Only';
+            else if (currentStatus === 'Rent Only') newStatus = 'Paid';
             else if (currentStatus === 'Paid') newStatus = 'None';
 
             // Find property matching roomId and update
