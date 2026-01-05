@@ -238,7 +238,7 @@
                         </button>
                     </div>
                 </div>
-                <p class="text-gray-500 mb-4">Enter monthly meter reading for each tenant. Units = (current − previous). Amount = Units × 0.25</p>
+                <p class="text-gray-500 mb-4">Enter monthly meter reading for each tenant. Units = (current − previous). Amount = Units × Rate</p>
 
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="w-full overflow-x-auto">
@@ -415,7 +415,7 @@
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Water Rate (₹/Unit)</label>
                         <input type="number" id="tenantWaterRate" min="0" step="0.01" placeholder="e.g. 0.25" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="text-xs text-gray-500 mt-1">Leave empty to use default rate (0.25)</p>
+                        <p class="text-xs text-gray-500 mt-1">Defaults to 0.25 (Rooms 11–13 default 0.20). You can edit.</p>
                     </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹) <span class="text-red-500">*</span></label>
@@ -539,6 +539,14 @@
         console.log("✓ Firebase initialized successfully");
 
         const DEFAULT_WATER_RATE = 0.25;
+        const DISCOUNTED_WATER_RATE = 0.20;
+        const DISCOUNTED_WATER_ROOMS = new Set(['11', '12', '13']);
+
+        function getDefaultWaterRateForRoom(roomNo) {
+            const room = String(roomNo || '').trim();
+            if (DISCOUNTED_WATER_ROOMS.has(room)) return DISCOUNTED_WATER_RATE;
+            return DEFAULT_WATER_RATE;
+        }
 
         // GLOBAL STATE
         let currentUser = null;
@@ -651,6 +659,16 @@
                 document.getElementById('tenantKeyNo').value = roomData.keyNo;
                 document.getElementById('tenantEbServNo').value = roomData.ebServNo;
                 document.getElementById('tenantEbAcNo').value = roomData.ebAcNo;
+
+                // Water Rate prefill: prefer existing tenant override, else room-based default
+                const rateInput = document.getElementById('tenantWaterRate');
+                if (rateInput) {
+                    const tenantData = findTenantForRoom(roomData);
+                    const existing = tenantData?.waterRate;
+                    const hasExisting = existing !== null && existing !== undefined && String(existing).trim() !== '';
+                    const rateToUse = hasExisting ? parseFloat(existing) : getDefaultWaterRateForRoom(roomData.roomNo);
+                    rateInput.value = Number.isFinite(rateToUse) ? String(rateToUse) : '';
+                }
             } else {
                 // Clear fields if no room selected
                 document.getElementById('tenantRoomNo').value = '';
@@ -658,6 +676,9 @@
                 document.getElementById('tenantKeyNo').value = '';
                 document.getElementById('tenantEbServNo').value = '';
                 document.getElementById('tenantEbAcNo').value = '';
+
+                const rateInput = document.getElementById('tenantWaterRate');
+                if (rateInput) rateInput.value = '';
             }
         };
 
