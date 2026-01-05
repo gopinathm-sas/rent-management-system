@@ -60,8 +60,6 @@
                     <div class="hidden md:flex space-x-4 text-sm font-medium">
                         <a href="#" onclick="showSection('dashboard')" class="hover:text-blue-200 transition cursor-pointer">Dashboard</a>
                         <a href="#" onclick="showSection('rent-details')" class="hover:text-blue-200 transition cursor-pointer">Rent Details</a>
-                        <a href="#" onclick="showSection('rooms')" class="hover:text-blue-200 transition cursor-pointer">Rooms</a>
-                        <a href="#" onclick="showSection('tenants')" class="hover:text-blue-200 transition cursor-pointer">Tenants</a>
                         <div class="relative group">
                             <button class="hover:text-blue-200 transition cursor-pointer flex items-center">
                                 <i class="fa-solid fa-user-plus mr-1"></i> Add Tenant
@@ -283,28 +281,28 @@
             <form id="addTenantForm" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Room No/Address</label>
+                        <label class="block text-gray-700 font-semibold mb-2">Room No/Address <span class="text-red-500">*</span></label>
                         <input type="text" id="tenantRoomNo" required placeholder="e.g. 101" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Room ID</label>
+                        <label class="block text-gray-700 font-semibold mb-2">Room ID <span class="text-red-500">*</span></label>
                         <input type="text" id="tenantRoomId" required placeholder="e.g. R01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Tenant Name</label>
+                        <label class="block text-gray-700 font-semibold mb-2">Tenant Name <span class="text-red-500">*</span></label>
                         <input type="text" id="tenantNameInput" required placeholder="e.g. Ramesh" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Contact</label>
-                        <input type="tel" id="tenantContact" placeholder="e.g. 9876543210" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-gray-700 font-semibold mb-2">Contact Number <span class="text-red-500">*</span></label>
+                        <input type="tel" id="tenantContact" required placeholder="e.g. 9876543210" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Monthly Rent (₹)</label>
+                        <label class="block text-gray-700 font-semibold mb-2">Monthly Rent (₹) <span class="text-red-500">*</span></label>
                         <input type="number" id="tenantRent" required min="1" placeholder="e.g. 5600" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹)</label>
-                        <input type="number" id="tenantDeposit" min="0" placeholder="e.g. 25000" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹) <span class="text-red-500">*</span></label>
+                        <input type="number" id="tenantDeposit" required min="0" placeholder="e.g. 25000" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">EB Service No.</label>
@@ -319,13 +317,13 @@
                         <input type="text" id="tenantKeyNo" placeholder="e.g. K01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Date of Relocation</label>
-                        <input type="date" id="tenantRelocateDate" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-gray-700 font-semibold mb-2">Date of Relocation <span class="text-red-500">*</span></label>
+                        <input type="date" id="tenantRelocateDate" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
                 <div class="flex justify-end gap-3 mt-6 border-t pt-4">
                     <button type="button" onclick="closeAddTenantModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                    <button type="submit" id="saveTenantBtn" disabled class="px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold cursor-not-allowed">
                         <i class="fa-solid fa-save mr-2"></i>Save Tenant
                     </button>
                 </div>
@@ -872,6 +870,31 @@
         window.closeAddTenantModal = () => {
             document.getElementById('addTenantModal').classList.add('hidden');
             document.getElementById('addTenantForm').reset();
+            document.getElementById('saveTenantBtn').disabled = true;
+            document.getElementById('saveTenantBtn').classList.add('bg-gray-400', 'cursor-not-allowed');
+            document.getElementById('saveTenantBtn').classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        };
+
+        // FORM VALIDATION FOR MANDATORY FIELDS
+        window.validateAddTenantForm = () => {
+            const tenantName = document.getElementById('tenantNameInput').value.trim();
+            const contact = document.getElementById('tenantContact').value.trim();
+            const rent = document.getElementById('tenantRent').value;
+            const deposit = document.getElementById('tenantDeposit').value;
+            const relocateDate = document.getElementById('tenantRelocateDate').value;
+
+            const isValid = tenantName && contact && rent && deposit && relocateDate;
+            
+            const saveBtn = document.getElementById('saveTenantBtn');
+            if (isValid) {
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            } else {
+                saveBtn.disabled = true;
+                saveBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            }
         };
 
         // ADD TENANT FORM HANDLER
@@ -939,6 +962,13 @@
                     alert("Error adding tenant: " + err.message);
                 }
             });
+
+            // Add event listeners to mandatory fields for form validation
+            document.getElementById('tenantNameInput').addEventListener('input', window.validateAddTenantForm);
+            document.getElementById('tenantContact').addEventListener('input', window.validateAddTenantForm);
+            document.getElementById('tenantRent').addEventListener('input', window.validateAddTenantForm);
+            document.getElementById('tenantDeposit').addEventListener('input', window.validateAddTenantForm);
+            document.getElementById('tenantRelocateDate').addEventListener('change', window.validateAddTenantForm);
         }
 
         // ADD PROPERTY
