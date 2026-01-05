@@ -71,6 +71,7 @@
                     <div class="flex items-center gap-5 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
+                        <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link hover:text-blue-200 transition cursor-pointer">Water Bill</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -222,6 +223,57 @@
                 </div>
             </section>
 
+            <!-- Water Bill Section -->
+            <section id="water-bill" class="section-tab mb-10">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                    <h2 class="text-2xl font-bold text-gray-700">Water Bill</h2>
+                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                        <span class="font-semibold">Year</span>
+                        <button type="button" onclick="changeWaterBillYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span id="water-bill-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
+                        <button type="button" onclick="changeWaterBillYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-gray-500 mb-4">Enter monthly meter reading for each tenant. Units = (current − previous). Amount = Units × 0.25</p>
+
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="w-full overflow-x-auto">
+                        <table id="waterBillTable" class="text-sm w-full border-collapse">
+                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                <tr>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waterBillBody" class="divide-y">
+                                <tr>
+                                    <td colspan="15" class="text-center py-10 text-gray-400">
+                                        Loading water bill data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Rooms Section -->
             <section id="rooms" class="section-tab mb-10">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -361,6 +413,11 @@
                         <input type="number" id="tenantRent" required min="1" placeholder="e.g. 5600" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Water Rate (₹/Unit)</label>
+                        <input type="number" id="tenantWaterRate" min="0" step="0.01" placeholder="e.g. 0.25" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Leave empty to use default rate (0.25)</p>
+                    </div>
+                    <div>
                         <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹) <span class="text-red-500">*</span></label>
                         <input type="number" id="tenantDeposit" required min="0" placeholder="e.g. 25000" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
@@ -481,6 +538,8 @@
         const provider = new GoogleAuthProvider();
         console.log("✓ Firebase initialized successfully");
 
+        const DEFAULT_WATER_RATE = 0.25;
+
         // GLOBAL STATE
         let currentUser = null;
         let unsubscribe = null;
@@ -488,6 +547,7 @@
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
         let currentRentDetailsYear = new Date().getFullYear();
+        let currentWaterBillYear = new Date().getFullYear();
 
         // HELPERS (room matching + occupancy)
         function isOccupiedRecord(record) {
@@ -807,6 +867,7 @@
                     updatePayload.tenant = null;
                     updatePayload.contact = null;
                     updatePayload.rent = null;
+                    updatePayload.waterRate = null;
                     updatePayload.deposit = null;
                     updatePayload.ebServNo = null;
                     updatePayload.ebAcNo = null;
@@ -814,6 +875,7 @@
                     updatePayload.relocate = null;
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
+                    updatePayload.waterReadings = {};
                 }
 
                 // Update the Firestore document
@@ -837,6 +899,7 @@
                 // Refresh all views
                 window.generateRoomCards();
                 window.renderRentDetailsTable();
+                window.renderWaterBillTable();
             } catch (error) {
                 console.error("Error updating room status:", error);
                 showNotification("Error: " + error.message, "error");
@@ -1060,6 +1123,7 @@
                 try { window.updateOccupancyMetrics(); } catch (e) { console.warn("⚠️ updateOccupancyMetrics failed:", e); }
                 try { window.safeApplyFilters(); } catch (e) { console.warn("⚠️ safeApplyFilters failed:", e); }
                 try { window.generateRoomCards(); } catch (e) { console.warn("⚠️ generateRoomCards failed:", e); }
+                try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
             }, (error) => {
                 console.error("Data fetch error:", error);
                 if (error.code === 'permission-denied') {
@@ -1107,6 +1171,7 @@
                 console.log(`✓ Populated ${rowIndex} dashboard rows`);
                 // After populating dashboard, render Rent Details table
                 renderRentDetailsTable();
+                try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
                 return true;
             } catch (error) {
                 console.error("❌ Error loading dashboard data:", error);
@@ -1148,6 +1213,7 @@
             window.generateRoomCards();
             window.updateOccupancyMetrics();
             renderTenantDetailsCards(allPropertiesData);
+            try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
             // renderRentDetailsTable(); // Now called after dashboard data loads
         };
 
@@ -1412,6 +1478,9 @@
         window.openAddTenantModal = (roomId = null) => {
             document.getElementById('addTenantModal').classList.remove('hidden');
             document.getElementById('addTenantForm').reset();
+
+            const waterRateEl = document.getElementById('tenantWaterRate');
+            if (waterRateEl) waterRateEl.value = String(DEFAULT_WATER_RATE);
             
             // If roomId is provided, pre-select the room
             if (roomId) {
@@ -1419,6 +1488,11 @@
                 if (roomNo) {
                     document.getElementById('roomSelector').value = roomNo;
                     window.prefillRoomDetails();
+
+                    const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                    const existing = roomData ? findTenantForRoom(roomData) : null;
+                    const existingRate = Number(existing?.waterRate);
+                    if (waterRateEl && Number.isFinite(existingRate)) waterRateEl.value = String(existingRate);
                 }
             }
         };
@@ -1484,6 +1558,9 @@
                 const tenantName = document.getElementById('tenantNameInput').value.trim();
                 const contact = document.getElementById('tenantContact').value.trim();
                 const rent = parseFloat(document.getElementById('tenantRent').value);
+                const waterRateInput = document.getElementById('tenantWaterRate')?.value;
+                const parsedWaterRate = parseFloat(String(waterRateInput ?? '').trim());
+                const waterRate = Number.isFinite(parsedWaterRate) ? parsedWaterRate : DEFAULT_WATER_RATE;
                 const deposit = parseFloat(document.getElementById('tenantDeposit').value) || 0;
                 const ebServNo = document.getElementById('tenantEbServNo').value.trim();
                 const ebAcNo = document.getElementById('tenantEbAcNo').value.trim();
@@ -1508,6 +1585,11 @@
                     return;
                 }
 
+                if (!Number.isFinite(waterRate) || waterRate < 0) {
+                    showNotification("Invalid water rate. Please enter a non-negative number.", "warning");
+                    return;
+                }
+
                 try {
                     // Save to Firestore
                     // IMPORTANT: Prefer updating an existing room record to avoid duplicates
@@ -1519,6 +1601,7 @@
                             roomNo: roomNo,
                             tenant: tenantName,
                             rent: rent,
+                            waterRate: waterRate,
                             contact: contact,
                             deposit: deposit,
                             ebServNo: ebServNo,
@@ -1543,6 +1626,7 @@
                             roomNo: roomNo,
                             tenant: tenantName,
                             rent: rent,
+                            waterRate: waterRate,
                             contact: contact,
                             deposit: deposit,
                             ebServNo: ebServNo,
@@ -1948,6 +2032,163 @@
             } catch (e) {
                 console.error("Update failed", e);
                 showNotification("Error: " + e.message, "error");
+            }
+        };
+
+        // WATER BILL (Meter reading → Units → Amount)
+        window.changeWaterBillYear = (delta) => {
+            const next = (Number(currentWaterBillYear) || new Date().getFullYear()) + (Number(delta) || 0);
+            currentWaterBillYear = next;
+            window.renderWaterBillTable();
+        };
+
+        function getWaterMonthKey(year, monthIndex) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return `${year}-${months[monthIndex]}`;
+        }
+
+        function getPrevYearMonth(year, monthIndex) {
+            if (monthIndex > 0) return { year, monthIndex: monthIndex - 1 };
+            return { year: year - 1, monthIndex: 11 };
+        }
+
+        function computeWaterForMonth(tenantData, year, monthIndex, waterRate) {
+            const readings = tenantData?.waterReadings || {};
+            const currentKey = getWaterMonthKey(year, monthIndex);
+            const prev = getPrevYearMonth(year, monthIndex);
+            const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
+
+            const currentReading = readings?.[currentKey];
+            const prevReading = readings?.[prevKey];
+
+            const hasCurrent = currentReading !== null && currentReading !== undefined && currentReading !== '';
+            const hasPrev = prevReading !== null && prevReading !== undefined && prevReading !== '';
+
+            const currentNum = hasCurrent ? Number(currentReading) : NaN;
+            const prevNum = hasPrev ? Number(prevReading) : NaN;
+
+            if (!Number.isFinite(currentNum) || !Number.isFinite(prevNum)) {
+                return { currentReading: Number.isFinite(currentNum) ? currentNum : null, units: null, amount: null };
+            }
+
+            const units = currentNum - prevNum;
+            const rate = Number.isFinite(waterRate) ? waterRate : DEFAULT_WATER_RATE;
+            const amount = units * rate;
+            return { currentReading: currentNum, units, amount };
+        }
+
+        window.renderWaterBillTable = () => {
+            const tbody = document.getElementById('waterBillBody');
+            if (!tbody) return;
+
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const selectedYear = (typeof currentWaterBillYear === 'number' && Number.isFinite(currentWaterBillYear))
+                ? currentWaterBillYear
+                : new Date().getFullYear();
+
+            const yearLabel = document.getElementById('water-bill-year');
+            if (yearLabel) yearLabel.innerText = String(selectedYear);
+
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+            if (roomNos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="15" class="text-center py-10 text-gray-400">No room data found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = roomNos.map(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+                const occupied = isOccupiedRecord(tenantData);
+                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
+                const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
+
+                let row = `
+                    <tr class="${rowClass}">
+                        <td class="border px-4 py-3 font-semibold text-blue-600 bg-white min-w-[6rem]">${escapeHtml(roomData.roomId)}</td>
+                        <td class="border px-4 py-3 font-semibold bg-white min-w-[6rem]">${escapeHtml(roomData.roomNo)}</td>
+                        <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
+                `;
+
+                months.forEach((month, monthIndex) => {
+                    let cellClass = occupied
+                        ? 'bg-white text-gray-700 border-gray-200 cursor-pointer hover:bg-gray-50'
+                        : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
+                    let display = '-';
+                    let title = occupied ? 'Click to enter meter reading' : 'Vacant - No tenant';
+
+                    if (occupied) {
+                        const key = getWaterMonthKey(selectedYear, monthIndex);
+                        const rate = Number(tenantData?.waterRate);
+                        const effectiveRate = Number.isFinite(rate) ? rate : DEFAULT_WATER_RATE;
+                        const result = computeWaterForMonth(tenantData, selectedYear, monthIndex, effectiveRate);
+
+                        if (result.units !== null && result.amount !== null) {
+                            const unitsText = `${result.units}`;
+                            const amountText = `₹${Number(result.amount).toFixed(2)}`;
+                            display = `${unitsText}<div class="text-[11px] text-gray-500">${amountText}</div>`;
+                            title = `Units: ${unitsText} | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}`;
+                            if (result.units < 0) {
+                                cellClass = 'bg-red-50 text-red-700 border-red-200 cursor-pointer hover:bg-red-100';
+                                title = `⚠️ Reading decreased. Units: ${unitsText} | Rate: ${effectiveRate}/unit | Check readings | Key: ${key}`;
+                            }
+                        } else {
+                            const savedReading = tenantData?.waterReadings?.[key];
+                            const savedNum = Number(savedReading);
+                            if (savedReading !== null && savedReading !== undefined && savedReading !== '' && Number.isFinite(savedNum)) {
+                                display = `${savedNum}<div class="text-[11px] text-gray-500">reading</div>`;
+                                title = `Reading saved (${savedNum}). Rate: ${effectiveRate}/unit. Add previous month reading to calculate units.`;
+                            } else {
+                                display = '<span class="text-gray-400">—</span>';
+                                title = `No reading for ${month}. Rate: ${effectiveRate}/unit. Click to enter.`;
+                            }
+                        }
+                    }
+
+                    const clickHandler = occupied ? `onclick="window.setWaterReading('${roomData.roomId}', ${selectedYear}, ${monthIndex})"` : '';
+                    row += `
+                        <td class="border px-3 py-2 text-center align-top ${cellClass}" ${clickHandler} title="${escapeHtml(title)}">
+                            ${display}
+                        </td>
+                    `;
+                });
+
+                row += '</tr>';
+                return row;
+            }).join('');
+        };
+
+        window.setWaterReading = async (roomId, year, monthIndex) => {
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(IMMUTABLE_ROOMS_DATA[immutableRoomNo])
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord || !isOccupiedRecord(tenantRecord)) {
+                    showNotification('Cannot set reading: Tenant not found / room vacant', 'error');
+                    return;
+                }
+
+                const key = getWaterMonthKey(year, monthIndex);
+                const existing = tenantRecord?.waterReadings?.[key];
+                const input = prompt(`Enter meter reading for ${key} (Room ${roomId})`, existing ?? '');
+                if (input === null) return;
+
+                const value = Number(String(input).trim());
+                if (!Number.isFinite(value) || value < 0) {
+                    showNotification('Invalid reading. Enter a non-negative number.', 'warning');
+                    return;
+                }
+
+                const ref = doc(db, 'properties', tenantRecord.id);
+                await updateDoc(ref, { [`waterReadings.${key}`]: value });
+                showNotification('✓ Water reading saved', 'success');
+                window.renderWaterBillTable();
+            } catch (e) {
+                console.error('setWaterReading failed', e);
+                showNotification('Error: ' + e.message, 'error');
             }
         };
 
