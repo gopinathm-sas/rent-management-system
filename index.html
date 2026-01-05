@@ -805,6 +805,10 @@
                 const lastRevisionLabel = revisionInfo?.lastRevisionDate ? formatDateForDisplay(revisionInfo.lastRevisionDate, '-') : '-';
                 const showRevisionPending = isOccupied && revisionInfo?.daysTo !== null && revisionInfo?.daysTo !== undefined && revisionInfo.daysTo <= 0;
                 const revisionPendingBadge = showRevisionPending ? `<span class="ml-2 text-xs font-bold text-red-600">Revision Pending</span>` : '';
+                const unRevisedRentValue = tenantData?.unRevisedRent;
+                const hasUnRevisedRent = unRevisedRentValue !== null && unRevisedRentValue !== undefined && String(unRevisedRentValue).trim() !== '';
+                const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRentValue) : NaN;
+                const unRevisedRentLabel = Number.isFinite(unRevisedRentNum) ? `₹${unRevisedRentNum.toLocaleString('en-IN')}` : String(unRevisedRentValue);
                 const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
                 const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
@@ -826,6 +830,7 @@
                                 <i class="fa-solid fa-user mr-2 text-blue-600"></i>${tenantName}
                             </p>
                             <p class="text-xs text-gray-500 mt-2">Last revision: <span class="font-semibold text-gray-700">${lastRevisionLabel}</span>${revisionPendingBadge}</p>
+                            ${hasUnRevisedRent ? `<p class="text-xs text-gray-500 mt-1">Unrevised rent: <span class="font-semibold text-gray-700">${unRevisedRentLabel}</span></p>` : ''}
                         </div>
                     </div>
                 `;
@@ -846,6 +851,12 @@
             const contact = tenantData?.contact || 'N/A';
             const rent = tenantData?.rent || 'N/A';
             const deposit = tenantData?.deposit || 'N/A';
+            const unRevisedRent = tenantData?.unRevisedRent;
+            const hasUnRevisedRent = unRevisedRent !== null && unRevisedRent !== undefined && String(unRevisedRent).trim() !== '';
+            const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRent) : NaN;
+            const unRevisedRentLabel = hasUnRevisedRent
+                ? (Number.isFinite(unRevisedRentNum) ? `₹${unRevisedRentNum.toLocaleString('en-IN')}` : String(unRevisedRent))
+                : 'N/A';
             const revisionInfo = isOccupied ? getRentRevisionDates(tenantData) : null;
             const relocateDate = revisionInfo?.relocateDate || parseDateValue(tenantData?.relocate);
             const lastRevisionDate = revisionInfo?.lastRevisionDate || parseDateValue(tenantData?.lastRentRevisionAt);
@@ -910,6 +921,10 @@
                                     <div>
                                         <p class="text-sm text-gray-600 font-semibold">Security Deposit</p>
                                         <p class="text-xl font-bold text-green-700">₹${typeof deposit === 'number' ? deposit.toLocaleString() : deposit}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-semibold">Unrevised Rent (Previous)</p>
+                                        <p class="text-xl font-bold text-gray-800">${unRevisedRentLabel}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1886,6 +1901,12 @@
                             updatedBy: currentUser.uid,
                             paymentHistory: existingForRoom?.paymentHistory || {}
                         };
+
+                        // Audit trail: capture previous (unrevised) rent whenever rent changes
+                        if (rentChanged && Number.isFinite(prevRent)) {
+                            updatePayload.unRevisedRent = prevRent;
+                            updatePayload.unRevisedRentCapturedAt = serverTimestamp();
+                        }
                         if (!existingForRoom?.createdAt) updatePayload.createdAt = serverTimestamp();
                         if (!existingForRoom?.createdBy) updatePayload.createdBy = currentUser.uid;
 
@@ -1906,6 +1927,8 @@
                             keyNo: keyNo,
                             relocate: relocate,
                             lastRentRevisionAt: lastRentRevisionAt,
+                            unRevisedRent: null,
+                            unRevisedRentCapturedAt: null,
                             status: 'Occupied',
                             payStatus: 'Pending',
                             createdAt: serverTimestamp(),
