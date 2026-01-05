@@ -244,7 +244,7 @@
                 <!-- Rent & Water (+60) Table -->
                 <div class="mt-12">
                     <h3 class="text-xl font-bold text-gray-700 mb-2">Rent &amp; Water (+₹60)</h3>
-                    <p class="text-gray-500 mb-4">Click any month to toggle (Paid/None). When Paid (green tick), total is saved as Rent + Water Bill + 60.</p>
+                    <p class="text-gray-500 mb-4">Auto-calculated from Rent Details. When a month is marked <span class="font-semibold">Paid (green)</span> there, this table shows <span class="font-semibold">Rent + Water Bill + 60</span>.</p>
 
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="w-full overflow-x-auto">
@@ -2386,24 +2386,47 @@
                     const key = `${selectedYear}-${month}`;
                     const status = history[key] || 'None';
 
-                    let cellClass = occupied
-                        ? "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200"
-                        : "bg-gray-100 text-gray-600 border-gray-300 cursor-not-allowed";
-                    let displayText = "-";
+                    const totals = tenantData?.paymentTotals || {};
+                    const storedTotal = Number(totals?.[key]);
 
-                    if (occupied && status === 'Paid') {
-                        cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
-                        displayText = "✓";
+                    const rentOnlyAmount = Number(tenantData?.rent);
+
+                    let cellClass = occupied
+                        ? "bg-gray-100 text-gray-700 border-gray-300"
+                        : "bg-gray-100 text-gray-600 border-gray-300";
+                    let displayText = "-";
+                    let title = occupied ? 'Calculated from Rent Details' : 'Vacant - No tenant';
+
+                    if (occupied && status === 'Pending') {
+                        cellClass = "bg-red-100 text-red-800 border-red-300";
+                        if (Number.isFinite(rentOnlyAmount) && rentOnlyAmount > 0) {
+                            const asInt = Math.round(rentOnlyAmount);
+                            const isWhole = Math.abs(rentOnlyAmount - asInt) < 0.0001;
+                            displayText = isWhole ? String(asInt) : rentOnlyAmount.toFixed(2);
+                            title = `Pending (Rent only) = ₹${rentOnlyAmount.toLocaleString('en-IN')}`;
+                        } else {
+                            displayText = "-";
+                            title = 'Pending, but rent not available';
+                        }
                     }
 
-                    const clickHandler = occupied
-                        ? `onclick="window.toggleRentWaterPaid('${roomData.roomId}', '${key}', '${status}')"`
-                        : '';
+                    if (occupied && status === 'Paid') {
+                        cellClass = "bg-green-100 text-green-800 border-green-300";
+                        if (Number.isFinite(storedTotal)) {
+                            // Display as plain number in cell (example: 5910)
+                            const asInt = Math.round(storedTotal);
+                            const isWhole = Math.abs(storedTotal - asInt) < 0.0001;
+                            displayText = isWhole ? String(asInt) : storedTotal.toFixed(2);
+                            title = `Paid (Rent + Water + ${RENT_WATER_SERVICE_CHARGE}) = ₹${storedTotal.toLocaleString('en-IN')}`;
+                        } else {
+                            displayText = "-";
+                            title = 'Paid, but total not stored yet';
+                        }
+                    }
 
                     row += `
                         <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
-                            ${clickHandler}
-                            title="${occupied ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
+                            title="${escapeHtml(title)}">
                             ${displayText}
                         </td>
                     `;
@@ -2492,11 +2515,45 @@
 
             const propRef = doc(db, "properties", prop.id);
             const updatePayload = {};
-            
-            if (newStatus === 'None') {
-                updatePayload[`paymentHistory.${key}`] = null; 
+
+            // Keep the totals in sync:
+            // - Only meaningful for 'Paid' (complete)
+            // - Clear totals for other statuses
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const parts = String(key || '').split('-');
+            const year = Number(parts?.[0]);
+            const monthLabel = parts?.[1];
+            const monthIndex = months.indexOf(monthLabel);
+
+            const rent = Number(prop?.rent) || 0;
+            const waterRate = (prop?.waterRate !== null && prop?.waterRate !== undefined && String(prop?.waterRate).trim() !== '')
+                ? Number(prop?.waterRate)
+                : getDefaultWaterRateForRoom(prop?.roomNo);
+
+            if (newStatus === 'Paid') {
+                // Require water readings to compute total.
+                if (!Number.isFinite(year) || monthIndex < 0) {
+                    showNotification('Invalid month key', 'error');
+                    return;
+                }
+                const water = computeWaterForMonth(prop, year, monthIndex, waterRate);
+                if (!Number.isFinite(water?.amount)) {
+                    showNotification('Please enter water readings for this month AND previous month (Water Bill screen) before marking Paid.', 'warning');
+                    return;
+                }
+                if (Number(water?.units) < 0) {
+                    showNotification('Water units cannot be negative. Please check readings.', 'error');
+                    return;
+                }
+                const total = Math.round((rent + Number(water.amount) + RENT_WATER_SERVICE_CHARGE) * 100) / 100;
+                updatePayload[`paymentHistory.${key}`] = 'Paid';
+                updatePayload[`paymentTotals.${key}`] = total;
+            } else if (newStatus === 'None') {
+                updatePayload[`paymentHistory.${key}`] = null;
+                updatePayload[`paymentTotals.${key}`] = null;
             } else {
                 updatePayload[`paymentHistory.${key}`] = newStatus;
+                updatePayload[`paymentTotals.${key}`] = null;
             }
 
             try {
@@ -2505,6 +2562,7 @@
                 showNotification(`✓ Status updated to ${newStatus}`, "success");
                 renderRentDetailsTable(); // Refresh the table
                 try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+                try { window.updateOccupancyMetrics(); } catch (e) { console.warn("⚠️ updateOccupancyMetrics failed:", e); }
             } catch (e) {
                 console.error("Update failed", e);
                 showNotification("Error: " + e.message, "error");
