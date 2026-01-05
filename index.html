@@ -1127,6 +1127,11 @@
         // TENANT DETAILS RENDERING
         window.renderTenantDetailsCards = (tenantList) => {
             const grid = document.getElementById('tenantDetailsGrid');
+            if (!grid) {
+                // Tenant details section isn't present in the DOM in the current UI.
+                // Avoid throwing here because it can stop dashboard refreshes.
+                return;
+            }
             if (!tenantList || tenantList.length === 0) {
                 grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No tenants found.</p>';
                 return;
