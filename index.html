@@ -502,12 +502,14 @@
         ];
 
         // Ensure 12 immutable rooms exist in Firestore
-        async function initializeFixedRooms(userContext = currentUser) {
+        async function initializeFixedRooms(userContext = null) {
             if (roomsInitialized) {
                 return;
             }
             try {
-                const createdBy = (userContext && userContext.uid) ? userContext.uid : 'system';
+                const createdBy = (userContext && userContext.uid) 
+                    ? userContext.uid 
+                    : (currentUser && currentUser.uid ? currentUser.uid : 'auto-initialization');
                 const snapshot = await getDocs(collection(db, "rooms"));
                 const existingIds = new Set();
                 snapshot.forEach((doc) => existingIds.add(doc.id));
