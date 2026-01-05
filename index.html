@@ -236,12 +236,43 @@
 
             <!-- Rent Details Section -->
             <section id="rent-details" class="section-tab mb-10">
-                <h2 class="text-2xl font-bold mb-2 text-gray-700">Rent Details</h2>
-                <p class="text-gray-500 mb-6">View and manage rent payment details</p>
+                <h2 class="text-2xl font-bold mb-6 text-gray-700">Tenant Management</h2>
                 
-                <!-- Placeholder for future rent payment tracking -->
-                <div class="bg-white rounded-lg shadow-md p-8 text-center">
-                    <p class="text-gray-400">Rent payment tracking features coming soon...</p>
+                <!-- Tabs for different views -->
+                <div class="flex gap-4 mb-6 border-b border-gray-200">
+                    <button onclick="showRentTab('active')" id="activeTab" class="px-4 py-2 font-semibold text-blue-600 border-b-2 border-blue-600">
+                        <i class="fa-solid fa-users mr-2"></i>Active Tenants
+                    </button>
+                    <button onclick="showRentTab('archived')" id="archivedTab" class="px-4 py-2 font-semibold text-gray-600 border-b-2 border-transparent hover:text-gray-800">
+                        <i class="fa-solid fa-archive mr-2"></i>Archived Tenants
+                    </button>
+                    <button onclick="showRentTab('history')" id="historyTab" class="px-4 py-2 font-semibold text-gray-600 border-b-2 border-transparent hover:text-gray-800">
+                        <i class="fa-solid fa-history mr-2"></i>Tenant History
+                    </button>
+                </div>
+
+                <!-- Active Tenants View -->
+                <div id="activeTab-content" class="bg-white rounded-lg shadow-md p-6">
+                    <p class="text-gray-600 mb-4">Currently occupied rooms</p>
+                    <div id="activeTenantsList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <p class="col-span-full text-center py-10 text-gray-400">No active tenants...</p>
+                    </div>
+                </div>
+
+                <!-- Archived Tenants View -->
+                <div id="archivedTab-content" class="bg-white rounded-lg shadow-md p-6 hidden">
+                    <p class="text-gray-600 mb-4">Tenants who have vacated</p>
+                    <div id="archivedTenantsList" class="space-y-3">
+                        <p class="text-center py-10 text-gray-400">No archived tenants...</p>
+                    </div>
+                </div>
+
+                <!-- Tenant History View -->
+                <div id="historyTab-content" class="bg-white rounded-lg shadow-md p-6 hidden">
+                    <p class="text-gray-600 mb-4">Complete history of all tenants per room</p>
+                    <div id="tenantHistoryList" class="space-y-4">
+                        <p class="text-center py-10 text-gray-400">No tenant history...</p>
+                    </div>
                 </div>
             </section>
 
@@ -266,6 +297,19 @@
             
             <div id="tenantDetailsModalContent" class="space-y-6">
                 <!-- Details will be populated by JavaScript -->
+            </div>
+
+            <!-- Action Buttons -->
+            <div id="tenantActions" class="flex gap-3 mt-8 border-t pt-6">
+                <button onclick="vacateTenant()" id="vacateBtn" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
+                    <i class="fa-solid fa-sign-out mr-2"></i>Mark as Vacated
+                </button>
+                <button onclick="replaceTenant()" id="replaceBtn" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">
+                    <i class="fa-solid fa-refresh mr-2"></i>Replace Tenant
+                </button>
+                <button onclick="closeTenantDetailsModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500">
+                    Close
+                </button>
             </div>
         </div>
     </div>
@@ -611,6 +655,7 @@
             renderTenants(filteredData);
             updateStats(allPropertiesData);
             renderTenantDetailsCards(allPropertiesData);
+            renderTenantManagementTabs();
             // renderRentDetailsTable(); // Now called after dashboard data loads
         };
 
@@ -651,6 +696,7 @@
         };
 
         window.openTenantDetailsModal = (tenantId) => {
+            window.currentViewingTenantId = tenantId;
             const tenant = allPropertiesData.find(p => p.id === tenantId);
             if (!tenant) return;
 
@@ -751,6 +797,166 @@
 
         window.closeTenantDetailsModal = () => {
             document.getElementById('tenantDetailsModal').classList.add('hidden');
+            window.currentViewingTenantId = null;
+        };
+
+        // STORE CURRENT VIEWING TENANT ID
+        window.currentViewingTenantId = null;
+
+        // Update openTenantDetailsModal to store the ID
+        const originalOpen = window.openTenantDetailsModal;
+        window.openTenantDetailsModal = function(tenantId) {
+            window.currentViewingTenantId = tenantId;
+            return originalOpen(tenantId);
+        };
+
+        // VACATE TENANT
+        window.vacateTenant = async () => {
+            if (!window.currentViewingTenantId) return alert("Error: No tenant selected");
+            if (!currentUser) return alert("Please login");
+
+            if (!confirm("Are you sure you want to mark this tenant as vacated? You can still view them in the Archive.")) {
+                return;
+            }
+
+            try {
+                const propRef = doc(db, "properties", window.currentViewingTenantId);
+                await updateDoc(propRef, {
+                    status: 'Vacated',
+                    vacationDate: new Date().toISOString().split('T')[0],
+                    updatedAt: serverTimestamp()
+                });
+
+                alert("✓ Tenant marked as vacated!");
+                window.closeTenantDetailsModal();
+                window.applyFilters();
+                window.renderTenantManagementTabs();
+            } catch (err) {
+                console.error("Error vacating tenant:", err);
+                alert("Error: " + err.message);
+            }
+        };
+
+        // REPLACE TENANT
+        window.replaceTenant = async () => {
+            if (!window.currentViewingTenantId) return alert("Error: No tenant selected");
+
+            const confirmed = confirm("This will archive the current tenant and allow you to add a new one. Proceed?");
+            if (!confirmed) return;
+
+            try {
+                const propRef = doc(db, "properties", window.currentViewingTenantId);
+                await updateDoc(propRef, {
+                    status: 'Vacated',
+                    vacationDate: new Date().toISOString().split('T')[0],
+                    updatedAt: serverTimestamp()
+                });
+
+                alert("✓ Current tenant archived. Now adding new tenant...");
+                window.closeTenantDetailsModal();
+                window.openAddTenantModal();
+                window.applyFilters();
+                window.renderTenantManagementTabs();
+            } catch (err) {
+                console.error("Error replacing tenant:", err);
+                alert("Error: " + err.message);
+            }
+        };
+
+        // RENDER TENANT MANAGEMENT TABS
+        window.renderTenantManagementTabs = () => {
+            // Active tenants
+            const activeTenants = allPropertiesData.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
+            const activeList = document.getElementById('activeTenantsList');
+            
+            if (activeTenants.length === 0) {
+                activeList.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No active tenants...</p>';
+            } else {
+                activeList.innerHTML = activeTenants.map(t => `
+                    <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 cursor-pointer hover:shadow-md transition" onclick="openTenantDetailsModal('${t.id}')">
+                        <h4 class="font-bold text-gray-800">${escapeHtml(t.tenant)}</h4>
+                        <p class="text-sm text-gray-600">Room: ${escapeHtml(t.name)}</p>
+                        <p class="text-sm text-green-700 font-semibold mt-2">₹${t.rent}/month</p>
+                    </div>
+                `).join('');
+            }
+
+            // Archived tenants
+            const archivedTenants = allPropertiesData.filter(p => p.status === 'Vacated');
+            const archivedList = document.getElementById('archivedTenantsList');
+            
+            if (archivedTenants.length === 0) {
+                archivedList.innerHTML = '<p class="text-center py-10 text-gray-400">No archived tenants...</p>';
+            } else {
+                archivedList.innerHTML = archivedTenants.map(t => `
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200 cursor-pointer hover:shadow-md transition" onclick="openTenantDetailsModal('${t.id}')">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-bold text-gray-800">${escapeHtml(t.tenant)}</h4>
+                                <p class="text-sm text-gray-600">Room: ${escapeHtml(t.name)}</p>
+                            </div>
+                            <span class="px-2 py-1 bg-gray-400 text-white text-xs rounded">Vacated</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Vacated: ${t.vacationDate || 'N/A'}</p>
+                    </div>
+                `).join('');
+            }
+
+            // Tenant History
+            const roomMap = {};
+            allPropertiesData.forEach(tenant => {
+                const roomKey = tenant.roomId || tenant.name;
+                if (!roomMap[roomKey]) {
+                    roomMap[roomKey] = [];
+                }
+                roomMap[roomKey].push(tenant);
+            });
+
+            const historyList = document.getElementById('tenantHistoryList');
+            const historyEntries = Object.entries(roomMap);
+            
+            if (historyEntries.length === 0) {
+                historyList.innerHTML = '<p class="text-center py-10 text-gray-400">No tenant history...</p>';
+            } else {
+                historyList.innerHTML = historyEntries.map(([room, tenants]) => `
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <h4 class="font-bold text-gray-800 mb-3"><i class="fa-solid fa-door-open mr-2"></i>Room: ${escapeHtml(room)}</h4>
+                        <div class="space-y-2">
+                            ${tenants.map((t, idx) => `
+                                <div class="bg-white p-3 rounded border-l-4 ${t.status === 'Occupied' ? 'border-green-500' : 'border-gray-400'} cursor-pointer hover:shadow-sm transition" onclick="openTenantDetailsModal('${t.id}')">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="font-semibold text-gray-800">${escapeHtml(t.tenant)}</p>
+                                            <p class="text-xs text-gray-600">Relocated: ${t.relocate || 'N/A'}</p>
+                                        </div>
+                                        <span class="px-2 py-1 text-xs rounded ${t.status === 'Occupied' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}">
+                                            ${t.status === 'Occupied' ? 'Active' : 'Vacated'}
+                                        </span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        };
+
+        // SHOW RENT TAB
+        window.showRentTab = (tab) => {
+            const tabs = ['active', 'archived', 'history'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(t + 'Tab');
+                const content = document.getElementById(t + 'Tab-content');
+                if (t === tab) {
+                    btn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+                    btn.classList.remove('text-gray-600', 'border-b-2', 'border-transparent');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                    btn.classList.add('text-gray-600', 'border-b-2', 'border-transparent');
+                    content.classList.add('hidden');
+                }
+            });
         };
 
         // RENT HISTORY LOGIC
