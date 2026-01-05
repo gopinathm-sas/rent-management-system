@@ -1719,7 +1719,11 @@
 
         function renderProperties(list) {
             const grid = document.getElementById('property-grid');
-            if (!list.length) { grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No properties found.</p>'; return; }
+            if (!grid) return;
+            if (!list.length) {
+                grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No properties found.</p>';
+                return;
+            }
 
             grid.innerHTML = list.map(p => {
                 const history = p.paymentHistory || {};
@@ -1776,8 +1780,11 @@
         }
 
         function updateStats(list) {
-            document.getElementById('total-properties').innerText = list.length;
-            document.getElementById('total-tenants').innerText = list.filter(p => p.status === 'Occupied').length;
+            const totalPropsEl = document.getElementById('total-properties');
+            if (totalPropsEl) totalPropsEl.innerText = list.length;
+
+            const totalTenantsEl = document.getElementById('total-tenants');
+            if (totalTenantsEl) totalTenantsEl.innerText = list.filter(p => p.status === 'Occupied').length;
             
             let totalPending = 0;
             list.forEach(p => {
@@ -1790,7 +1797,8 @@
                     totalPending += (p.rent || 0);
                 }
             });
-            document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
+            const pendingRentEl = document.getElementById('pending-rent');
+            if (pendingRentEl) pendingRentEl.innerText = '₹' + totalPending.toLocaleString();
         }
 
         // RENT DETAILS TABLE - Populate with 12 immutable rooms and tenant data
