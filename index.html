@@ -1592,7 +1592,7 @@
         }
 
         // RENT DETAILS TABLE - Populate with 12 immutable rooms and tenant data
-        function renderRentDetailsTable() {
+        window.renderRentDetailsTable = function() {
             const tbody = document.getElementById('rentDetailsBody');
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const currentYear = new Date().getFullYear();
@@ -1655,7 +1655,7 @@
                 row += `</tr>`;
                 return row;
             }).filter(row => row !== '').join('');
-        }
+        };
 
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
             let newStatus = 'Pending';
