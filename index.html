@@ -26,6 +26,13 @@
         #rentDetailsTable th:nth-child(1), #rentDetailsTable td:nth-child(1) { position: sticky; left: 0; z-index: 30; }
         #rentDetailsTable th:nth-child(2), #rentDetailsTable td:nth-child(2) { position: sticky; left: 6rem; z-index: 30; }
         #rentDetailsTable th:nth-child(3), #rentDetailsTable td:nth-child(3) { position: sticky; left: 12rem; z-index: 30; }
+
+        /* Rent & Water table usability: sticky first columns */
+        #rentWaterTable { border-collapse: separate; border-spacing: 0; }
+        #rentWaterTable th, #rentWaterTable td { white-space: nowrap; }
+        #rentWaterTable th:nth-child(1), #rentWaterTable td:nth-child(1) { position: sticky; left: 0; z-index: 30; }
+        #rentWaterTable th:nth-child(2), #rentWaterTable td:nth-child(2) { position: sticky; left: 6rem; z-index: 30; }
+        #rentWaterTable th:nth-child(3), #rentWaterTable td:nth-child(3) { position: sticky; left: 12rem; z-index: 30; }
         /* Ledger Grid Transition */
         .month-box { transition: all 0.2s ease; }
         .month-box:active { transform: scale(0.95); }
@@ -232,6 +239,45 @@
                         <div class="w-5 h-5 bg-green-100 border-2 border-green-400 rounded flex items-center justify-center text-green-600 font-bold text-xs">✓</div>
                         <span>Complete (Rent + Water)</span>
                     </span>
+                </div>
+
+                <!-- Rent & Water (+60) Table -->
+                <div class="mt-12">
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Rent &amp; Water (+₹60)</h3>
+                    <p class="text-gray-500 mb-4">Click any month to toggle (Paid/None). When Paid (green tick), total is saved as Rent + Water Bill + 60.</p>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="w-full overflow-x-auto">
+                            <table id="rentWaterTable" class="text-sm w-full border-collapse">
+                                <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                    <tr>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rentWaterBody" class="divide-y">
+                                    <tr>
+                                        <td colspan="15" class="text-center py-10 text-gray-400">
+                                            Loading rent &amp; water data...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -558,6 +604,8 @@
         const DEFAULT_WATER_RATE = 0.25;
         const DISCOUNTED_WATER_RATE = 0.20;
         const DISCOUNTED_WATER_ROOMS = new Set(['11', '12', '13']);
+
+        const RENT_WATER_SERVICE_CHARGE = 60;
 
         const RENT_REVISION_WINDOW_DAYS = 15;
 
@@ -1027,6 +1075,7 @@
                     updatePayload.relocate = null;
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
+                    updatePayload.paymentTotals = {};
                     updatePayload.waterReadings = {};
                 }
 
@@ -1051,6 +1100,7 @@
                 // Refresh all views
                 window.generateRoomCards();
                 window.renderRentDetailsTable();
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
                 window.renderWaterBillTable();
             } catch (error) {
                 console.error("Error updating room status:", error);
@@ -1121,13 +1171,22 @@
                     occupiedCount++;
 
                     const history = tenantData?.paymentHistory || {};
+                    const totals = tenantData?.paymentTotals || {};
                     const rent = parseFloat(tenantData?.rent) || 0;
                     const status = history[currentMonthKey] || tenantData?.payStatus || 'None';
 
                     if (status === 'Pending') {
                         totalPending += rent;
-                    } else if (status === 'Paid' || status === 'Rent Only') {
+                    } else if (status === 'Rent Only') {
                         totalReceived += rent;
+                    } else if (status === 'Paid') {
+                        const storedTotal = Number(totals?.[currentMonthKey]);
+                        if (Number.isFinite(storedTotal)) {
+                            totalReceived += storedTotal;
+                        } else {
+                            // Back-compat: if totals aren't stored, fallback to rent only
+                            totalReceived += rent;
+                        }
                     }
                 }
             });
@@ -1396,6 +1455,7 @@
                 console.log(`✓ Populated ${rowIndex} dashboard rows`);
                 // After populating dashboard, render Rent Details table
                 renderRentDetailsTable();
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
                 try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                 try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
                 return true;
@@ -1610,6 +1670,7 @@
         window.changeRentDetailsYear = (delta) => {
             currentRentDetailsYear += delta;
             window.renderRentDetailsTable();
+            try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
         };
 
         window.renderLedger = () => {
@@ -2289,6 +2350,133 @@
             }).filter(row => row !== '').join('');
         };
 
+        // RENT & WATER TABLE - Paid/None view with total saved as Rent + Water + 60
+        window.renderRentWaterTable = function() {
+            const tbody = document.getElementById('rentWaterBody');
+            if (!tbody) return;
+
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const selectedYear = (typeof currentRentDetailsYear === 'number' && Number.isFinite(currentRentDetailsYear))
+                ? currentRentDetailsYear
+                : new Date().getFullYear();
+
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+            if (roomNos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">No room data found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = roomNos.map(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+                const occupied = isOccupiedRecord(tenantData);
+
+                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
+                const history = tenantData?.paymentHistory || {};
+                const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
+
+                let row = `
+                    <tr class="${rowClass}">
+                        <td class="border px-4 py-3 font-semibold text-blue-600 bg-white min-w-[6rem]">${escapeHtml(roomData.roomId)}</td>
+                        <td class="border px-4 py-3 font-semibold bg-white min-w-[6rem]">${escapeHtml(roomData.roomNo)}</td>
+                        <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
+                `;
+
+                months.forEach(month => {
+                    const key = `${selectedYear}-${month}`;
+                    const status = history[key] || 'None';
+
+                    let cellClass = occupied
+                        ? "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200"
+                        : "bg-gray-100 text-gray-600 border-gray-300 cursor-not-allowed";
+                    let displayText = "-";
+
+                    if (occupied && status === 'Paid') {
+                        cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
+                        displayText = "✓";
+                    }
+
+                    const clickHandler = occupied
+                        ? `onclick="window.toggleRentWaterPaid('${roomData.roomId}', '${key}', '${status}')"`
+                        : '';
+
+                    row += `
+                        <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
+                            ${clickHandler}
+                            title="${occupied ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
+                            ${displayText}
+                        </td>
+                    `;
+                });
+
+                row += `</tr>`;
+                return row;
+            }).join('');
+        };
+
+        window.toggleRentWaterPaid = async (roomId, key, currentStatus) => {
+            // Toggle only Paid <-> None
+            const makePaid = currentStatus !== 'Paid';
+
+            const prop = allPropertiesData.find(p => (p.roomId === roomId) || (p.id === roomId));
+            if (!prop) {
+                showNotification('Property not found', 'error');
+                return;
+            }
+
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const parts = String(key || '').split('-');
+            const year = Number(parts?.[0]);
+            const monthLabel = parts?.[1];
+            const monthIndex = months.indexOf(monthLabel);
+            if (!Number.isFinite(year) || monthIndex < 0) {
+                showNotification('Invalid month key', 'error');
+                return;
+            }
+
+            const tenantData = pickBestRoomRecord(allPropertiesData.filter(p => p.id === prop.id)) || prop;
+            const rent = Number(tenantData?.rent) || 0;
+            const waterRate = (tenantData?.waterRate !== null && tenantData?.waterRate !== undefined && tenantData?.waterRate !== '')
+                ? Number(tenantData?.waterRate)
+                : getDefaultWaterRateForRoom(tenantData?.roomNo);
+            const water = computeWaterForMonth(tenantData, year, monthIndex, waterRate);
+
+            if (makePaid) {
+                if (!Number.isFinite(water?.amount)) {
+                    showNotification('Please enter water readings for this month AND previous month (Water Bill screen) before marking Paid.', 'warning');
+                    return;
+                }
+                if (Number(water?.units) < 0) {
+                    showNotification('Water units cannot be negative. Please check readings.', 'error');
+                    return;
+                }
+            }
+
+            const propRef = doc(db, "properties", prop.id);
+            const updatePayload = {};
+
+            if (!makePaid) {
+                updatePayload[`paymentHistory.${key}`] = null;
+                updatePayload[`paymentTotals.${key}`] = null;
+            } else {
+                const total = Math.round((rent + Number(water.amount) + RENT_WATER_SERVICE_CHARGE) * 100) / 100;
+                updatePayload[`paymentHistory.${key}`] = 'Paid';
+                updatePayload[`paymentTotals.${key}`] = total;
+            }
+
+            try {
+                await updateDoc(propRef, updatePayload);
+                console.log(`✓ Updated rent & water ${key} for room ${roomId} to ${makePaid ? 'Paid' : 'None'}`);
+                showNotification(`✓ Rent & Water updated to ${makePaid ? 'Paid' : 'None'}`, 'success');
+                window.renderRentDetailsTable();
+                window.renderRentWaterTable();
+                window.updateOccupancyMetrics();
+            } catch (e) {
+                console.error('Update failed', e);
+                showNotification('Error: ' + e.message, 'error');
+            }
+        };
+
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
             let newStatus = 'Pending';
             if (currentStatus === 'Pending') newStatus = 'Rent Only';
@@ -2316,6 +2504,7 @@
                 console.log(`✓ Updated ${key} for room ${roomId} to ${newStatus}`);
                 showNotification(`✓ Status updated to ${newStatus}`, "success");
                 renderRentDetailsTable(); // Refresh the table
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
             } catch (e) {
                 console.error("Update failed", e);
                 showNotification("Error: " + e.message, "error");
