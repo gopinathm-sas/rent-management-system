@@ -512,9 +512,7 @@
             }
             roomsInitPromise = (async () => {
                 try {
-                    let createdBy = 'auto-initialization';
-                    if (currentUser && currentUser.uid) createdBy = currentUser.uid;
-                    if (userContext && userContext.uid) createdBy = userContext.uid;
+                    const createdBy = userContext?.uid || currentUser?.uid || 'auto-initialization';
 
                     const snapshot = await getDocs(collection(db, "rooms"));
                     const existingIds = new Set();
@@ -549,7 +547,6 @@
                     return true;
                 } catch (error) {
                     console.error("❌ Failed to initialize fixed rooms", error);
-                    roomsInitialized = false;
                     return false;
                 } finally {
                     roomsInitPromise = null;
