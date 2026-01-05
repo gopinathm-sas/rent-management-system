@@ -1022,25 +1022,25 @@
         function initDataListener() {
             console.log("✓ Initializing data listener");
             const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
-            unsubscribe = onSnapshot(q, (snapshot) => {
+            unsubscribe = onSnapshot(q, async (snapshot) => {
                 allPropertiesData = [];
                 snapshot.forEach((doc) => {
                     allPropertiesData.push({ id: doc.id, ...doc.data() });
                 });
-                
+
                 console.log(`✓ Loaded ${allPropertiesData.length} properties from Firestore`);
-                
+
                 // Also load rooms collection to populate dashboard inputs
-                loadDashboardDataFromFirestore().then(() => {
-                    // After loading dashboard data, refresh all views including Rent Details
-                    console.log("✓ Dashboard data loaded, refreshing views...");
-                    window.updateOccupancyMetrics();
-                    window.applyFilters();
-                    // Extra force to generate room cards
-                    setTimeout(() => {
-                        window.generateRoomCards();
-                    }, 200);
-                });
+                try {
+                    await loadDashboardDataFromFirestore();
+                } catch (e) {
+                    console.warn("⚠️ loadDashboardDataFromFirestore failed:", e);
+                }
+
+                // Always refresh core dashboard views even if optional sections are missing/broken
+                try { window.updateOccupancyMetrics(); } catch (e) { console.warn("⚠️ updateOccupancyMetrics failed:", e); }
+                try { window.safeApplyFilters(); } catch (e) { console.warn("⚠️ safeApplyFilters failed:", e); }
+                try { window.generateRoomCards(); } catch (e) { console.warn("⚠️ generateRoomCards failed:", e); }
             }, (error) => {
                 console.error("Data fetch error:", error);
                 if (error.code === 'permission-denied') {
@@ -1096,6 +1096,14 @@
         }
 
         // RENDER & LOGIC
+        window.safeApplyFilters = () => {
+            try {
+                window.applyFilters();
+            } catch (e) {
+                console.warn("⚠️ applyFilters crashed:", e);
+            }
+        };
+
         window.applyFilters = () => {
             const searchText = String(document.getElementById('searchInput')?.value || '').toLowerCase();
             const filterStatus = String(document.getElementById('filterStatus')?.value || 'All');
@@ -1738,6 +1746,9 @@
                                 : displayStatus === 'Pending' ? '<span class="text-red-600 font-bold text-xs"><i class="fa-solid fa-circle-exclamation"></i> Pending</span>'
                                 : '<span class="text-gray-400 text-xs">No status</span>';
 
+                const rentNum = Number(p?.rent ?? 0);
+                const rentText = Number.isFinite(rentNum) ? rentNum.toLocaleString() : '0';
+
                 return `
                 <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition p-5 border-t-4 ${p.status === 'Occupied' ? 'border-blue-500' : 'border-gray-300'}">
                     <div class="flex justify-between items-start mb-2">
@@ -1747,7 +1758,7 @@
                     <p class="text-gray-500 text-sm mb-4"><i class="fa-solid fa-user mr-1"></i> ${escapeHtml(p.tenant)}</p>
                     
                     <div class="bg-gray-50 p-3 rounded mb-4 flex justify-between items-center">
-                        <span class="font-bold text-gray-700">₹${p.rent.toLocaleString()}</span>
+                        <span class="font-bold text-gray-700">₹${rentText}</span>
                         ${statusBadge}
                     </div>
 
