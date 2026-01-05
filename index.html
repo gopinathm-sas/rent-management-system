@@ -385,8 +385,8 @@
             
             <form id="addPropertyForm">
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Room No/Address</label>
-                    <input type="text" id="propName" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. 123 Main St, Apt 4B">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Room No</label>
+                    <input type="text" id="propName" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Room 1">
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-bold mb-2">Monthly Rent (₹)</label>
@@ -484,6 +484,22 @@
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
 
+        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (Sorted Ascending by Room No)
+        const IMMUTABLE_ROOMS = [
+            { roomNo: 1, roomId: '101', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
+            { roomNo: 2, roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
+            { roomNo: 4, roomId: '102', keyNo: '76', ebServNo: '19780', ebAcNo: '5097783' },
+            { roomNo: 5, roomId: '201', keyNo: '151', ebServNo: '19779', ebAcNo: '5097782' },
+            { roomNo: 6, roomId: '202', keyNo: '185', ebServNo: '19782', ebAcNo: '5097785' },
+            { roomNo: 7, roomId: '203', keyNo: '101', ebServNo: '19783', ebAcNo: '5097786' },
+            { roomNo: 8, roomId: '301', keyNo: '403', ebServNo: '19784', ebAcNo: '5097787' },
+            { roomNo: 9, roomId: '302', keyNo: '249', ebServNo: '19785', ebAcNo: '5097788' },
+            { roomNo: 10, roomId: '303', keyNo: '123', ebServNo: '19789', ebAcNo: '5097792' },
+            { roomNo: 11, roomId: '401', keyNo: '35', ebServNo: '19788', ebAcNo: '5097791' },
+            { roomNo: 12, roomId: '402', keyNo: '144', ebServNo: '19787', ebAcNo: '5097790' },
+            { roomNo: 13, roomId: '403', keyNo: '120', ebServNo: '19786', ebAcNo: '5097789' }
+        ];
+
         // AUTH FUNCTIONS - Expose to window
         window.loginWithGoogle = async () => {
             console.log("✓ loginWithGoogle clicked");
@@ -548,6 +564,9 @@
                     
                     // User is authorized - proceed with login
                     currentUser = user;
+                    
+                    // Initialize 12 fixed immutable rooms in Firestore
+                    await initializeFixedRooms();
                     console.log("✓ User authorized:", user.email);
                     document.getElementById('user-name').innerText = user.displayName || 'User';
                     let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
@@ -1389,7 +1408,8 @@
         }
 
         function updateStats(list) {
-            document.getElementById('total-properties').innerText = list.length;
+            // Total Rooms is ALWAYS 12 (fixed immutable rooms) - Does NOT change with tenant vacations
+            document.getElementById('total-properties').innerText = 12;
             document.getElementById('total-tenants').innerText = list.filter(p => p.status === 'Occupied').length;
             
             let totalPending = 0;
