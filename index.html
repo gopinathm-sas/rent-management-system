@@ -623,7 +623,10 @@
                 const result = await signInWithPopup(auth, provider);
                 console.log("✓ Sign-in successful:", result.user.email);
                 // Generate room cards immediately after login
-                window.generateRoomCards();
+                setTimeout(() => {
+                    window.generateRoomCards();
+                    window.updateOccupancyMetrics();
+                }, 100);
             } catch (error) {
                 console.error("❌ Login failed:", error);
                 let message = "Login failed: " + error.message;
@@ -635,6 +638,12 @@
                 errorMsg.classList.remove('hidden');
             }
         };
+        
+        // Initialize room cards on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("✓ Page loaded, initializing room cards");
+            window.generateRoomCards();
+        });
         window.logout = async () => {
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
@@ -703,6 +712,7 @@
 
         // DATA LISTENER
         function initDataListener() {
+            console.log("✓ Initializing data listener");
             const q = query(collection(db, "properties"), orderBy("createdAt", "desc"));
             unsubscribe = onSnapshot(q, (snapshot) => {
                 allPropertiesData = [];
@@ -710,11 +720,17 @@
                     allPropertiesData.push({ id: doc.id, ...doc.data() });
                 });
                 
+                console.log(`✓ Loaded ${allPropertiesData.length} properties from Firestore`);
+                
                 // Also load rooms collection to populate dashboard inputs
                 loadDashboardDataFromFirestore().then(() => {
                     // After loading dashboard data, refresh all views including Rent Details
                     console.log("✓ Dashboard data loaded, refreshing views...");
                     window.applyFilters();
+                    // Extra force to generate room cards
+                    setTimeout(() => {
+                        window.generateRoomCards();
+                    }, 200);
                 });
             }, (error) => {
                 console.error("Data fetch error:", error);
