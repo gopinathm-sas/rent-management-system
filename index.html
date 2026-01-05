@@ -152,6 +152,7 @@
                                 <tr>
                                     <th class="border px-4 py-3 text-left font-semibold">Room ID</th>
                                     <th class="border px-4 py-3 text-left font-semibold">Room No</th>
+                                    <th class="border px-4 py-3 text-left font-semibold">Tenant Name</th>
                                     <th class="border px-4 py-3 text-center font-semibold">Jan</th>
                                     <th class="border px-4 py-3 text-center font-semibold">Feb</th>
                                     <th class="border px-4 py-3 text-center font-semibold">Mar</th>
@@ -168,7 +169,7 @@
                             </thead>
                             <tbody id="rentDetailsBody" class="divide-y">
                                 <tr>
-                                    <td colspan="14" class="text-center py-10 text-gray-400">
+                                    <td colspan="15" class="text-center py-10 text-gray-400">
                                         Loading room data...
                                     </td>
                                 </tr>
@@ -180,16 +181,16 @@
                 <!-- Legend -->
                 <div class="mt-6 flex justify-center gap-8 text-sm">
                     <span class="flex items-center gap-2">
-                        <div class="w-4 h-4 bg-gray-200 border border-gray-400 rounded"></div>
+                        <div class="w-5 h-5 bg-gray-200 border border-gray-400 rounded flex items-center justify-center text-xs">-</div>
                         <span>No Record</span>
                     </span>
                     <span class="flex items-center gap-2">
-                        <div class="w-4 h-4 bg-red-100 border-2 border-red-400 rounded"></div>
-                        <span>Pending</span>
+                        <div class="w-5 h-5 bg-red-100 border-2 border-red-400 rounded flex items-center justify-center text-red-600 font-bold text-xs">✗</div>
+                        <span>Pending (Rent Not Paid)</span>
                     </span>
                     <span class="flex items-center gap-2">
-                        <div class="w-4 h-4 bg-green-100 border-2 border-green-400 rounded"></div>
-                        <span>Paid</span>
+                        <div class="w-5 h-5 bg-green-100 border-2 border-green-400 rounded flex items-center justify-center text-green-600 font-bold text-xs">✓</div>
+                        <span>Paid (Rent Received)</span>
                     </span>
                 </div>
             </section>
@@ -1516,72 +1517,56 @@
             document.getElementById('pending-rent').innerText = '₹' + totalPending.toLocaleString();
         }
 
-        // RENT DETAILS FUNCTIONS - Populate table from dashboard tenant data
+        // RENT DETAILS TABLE - Populate with 12 immutable rooms and tenant data
         function renderRentDetailsTable() {
             const tbody = document.getElementById('rentDetailsBody');
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const currentYear = new Date().getFullYear();
 
-            // Get all properties with tenant data (from allPropertiesData or dashboard inputs)
-            let roomsData = [];
+            // Use immutable rooms data as base
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
             
-            // First, collect data from dashboard table inputs (rows 0-11)
-            for (let i = 0; i < 12; i++) {
-                const roomNo = document.getElementById(`row-${i}-roomNo`)?.value.trim();
-                const roomId = document.getElementById(`row-${i}-roomId`)?.value.trim();
-                
-                if (roomNo && roomId) {
-                    roomsData.push({
-                        roomNo,
-                        roomId,
-                        paymentHistory: {}
-                    });
-                }
-            }
-
-            // Also include properties from allPropertiesData that have roomId
-            allPropertiesData.forEach(prop => {
-                if (prop.roomId && !roomsData.find(r => r.roomId === prop.roomId)) {
-                    roomsData.push({
-                        roomNo: prop.name || prop.roomNo || '',
-                        roomId: prop.roomId || prop.id,
-                        paymentHistory: prop.paymentHistory || {}
-                    });
-                }
-            });
-
-            if (roomsData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">No room data found. Add rooms in Dashboard.</td></tr>';
+            if (roomNos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">No room data found.</td></tr>';
                 return;
             }
 
-            // Render table rows
-            tbody.innerHTML = roomsData.map(room => {
-                const history = room.paymentHistory || {};
+            // Build table rows using immutable rooms + tenant data
+            tbody.innerHTML = roomNos.map(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
+                
+                const tenantName = tenantData?.tenant || 'No Tenant';
+                const history = tenantData?.paymentHistory || {};
                 
                 let row = `
-                    <tr class="hover:bg-gray-50">
-                        <td class="border px-4 py-3 font-semibold">${escapeHtml(room.roomId)}</td>
-                        <td class="border px-4 py-3">${escapeHtml(room.roomNo)}</td>
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="border px-4 py-3 font-semibold text-blue-600">${escapeHtml(roomData.roomId)}</td>
+                        <td class="border px-4 py-3 font-semibold">${escapeHtml(roomData.roomNo)}</td>
+                        <td class="border px-4 py-3 font-semibold text-gray-800 text-sm">${escapeHtml(tenantName)}</td>
                 `;
 
                 months.forEach(month => {
                     const key = `${currentYear}-${month}`;
                     const status = history[key] || 'None';
                     
-                    let cellClass = "bg-gray-100 text-gray-600 border-gray-300";
+                    let cellClass = "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200";
+                    let displayText = "-";
+                    let icon = "";
                     
                     if (status === 'Pending') {
                         cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
+                        displayText = "✗";
+                        icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
                     } else if (status === 'Paid') {
                         cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
+                        displayText = "✓";
+                        icon = '<i class="fa-solid fa-check text-green-600"></i>';
                     }
 
-                    const displayText = status === 'None' ? '-' : (status === 'Paid' ? '✓' : '✗');
-
                     row += `
-                        <td class="border px-4 py-3 text-center font-semibold ${cellClass}" 
-                            onclick="toggleMonthStatus('${room.roomId}', '${key}', '${status}')" 
+                        <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
+                            onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')" 
                             title="Click to toggle: ${status}">
                             ${displayText}
                         </td>
