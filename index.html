@@ -687,14 +687,29 @@
                     return;
                 }
 
+                // Prepare update payload
+                const updatePayload = { status: newStatus };
+
+                // If changing to VACANT, archive (clear) all tenant details
+                if (newStatus === 'Vacant') {
+                    updatePayload.tenant = null;
+                    updatePayload.contact = null;
+                    updatePayload.rent = null;
+                    updatePayload.deposit = null;
+                    updatePayload.ebServNo = null;
+                    updatePayload.ebAcNo = null;
+                    updatePayload.keyNo = null;
+                    updatePayload.relocate = null;
+                    updatePayload.payStatus = null;
+                    updatePayload.paymentHistory = {};
+                }
+
                 // Update the Firestore document
                 const tenantDocRef = doc(db, "properties", tenantRecord.id);
-                await updateDoc(tenantDocRef, {
-                    status: newStatus
-                });
+                await updateDoc(tenantDocRef, updatePayload);
 
                 console.log(`✓ Updated Room ${roomId} status to ${newStatus}`);
-                alert(`✓ Status updated to ${newStatus}`);
+                alert(`✓ Status updated to ${newStatus}${newStatus === 'Vacant' ? ' - Tenant details archived' : ''}`);
 
                 // Refresh all views - onSnapshot listener will automatically update allPropertiesData
                 setTimeout(() => {
