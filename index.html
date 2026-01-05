@@ -457,7 +457,7 @@
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -483,8 +483,10 @@
         let allPropertiesData = [];
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
+        let roomsInitialized = false;
+        let roomsInitPromise = null;
 
-        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (Sorted Ascending by Room No)
+        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (room numbers 1-13 with 3 intentionally omitted)
         const IMMUTABLE_ROOMS = [
             { roomNo: 1, roomId: '101', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
             { roomNo: 2, roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
@@ -499,6 +501,59 @@
             { roomNo: 12, roomId: '402', keyNo: '144', ebServNo: '19787', ebAcNo: '5097790' },
             { roomNo: 13, roomId: '403', keyNo: '120', ebServNo: '19786', ebAcNo: '5097789' }
         ];
+
+        // Ensure 12 immutable rooms exist in Firestore
+        async function initializeFixedRooms(userContext = null) {
+            if (roomsInitialized) {
+                return true;
+            }
+            if (roomsInitPromise) {
+                return roomsInitPromise;
+            }
+            roomsInitPromise = (async () => {
+                try {
+                    const createdBy = userContext?.uid || currentUser?.uid || 'auto-initialization';
+
+                    const snapshot = await getDocs(collection(db, "rooms"));
+                    const existingIds = new Set();
+                    snapshot.forEach((docSnap) => existingIds.add(docSnap.id));
+
+                    const batch = writeBatch(db);
+                    let addedCount = 0;
+
+                    IMMUTABLE_ROOMS.forEach((room) => {
+                        if (!existingIds.has(room.roomId)) {
+                            const roomRef = doc(db, "rooms", room.roomId);
+                            batch.set(roomRef, {
+                                ...room,
+                                tenantName: '',
+                                rent: 0,
+                                contact: '',
+                                deposit: 0,
+                                relocate: '',
+                                createdAt: serverTimestamp(),
+                                createdBy
+                            });
+                            addedCount++;
+                        }
+                    });
+
+                    if (addedCount > 0) {
+                        await batch.commit();
+                    }
+                    roomsInitialized = true;
+                    const existingCount = IMMUTABLE_ROOMS.length - addedCount;
+                    console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms exist (${existingCount} existing, ${addedCount} added)`);
+                    return true;
+                } catch (error) {
+                    console.error("❌ Failed to initialize fixed rooms", error);
+                    return false;
+                } finally {
+                    roomsInitPromise = null;
+                }
+            })();
+            return roomsInitPromise;
+        }
 
         // AUTH FUNCTIONS - Expose to window
         window.loginWithGoogle = async () => {
@@ -566,7 +621,10 @@
                     currentUser = user;
                     
                     // Initialize 12 fixed immutable rooms in Firestore
-                    await initializeFixedRooms();
+                    const initialized = await initializeFixedRooms(user);
+                    if (!initialized) {
+                        console.warn("⚠️ Fixed room seeding skipped due to initialization error");
+                    }
                     console.log("✓ User authorized:", user.email);
                     document.getElementById('user-name').innerText = user.displayName || 'User';
                     let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
