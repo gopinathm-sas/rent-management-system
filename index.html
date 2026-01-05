@@ -1097,14 +1097,19 @@
 
         // RENDER & LOGIC
         window.applyFilters = () => {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const filterStatus = document.getElementById('filterStatus').value;
-            const filterPayment = document.getElementById('filterPayment').value;
+            const searchText = String(document.getElementById('searchInput')?.value || '').toLowerCase();
+            const filterStatus = String(document.getElementById('filterStatus')?.value || 'All');
+            const filterPayment = String(document.getElementById('filterPayment')?.value || 'All');
 
             const filteredData = allPropertiesData.filter(prop => {
-                const matchesSearch = (prop.name.toLowerCase().includes(searchText) || prop.tenant.toLowerCase().includes(searchText));
-                const matchesStatus = (filterStatus === 'All') || (prop.status === filterStatus);
-                const matchesPayment = (filterPayment === 'All') || (prop.payStatus === filterPayment);
+                const nameLc = String(prop?.name || '').toLowerCase();
+                const tenantLc = String(prop?.tenant || '').toLowerCase();
+                const status = String(prop?.status || '');
+                const payStatus = String(prop?.payStatus || '');
+
+                const matchesSearch = nameLc.includes(searchText) || tenantLc.includes(searchText);
+                const matchesStatus = (filterStatus === 'All') || (status === filterStatus);
+                const matchesPayment = (filterPayment === 'All') || (payStatus === filterPayment);
                 
                 return matchesSearch && matchesStatus && matchesPayment;
             });
