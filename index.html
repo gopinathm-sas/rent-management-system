@@ -484,6 +484,7 @@
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
         let roomsInitialized = false;
+        let roomsInitPromise = null;
 
         // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (numbering skips 3 intentionally)
         const IMMUTABLE_ROOMS = [
@@ -506,37 +507,45 @@
             if (roomsInitialized) {
                 return true;
             }
-            try {
-                let createdBy = 'auto-initialization';
-                if (currentUser && currentUser.uid) createdBy = currentUser.uid;
-                if (userContext && userContext.uid) createdBy = userContext.uid;
-
-                let missingCount = 0;
-                for (const room of IMMUTABLE_ROOMS) {
-                    const roomRef = doc(db, "rooms", room.roomId);
-                    const snapshot = await getDoc(roomRef);
-                    if (!snapshot.exists()) {
-                        await setDoc(roomRef, {
-                            ...room,
-                            tenantName: '',
-                            rent: 0,
-                            contact: '',
-                            deposit: 0,
-                            relocate: '',
-                            createdAt: serverTimestamp(),
-                            createdBy
-                        });
-                        missingCount++;
-                    }
-                }
-                roomsInitialized = true;
-                console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${missingCount}`);
-                return true;
-            } catch (error) {
-                console.error("❌ Failed to initialize fixed rooms", error);
-                roomsInitialized = false;
-                return false;
+            if (roomsInitPromise) {
+                return roomsInitPromise;
             }
+            roomsInitPromise = (async () => {
+                try {
+                    let createdBy = 'auto-initialization';
+                    if (currentUser && currentUser.uid) createdBy = currentUser.uid;
+                    if (userContext && userContext.uid) createdBy = userContext.uid;
+
+                    const tasks = IMMUTABLE_ROOMS.map(async (room) => {
+                        const roomRef = doc(db, "rooms", room.roomId);
+                        const snapshot = await getDoc(roomRef);
+                        if (!snapshot.exists()) {
+                            await setDoc(roomRef, {
+                                ...room,
+                                tenantName: '',
+                                rent: 0,
+                                contact: '',
+                                deposit: 0,
+                                relocate: '',
+                                createdAt: serverTimestamp(),
+                                createdBy
+                            });
+                            return 1;
+                        }
+                        return 0;
+                    });
+
+                    const addedCount = (await Promise.all(tasks)).reduce((sum, count) => sum + count, 0);
+                    roomsInitialized = true;
+                    console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${addedCount}`);
+                    return true;
+                } catch (error) {
+                    console.error("❌ Failed to initialize fixed rooms", error);
+                    roomsInitialized = false;
+                    return false;
+                }
+            })();
+            return roomsInitPromise;
         }
 
         // AUTH FUNCTIONS - Expose to window
