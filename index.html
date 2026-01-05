@@ -621,15 +621,11 @@
             const grid = document.getElementById('tenantDetailsGrid');
             if (!tenantList || tenantList.length === 0) {
                 grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No tenants found.</p>';
-                document.getElementById('tenantCount').innerText = '0';
                 return;
             }
 
             // Only show occupied properties
             const occupiedTenants = tenantList.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
-            
-            // Update tenant count
-            document.getElementById('tenantCount').innerText = occupiedTenants.length;
 
             if (occupiedTenants.length === 0) {
                 grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No occupied units at the moment.</p>';
