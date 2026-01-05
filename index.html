@@ -457,7 +457,7 @@
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -504,35 +504,38 @@
         // Ensure 12 immutable rooms exist in Firestore
         async function initializeFixedRooms(userContext = null) {
             if (roomsInitialized) {
-                return;
+                return true;
             }
             try {
-                const createdBy = (userContext && userContext.uid) 
-                    ? userContext.uid 
-                    : (currentUser && currentUser.uid ? currentUser.uid : 'auto-initialization');
-                const snapshot = await getDocs(collection(db, "rooms"));
-                const existingIds = new Set();
-                snapshot.forEach((doc) => existingIds.add(doc.id));
+                let createdBy = 'auto-initialization';
+                if (currentUser && currentUser.uid) createdBy = currentUser.uid;
+                if (userContext && userContext.uid) createdBy = userContext.uid;
 
-                const missingRooms = IMMUTABLE_ROOMS.filter(room => !existingIds.has(room.roomId));
-                for (const room of missingRooms) {
+                let missingCount = 0;
+                for (const room of IMMUTABLE_ROOMS) {
                     const roomRef = doc(db, "rooms", room.roomId);
-                    await setDoc(roomRef, {
-                        ...room,
-                        tenantName: '',
-                        rent: 0,
-                        contact: '',
-                        deposit: 0,
-                        relocate: '',
-                        createdAt: serverTimestamp(),
-                        createdBy
-                    });
+                    const snapshot = await getDoc(roomRef);
+                    if (!snapshot.exists()) {
+                        await setDoc(roomRef, {
+                            ...room,
+                            tenantName: '',
+                            rent: 0,
+                            contact: '',
+                            deposit: 0,
+                            relocate: '',
+                            createdAt: serverTimestamp(),
+                            createdBy
+                        });
+                        missingCount++;
+                    }
                 }
                 roomsInitialized = true;
-                console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${missingRooms.length}`);
+                console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${missingCount}`);
+                return true;
             } catch (error) {
                 console.error("❌ Failed to initialize fixed rooms", error);
-                throw error;
+                roomsInitialized = false;
+                return false;
             }
         }
 
@@ -602,7 +605,10 @@
                     currentUser = user;
                     
                     // Initialize 12 fixed immutable rooms in Firestore
-                    await initializeFixedRooms(user);
+                    const initialized = await initializeFixedRooms(user);
+                    if (!initialized) {
+                        console.warn("⚠️ Fixed room seeding skipped due to initialization error");
+                    }
                     console.log("✓ User authorized:", user.email);
                     document.getElementById('user-name').innerText = user.displayName || 'User';
                     let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
