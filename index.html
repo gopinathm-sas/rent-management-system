@@ -501,8 +501,9 @@
         ];
 
         // Ensure 12 immutable rooms exist in Firestore
-        async function initializeFixedRooms() {
+        async function initializeFixedRooms(userContext = currentUser) {
             try {
+                const createdBy = (userContext && userContext.uid) ? userContext.uid : 'system';
                 const snapshot = await getDocs(collection(db, "rooms"));
                 const existingIds = new Set();
                 snapshot.forEach((doc) => existingIds.add(doc.id));
@@ -518,8 +519,8 @@
                         deposit: 0,
                         relocate: '',
                         createdAt: serverTimestamp(),
-                        createdBy: currentUser ? currentUser.uid : 'system'
-                    }, { merge: true });
+                        createdBy
+                    });
                 }
                 console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${missingRooms.length}`);
             } catch (error) {
@@ -594,7 +595,7 @@
                     currentUser = user;
                     
                     // Initialize 12 fixed immutable rooms in Firestore
-                    await initializeFixedRooms();
+                    await initializeFixedRooms(user);
                     console.log("✓ User authorized:", user.email);
                     document.getElementById('user-name').innerText = user.displayName || 'User';
                     let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
