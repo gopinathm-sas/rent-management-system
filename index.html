@@ -486,7 +486,7 @@
         let roomsInitialized = false;
         let roomsInitPromise = null;
 
-        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (numbering skips 3 intentionally)
+        // IMMUTABLE ROOMS DATA - 12 Fixed Rooms (room numbers 1-13 with 3 intentionally omitted)
         const IMMUTABLE_ROOMS = [
             { roomNo: 1, roomId: '101', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
             { roomNo: 2, roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
@@ -544,7 +544,8 @@
                         await batch.commit();
                     }
                     roomsInitialized = true;
-                    console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms, added ${addedCount}`);
+                    const existingCount = IMMUTABLE_ROOMS.length - addedCount;
+                    console.log(`✓ initializeFixedRooms: ensured ${IMMUTABLE_ROOMS.length} rooms exist (${existingCount} existing, ${addedCount} added)`);
                     return true;
                 } catch (error) {
                     console.error("❌ Failed to initialize fixed rooms", error);
