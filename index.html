@@ -117,187 +117,7 @@
                     </div>
                 </div>
 
-                <!-- Tenants Details Table (editable, 12 rows) -->
-                <div class="mt-8 overflow-auto bg-white rounded-lg p-4 shadow">
-                    <h3 class="text-lg font-semibold mb-2">Tenants Details</h3>
-                    <p class="text-sm text-gray-500 mb-4">Edit the fields and click <strong>Save</strong> to persist. Rows reflect in other pages by Room ID / Room No.</p>
-                    <div style="width: 100%; max-height: 600px; overflow-y: auto; overflow-x: auto;">
-                        <table id="dashboard-table" class="text-xs w-full" style="width: 100%; table-layout: fixed;">
-                            <thead class="bg-gray-100 text-gray-600 uppercase sticky top-0">
-                                <tr>"
-                                    <th class="py-2 px-2 text-left">Room No</th>
-                                    <th class="py-2 px-2 text-left">Room ID</th>
-                                    <th class="py-2 px-2 text-left">Key No</th>
-                                    <th class="py-2 px-2 text-left">EB Serv No.</th>
-                                    <th class="py-2 px-2 text-left">EB A/C No</th>
-                                    <th class="py-2 px-2 text-left">Tenant Name</th>
-                                    <th class="py-2 px-2 text-right">Rent</th>
-                                    <th class="py-2 px-2 text-left">Contact</th>
-                                    <th class="py-2 px-2 text-right">Deposit</th>
-                                    <th class="py-2 px-2 text-left">Relocation</th>
-                                    <th class="py-2 px-2 text-center">Save</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- 12 editable rows -->
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-0-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-0-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-0-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-0-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(0)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-1-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-1-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-1-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-1-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(1)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-2-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-2-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-2-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-2-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(2)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-3-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-3-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-3-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-3-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(3)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-4-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-4-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-4-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-4-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(4)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-5-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-5-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-5-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-5-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(5)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-6-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-6-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-6-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-6-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(6)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-7-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-7-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-7-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-7-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(7)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-8-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-8-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-8-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-8-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(8)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-9-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-9-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-9-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-9-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(9)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-10-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-10-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-10-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-10-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(10)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                                <tr class="border-b">
-                                    <td class="py-2 px-3"><input id="row-11-roomNo" class="w-40 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-roomId" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-keyNo" class="w-24 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-ebServNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-ebAcNo" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-tenantName" class="w-48 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-11-rent" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-contact" class="w-36 px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-right"><input id="row-11-deposit" type="number" class="w-24 px-2 py-1 border rounded text-right"/></td>
-                                    <td class="py-2 px-3"><input id="row-11-relocate" type="date" class="px-2 py-1 border rounded"/></td>
-                                    <td class="py-2 px-3 text-center"><button onclick="saveDashboardRow(11)" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></td>
-                                </tr>
-                    </div>
-                </div>
+
             </section>
 
             <!-- Rent Details Section -->
@@ -404,11 +224,66 @@
             <!-- Rent Details Section -->
             <section id="rent-details" class="section-tab mb-10">
                 <h2 class="text-2xl font-bold mb-2 text-gray-700">Tenant Details</h2>
-                <p class="text-gray-500 mb-6">Click on any tenant box to view detailed information</p>
+                <p class="text-gray-500 mb-6">Manage tenants (Maximum 12 tenants)</p>
                 
+                <!-- Add New Tenant Form -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Add New Tenant</h3>
+                    <form id="addTenantForm" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Room No/Address</label>
+                                <input type="text" id="tenantRoomNo" required placeholder="e.g. 101" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Room ID</label>
+                                <input type="text" id="tenantRoomId" required placeholder="e.g. R01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Tenant Name</label>
+                                <input type="text" id="tenantNameInput" required placeholder="e.g. Ramesh" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Contact</label>
+                                <input type="tel" id="tenantContact" placeholder="e.g. 9876543210" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Monthly Rent (₹)</label>
+                                <input type="number" id="tenantRent" required min="1" placeholder="e.g. 5600" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Security Deposit (₹)</label>
+                                <input type="number" id="tenantDeposit" min="0" placeholder="e.g. 25000" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">EB Service No.</label>
+                                <input type="text" id="tenantEbServNo" placeholder="e.g. 1011011" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">EB Account No.</label>
+                                <input type="text" id="tenantEbAcNo" placeholder="e.g. 1011010" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Key No.</label>
+                                <input type="text" id="tenantKeyNo" placeholder="e.g. K01" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Date of Relocation</label>
+                                <input type="date" id="tenantRelocateDate" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-6">
+                            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                                <i class="fa-solid fa-plus mr-2"></i>Add Tenant
+                            </button>
+                            <p id="tenantCountMsg" class="text-sm text-gray-600 py-2">Tenants: <span id="tenantCount">0</span>/12</p>
+                        </div>
+                    </form>
+                </div>
+
                 <!-- Tenant Cards Grid -->
                 <div id="tenantDetailsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <p class="col-span-full text-center py-10 text-gray-400">Loading tenant details...</p>
+                    <p class="col-span-full text-center py-10 text-gray-400">No tenants added yet. Add a tenant to get started.</p>
                 </div>
             </section>
 
@@ -725,12 +600,16 @@
             const grid = document.getElementById('tenantDetailsGrid');
             if (!tenantList || tenantList.length === 0) {
                 grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No tenants found.</p>';
+                document.getElementById('tenantCount').innerText = '0';
                 return;
             }
 
             // Only show occupied properties
             const occupiedTenants = tenantList.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None');
             
+            // Update tenant count
+            document.getElementById('tenantCount').innerText = occupiedTenants.length;
+
             if (occupiedTenants.length === 0) {
                 grid.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">No occupied units at the moment.</p>';
                 return;
@@ -966,6 +845,70 @@
             const show = document.getElementById('propStatus').value === 'Occupied';
             document.getElementById('tenantInputGroup').classList.toggle('hidden', !show);
         };
+
+        // ADD TENANT FORM HANDLER
+        const addTenantForm = document.getElementById('addTenantForm');
+        if (addTenantForm) {
+            addTenantForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!currentUser) return alert("Please login");
+
+                // Check tenant count
+                const occupiedTenants = allPropertiesData.filter(p => p.status === 'Occupied' && p.tenant && p.tenant !== 'None').length;
+                if (occupiedTenants >= 12) {
+                    alert("Maximum 12 tenants allowed. Please delete an existing tenant first.");
+                    return;
+                }
+
+                const roomNo = document.getElementById('tenantRoomNo').value.trim();
+                const roomId = document.getElementById('tenantRoomId').value.trim();
+                const tenantName = document.getElementById('tenantNameInput').value.trim();
+                const contact = document.getElementById('tenantContact').value.trim();
+                const rent = parseFloat(document.getElementById('tenantRent').value);
+                const deposit = parseFloat(document.getElementById('tenantDeposit').value) || 0;
+                const ebServNo = document.getElementById('tenantEbServNo').value.trim();
+                const ebAcNo = document.getElementById('tenantEbAcNo').value.trim();
+                const keyNo = document.getElementById('tenantKeyNo').value.trim();
+                const relocate = document.getElementById('tenantRelocateDate').value;
+
+                if (!roomNo || !roomId || !tenantName || isNaN(rent)) {
+                    alert("Please fill all required fields (Room No, Room ID, Tenant Name, Rent)");
+                    return;
+                }
+
+                try {
+                    // Save to Firestore
+                    await addDoc(collection(db, "properties"), {
+                        name: roomNo,
+                        roomId: roomId,
+                        roomNo: roomNo,
+                        tenant: tenantName,
+                        rent: rent,
+                        contact: contact,
+                        deposit: deposit,
+                        ebServNo: ebServNo,
+                        ebAcNo: ebAcNo,
+                        keyNo: keyNo,
+                        relocate: relocate,
+                        status: 'Occupied',
+                        payStatus: 'Pending',
+                        createdAt: serverTimestamp(),
+                        createdBy: currentUser.uid,
+                        paymentHistory: {}
+                    });
+
+                    // Reset form
+                    e.target.reset();
+                    alert("✓ Tenant added successfully!");
+
+                    // Refresh views
+                    window.applyFilters();
+                } catch (err) {
+                    console.error("Add tenant failed", err);
+                    alert("Error adding tenant: " + err.message);
+                }
+            });
+        }
 
         // ADD PROPERTY
         const formElement = document.getElementById('addPropertyForm');
