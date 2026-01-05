@@ -793,23 +793,32 @@
             }, 4000);
         };
 
-        // UPDATE OCCUPANCY METRICS
+        // UPDATE OCCUPANCY METRICS - Count only the 12 immutable rooms
         window.updateOccupancyMetrics = () => {
-            const occupiedCount = allPropertiesData.filter(p => p.status === 'Occupied').length;
-            const vacantCount = 12 - occupiedCount;
-            const occupancyRate = Math.round((occupiedCount / 12) * 100);
-            
+            // Count only the 12 immutable rooms
+            let occupiedCount = 0;
             let totalPending = 0;
-            allPropertiesData.forEach(p => {
-                const history = p.paymentHistory || {};
-                const ledgerPendingCount = Object.values(history).filter(v => v === 'Pending').length;
+            
+            Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = allPropertiesData.find(p => p.roomId === roomData.roomId);
                 
-                if (ledgerPendingCount > 0) {
-                    totalPending += (ledgerPendingCount * (p.rent || 0));
-                } else if (p.payStatus === 'Pending') {
-                    totalPending += (p.rent || 0);
+                // Count as occupied if status is 'Occupied'
+                if (tenantData && tenantData.status === 'Occupied') {
+                    occupiedCount++;
+                    
+                    // Calculate pending rent for this room
+                    const history = tenantData.paymentHistory || {};
+                    const pendingMonths = Object.values(history).filter(v => v === 'Pending').length;
+                    
+                    if (pendingMonths > 0) {
+                        totalPending += (pendingMonths * (tenantData.rent || 0));
+                    }
                 }
             });
+            
+            const vacantCount = 12 - occupiedCount;
+            const occupancyRate = Math.round((occupiedCount / 12) * 100);
             
             const occupiedEl = document.getElementById('occupied-count');
             const vacantEl = document.getElementById('vacant-count');
