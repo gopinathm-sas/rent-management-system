@@ -182,7 +182,7 @@
                 <div class="mt-6 flex justify-center gap-8 text-sm flex-wrap">
                     <span class="flex items-center gap-2">
                         <div class="w-5 h-5 bg-gray-200 border border-gray-400 rounded flex items-center justify-center text-xs">-</div>
-                        <span>No Record</span>
+                        <span>Vacant (No Tenant)</span>
                     </span>
                     <span class="flex items-center gap-2">
                         <div class="w-5 h-5 bg-red-100 border-2 border-red-400 rounded flex items-center justify-center text-red-600 font-bold text-xs">✗</div>
@@ -1620,6 +1620,7 @@
                 }
                 
                 const tenantName = tenantData?.tenant || 'No Tenant';
+                const tenantStatus = tenantData?.status || 'Vacant';
                 const history = tenantData?.paymentHistory || {};
                 
                 let row = `
@@ -1633,11 +1634,14 @@
                     const key = `${currentYear}-${month}`;
                     const status = history[key] || 'None';
                     
+                    // If room is vacant, always show gray cells
                     let cellClass = "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200";
                     let displayText = "-";
                     let icon = "";
                     
-                    if (status === 'Pending') {
+                    // Only show payment statuses if tenant status is 'Occupied'
+                    if (tenantStatus === 'Occupied') {
+                        if (status === 'Pending') {
                         cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
                         displayText = "✗";
                         icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
@@ -1650,11 +1654,15 @@
                         displayText = "✓";
                         icon = '<i class="fa-solid fa-check text-green-600"></i>';
                     }
+                    }
 
+                    // Only allow clicking if tenant is occupied
+                    const clickHandler = tenantStatus === 'Occupied' ? `onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')"` : '';
+                    
                     row += `
                         <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
-                            onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')" 
-                            title="Click to toggle: ${status}">
+                            ${clickHandler}
+                            title="${tenantStatus === 'Occupied' ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
                             ${displayText}
                         </td>
                     `;
@@ -1663,6 +1671,7 @@
                 row += `</tr>`;
                 return row;
             }).filter(row => row !== '').join('');
+        };
         };
 
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
