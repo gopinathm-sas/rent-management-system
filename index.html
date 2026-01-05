@@ -15,6 +15,17 @@
         /* Section Tab Visibility */
         .section-tab { display: none !important; }
         .section-tab.active { display: block !important; }
+
+        /* Nav active state */
+        .nav-link { opacity: 0.9; }
+        .nav-link.nav-active { opacity: 1; border-bottom: 2px solid rgba(255, 255, 255, 0.9); padding-bottom: 0.25rem; }
+
+        /* Rent Details table usability: sticky first columns */
+        #rentDetailsTable { border-collapse: separate; border-spacing: 0; }
+        #rentDetailsTable th, #rentDetailsTable td { white-space: nowrap; }
+        #rentDetailsTable th:nth-child(1), #rentDetailsTable td:nth-child(1) { position: sticky; left: 0; z-index: 30; }
+        #rentDetailsTable th:nth-child(2), #rentDetailsTable td:nth-child(2) { position: sticky; left: 6rem; z-index: 30; }
+        #rentDetailsTable th:nth-child(3), #rentDetailsTable td:nth-child(3) { position: sticky; left: 12rem; z-index: 30; }
         /* Ledger Grid Transition */
         .month-box { transition: all 0.2s ease; }
         .month-box:active { transform: scale(0.95); }
@@ -57,9 +68,10 @@
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <div class="hidden md:flex space-x-6 text-sm font-medium">
-                        <a href="#" onclick="showSection('dashboard')" class="hover:text-blue-200 transition cursor-pointer">Dashboard</a>
-                        <a href="#" onclick="showSection('rent-details')" class="hover:text-blue-200 transition cursor-pointer">Rent Details</a>
+                    <div class="flex items-center gap-5 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
+                        <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
+                        <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
+                        <a href="#" data-section="rooms" onclick="showSection('rooms')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rooms</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -81,52 +93,52 @@
                 <h2 class="text-3xl font-bold mb-8 text-gray-700">Dashboard Overview</h2>
 
                 <!-- Occupancy Metrics - Maximized -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 mb-12 md:mb-16">
                     <!-- Card 1: Occupied Rooms -->
-                    <div class="bg-white p-12 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition transform hover:scale-102">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Occupied Rooms</p>
-                                <p class="text-7xl font-bold text-blue-600" id="occupied-count">0</p>
+                                <p class="text-5xl md:text-6xl lg:text-7xl font-bold text-blue-600" id="occupied-count">0</p>
                                 <p class="text-base text-gray-400 mt-4">Out of 12</p>
                             </div>
-                            <i class="fa-solid fa-door-open text-blue-500 text-6xl opacity-20"></i>
+                            <i class="fa-solid fa-door-open text-blue-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
                     </div>
                     
                     <!-- Card 2: Vacant Rooms -->
-                    <div class="bg-white p-12 rounded-xl shadow-lg border-l-8 border-gray-400 hover:shadow-2xl transition transform hover:scale-102">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-gray-400 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Vacant Rooms</p>
-                                <p class="text-7xl font-bold text-gray-600" id="vacant-count">12</p>
+                                <p class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-600" id="vacant-count">12</p>
                                 <p class="text-base text-gray-400 mt-4">Available</p>
                             </div>
-                            <i class="fa-solid fa-house text-gray-400 text-6xl opacity-20"></i>
+                            <i class="fa-solid fa-house text-gray-400 text-5xl md:text-6xl opacity-20"></i>
                         </div>
                     </div>
                     
                     <!-- Card 3: Occupancy Rate -->
-                    <div class="bg-white p-12 rounded-xl shadow-lg border-l-8 border-purple-500 hover:shadow-2xl transition transform hover:scale-102">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-purple-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Occupancy Rate</p>
-                                <p class="text-7xl font-bold text-purple-600" id="occupancy-rate">0%</p>
+                                <p class="text-5xl md:text-6xl lg:text-7xl font-bold text-purple-600" id="occupancy-rate">0%</p>
                                 <p class="text-base text-gray-400 mt-4">Capacity</p>
                             </div>
-                            <i class="fa-solid fa-chart-pie text-purple-500 text-6xl opacity-20"></i>
+                            <i class="fa-solid fa-chart-pie text-purple-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
                     </div>
                     
                     <!-- Card 4: Total Pending Rent -->
-                    <div class="bg-white p-12 rounded-xl shadow-lg border-l-8 border-orange-500 hover:shadow-2xl transition transform hover:scale-102">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Pending Rent</p>
-                                <p class="text-6xl font-bold text-orange-600" id="pending-rent">₹0</p>
+                                <p class="text-4xl md:text-5xl lg:text-6xl font-bold text-orange-600" id="pending-rent">₹0</p>
                                 <p class="text-base text-gray-400 mt-4">All months</p>
                             </div>
-                            <i class="fa-solid fa-exclamation-triangle text-orange-500 text-6xl opacity-20"></i>
+                            <i class="fa-solid fa-exclamation-triangle text-orange-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
                     </div>
                 </div>
@@ -146,25 +158,25 @@
                 
                 <!-- Rent Details Table -->
                 <div class="bg-white rounded-lg shadow overflow-hidden">
-                    <div style="width: 100%; overflow-x: auto;">
+                    <div class="w-full overflow-x-auto">
                         <table id="rentDetailsTable" class="text-sm w-full border-collapse">
                             <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold">Room ID</th>
-                                    <th class="border px-4 py-3 text-left font-semibold">Room No</th>
-                                    <th class="border px-4 py-3 text-left font-semibold">Tenant Name</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Jan</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Feb</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Mar</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Apr</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">May</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Jun</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Jul</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Aug</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Sep</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Oct</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Nov</th>
-                                    <th class="border px-4 py-3 text-center font-semibold">Dec</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
                                 </tr>
                             </thead>
                             <tbody id="rentDetailsBody" class="divide-y">
@@ -601,14 +613,17 @@
                 return `
                     <div class="${bgColor} rounded-xl shadow-lg border-l-8 ${borderColor} p-6 cursor-pointer hover:shadow-2xl transition-all transform hover:scale-105" onclick="window.openRoomDetailModal('${roomNo}')">
                         <div class="flex justify-between items-start mb-4">
-                            <h4 class="text-2xl font-bold text-gray-800">Room ${roomData.roomNo}</h4>
+                            <div>
+                                <h4 class="text-2xl font-bold text-gray-800 leading-tight">Room ${roomData.roomNo}</h4>
+                                <p class="text-xs text-gray-500 mt-1">ID: <span class="font-mono font-semibold text-blue-700">${roomData.roomId}</span></p>
+                            </div>
                             <span class="px-3 py-1 rounded-lg text-xs font-bold ${statusColor} border">
                                 ${isOccupied ? '✓ Occupied' : '◯ Vacant'}
                             </span>
                         </div>
                         
                         <div class="border-t border-gray-200 pt-4">
-                            <p class="text-lg text-gray-700 font-semibold">
+                            <p class="text-base text-gray-700 font-semibold truncate" title="${tenantName}">
                                 <i class="fa-solid fa-user mr-2 text-blue-600"></i>${tenantName}
                             </p>
                         </div>
@@ -960,6 +975,14 @@
             if (activeSection) {
                 activeSection.classList.add('active');
             }
+
+            // Update active nav link styling
+            document.querySelectorAll('[data-section]').forEach(link => {
+                const isActive = link.getAttribute('data-section') === sectionName;
+                link.classList.toggle('nav-active', isActive);
+                if (isActive) link.setAttribute('aria-current', 'page');
+                else link.removeAttribute('aria-current');
+            });
             
             console.log("✓ Showing section:", sectionName);
         };
@@ -1804,6 +1827,7 @@
         // RENT DETAILS TABLE - Populate with 12 immutable rooms and tenant data
         window.renderRentDetailsTable = function() {
             const tbody = document.getElementById('rentDetailsBody');
+            if (!tbody) return;
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const currentYear = new Date().getFullYear();
 
@@ -1820,21 +1844,16 @@
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = findTenantForRoom(roomData);
                 const occupied = isOccupiedRecord(tenantData);
-                
-                // Only show tenant if status is 'Occupied'
-                if (!tenantData || !occupied) {
-                    return ''; // Skip this row if tenant is not occupied
-                }
-                
-                const tenantName = tenantData?.tenant || 'No Tenant';
-                const tenantStatus = occupied ? 'Occupied' : (tenantData?.status || 'Vacant');
+
+                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
                 const history = tenantData?.paymentHistory || {};
+                const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
                 
                 let row = `
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="border px-4 py-3 font-semibold text-blue-600">${escapeHtml(roomData.roomId)}</td>
-                        <td class="border px-4 py-3 font-semibold">${escapeHtml(roomData.roomNo)}</td>
-                        <td class="border px-4 py-3 font-semibold text-gray-800 text-sm">${escapeHtml(tenantName)}</td>
+                    <tr class="${rowClass}">
+                        <td class="border px-4 py-3 font-semibold text-blue-600 bg-white min-w-[6rem]">${escapeHtml(roomData.roomId)}</td>
+                        <td class="border px-4 py-3 font-semibold bg-white min-w-[6rem]">${escapeHtml(roomData.roomNo)}</td>
+                        <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
                 `;
 
                 months.forEach(month => {
@@ -1842,12 +1861,14 @@
                     const status = history[key] || 'None';
                     
                     // If room is vacant, always show gray cells
-                    let cellClass = "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200";
+                    let cellClass = occupied
+                        ? "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200"
+                        : "bg-gray-100 text-gray-600 border-gray-300 cursor-not-allowed";
                     let displayText = "-";
                     let icon = "";
                     
                     // Only show payment statuses if tenant status is 'Occupied'
-                    if (tenantStatus === 'Occupied') {
+                    if (occupied) {
                         if (status === 'Pending') {
                         cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
                         displayText = "✗";
@@ -1864,12 +1885,12 @@
                     }
 
                     // Only allow clicking if tenant is occupied
-                    const clickHandler = tenantStatus === 'Occupied' ? `onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')"` : '';
+                    const clickHandler = occupied ? `onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')"` : '';
                     
                     row += `
                         <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
                             ${clickHandler}
-                            title="${tenantStatus === 'Occupied' ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
+                            title="${occupied ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
                             ${displayText}
                         </td>
                     `;
