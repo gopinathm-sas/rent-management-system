@@ -624,8 +624,10 @@
                         <li><span class="font-mono">RoomId, 2025-Jan, 1234</span></li>
                         <li><span class="font-mono">RoomNo, 2025-Jan, 1234</span></li>
                         <li><span class="font-mono">RoomId, 2025, Jan, 1234</span></li>
+                        <li><span class="font-mono">Excel table format:</span> <span class="font-mono">Room No</span>, <span class="font-mono">Room ID</span>, <span class="font-mono">Tenant Name</span>, <span class="font-mono">Apr</span>, <span class="font-mono">May</span>, <span class="font-mono">Jun</span>…</li>
                         <li>Separator can be comma or tab</li>
                     </ul>
+                    <p class="text-xs text-gray-500 mt-2">If month headers don’t include a year (e.g. “April”), the import uses the Water Bill year currently selected in the app.</p>
                     <p class="text-xs text-gray-500 mt-2">Note: Units are calculated as (current − previous) × 10.</p>
                 </div>
 
@@ -4623,58 +4625,158 @@
             });
             if (!ok) return;
 
-            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            const rawLines = text.split(/\r?\n/);
+            const lines = rawLines.map(l => String(l || '').trim()).filter(Boolean);
             const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+            const fallbackYear = (typeof currentWaterBillYear === 'number' && Number.isFinite(currentWaterBillYear))
+                ? currentWaterBillYear
+                : new Date().getFullYear();
+
+            function normalizeHeader(s) {
+                return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            }
+
+            function tryParseMonthHeader(cell) {
+                const raw = String(cell || '').trim();
+                if (!raw) return null;
+
+                // Support: 2025-Apr, 2025 Apr, Apr-2025, April 2025
+                const m1 = raw.match(/^(\d{4})\s*[-/ ]\s*([A-Za-z]{3,})$/);
+                if (m1) {
+                    const year = Number(m1[1]);
+                    const monthIndex = parseMonthIndex(m1[2]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+                const m2 = raw.match(/^([A-Za-z]{3,})\s*[-/ ]\s*(\d{4})$/);
+                if (m2) {
+                    const year = Number(m2[2]);
+                    const monthIndex = parseMonthIndex(m2[1]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+                const m3 = raw.match(/^([A-Za-z]{3,})\s+(\d{4})$/);
+                if (m3) {
+                    const year = Number(m3[2]);
+                    const monthIndex = parseMonthIndex(m3[1]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+
+                // Support: Apr / April (no year) -> use fallbackYear
+                const monthIndex = parseMonthIndex(raw);
+                if (monthIndex !== null) return { year: fallbackYear, monthIndex };
+                return null;
+            }
+
+            function looksLikeExcelTable(linesArr) {
+                if (!linesArr?.length) return false;
+                const first = linesArr[0];
+                if (!first.includes('\t')) return false;
+                const headerCells = first.split('\t').map(s => String(s || '').trim());
+                const hasRoom = headerCells.some(c => normalizeHeader(c) === 'room no' || normalizeHeader(c) === 'room id');
+                const monthCols = headerCells.filter(c => !!tryParseMonthHeader(c));
+                return hasRoom && monthCols.length >= 1;
+            }
 
             let imported = 0;
             let skipped = 0;
             let failed = 0;
 
-            for (const line of lines) {
-                const parts = line.includes('\t') ? line.split('\t') : line.split(',');
-                const cols = parts.map(p => String(p).trim()).filter(p => p !== '');
-                if (cols.length < 3) { skipped++; continue; }
+            if (looksLikeExcelTable(lines)) {
+                // Excel table format (tab-separated): Room No | Room ID | Tenant Name | Apr | May | ...
+                const grid = lines.map(l => l.split('\t').map(c => String(c ?? '').trim()));
+                const header = grid[0] || [];
+                const headerNorm = header.map(normalizeHeader);
 
-                const roomToken = cols[0];
-                const roomData = resolveRoomData(roomToken);
-                if (!roomData) { skipped++; continue; }
+                const roomNoCol = headerNorm.findIndex(h => h === 'room no' || h === 'roomno' || h === 'room');
+                const roomIdCol = headerNorm.findIndex(h => h === 'room id' || h === 'roomid' || h === 'roomid ');
+                const roomTokenCol = roomNoCol >= 0 ? roomNoCol : (roomIdCol >= 0 ? roomIdCol : 0);
 
-                let year = null;
-                let monthIndex = null;
-                let readingRaw = null;
-
-                // Format A: room, 2025-Jan, 1234
-                if (cols.length >= 3 && /^\d{4}-[A-Za-z]{3}$/.test(cols[1])) {
-                    year = Number(cols[1].slice(0, 4));
-                    monthIndex = parseMonthIndex(cols[1].slice(5));
-                    readingRaw = cols[2];
-                } else if (cols.length >= 4 && /^\d{4}$/.test(cols[1])) {
-                    // Format B: room, 2025, Jan, 1234
-                    year = Number(cols[1]);
-                    monthIndex = parseMonthIndex(cols[2]);
-                    readingRaw = cols[3];
-                } else {
-                    skipped++;
-                    continue;
+                const monthColumns = [];
+                for (let colIdx = 0; colIdx < header.length; colIdx++) {
+                    const parsed = tryParseMonthHeader(header[colIdx]);
+                    if (parsed) monthColumns.push({ colIdx, year: parsed.year, monthIndex: parsed.monthIndex });
+                }
+                if (!monthColumns.length) {
+                    await window.uiAlert('No month columns found in the header row.');
+                    return;
                 }
 
-                if (!Number.isFinite(year) || monthIndex === null) { skipped++; continue; }
-                const reading = Number(String(readingRaw || '').trim());
-                if (!Number.isFinite(reading) || reading < 0) { skipped++; continue; }
+                for (let r = 1; r < grid.length; r++) {
+                    const row = grid[r] || [];
+                    const roomToken = String(row[roomTokenCol] || '').trim();
+                    if (!roomToken) { skipped++; continue; }
 
-                // Respect the existing future-month guard
-                if (isFutureYearMonth(year, monthIndex, new Date())) { skipped++; continue; }
+                    const roomData = resolveRoomData(roomToken);
+                    if (!roomData) { skipped++; continue; }
+                    const tenantData = findTenantForRoom(roomData);
+                    if (!tenantData || !tenantData?.id) { skipped++; continue; }
 
-                const key = `${year}-${months[monthIndex]}`;
-                const tenantData = findTenantForRoom(roomData);
-                if (!tenantData || !tenantData?.id) { skipped++; continue; }
+                    for (const mc of monthColumns) {
+                        const cell = String(row[mc.colIdx] ?? '').trim();
+                        if (!cell) continue; // allow blanks
 
-                try {
-                    await updateDoc(doc(db, 'properties', tenantData.id), { [`waterReadings.${key}`]: reading });
-                    imported++;
-                } catch (e) {
-                    console.warn('Water import failed for', roomData?.roomId, key, e);
-                    failed++;
+                        const reading = Number(cell);
+                        if (!Number.isFinite(reading) || reading < 0) { skipped++; continue; }
+                        if (isFutureYearMonth(mc.year, mc.monthIndex, new Date())) { skipped++; continue; }
+
+                        const key = `${mc.year}-${months[mc.monthIndex]}`;
+                        try {
+                            await updateDoc(doc(db, 'properties', tenantData.id), { [`waterReadings.${key}`]: reading });
+                            imported++;
+                        } catch (e) {
+                            console.warn('Water import failed for', roomData?.roomId, key, e);
+                            failed++;
+                        }
+                    }
+                }
+            } else {
+                // Row-per-line formats
+                for (const line of lines) {
+                    const parts = line.includes('\t') ? line.split('\t') : line.split(',');
+                    const cols = parts.map(p => String(p).trim()).filter(p => p !== '');
+                    if (cols.length < 3) { skipped++; continue; }
+
+                    const roomToken = cols[0];
+                    const roomData = resolveRoomData(roomToken);
+                    if (!roomData) { skipped++; continue; }
+
+                    let year = null;
+                    let monthIndex = null;
+                    let readingRaw = null;
+
+                    // Format A: room, 2025-Jan, 1234
+                    if (cols.length >= 3 && /^\d{4}-[A-Za-z]{3}$/.test(cols[1])) {
+                        year = Number(cols[1].slice(0, 4));
+                        monthIndex = parseMonthIndex(cols[1].slice(5));
+                        readingRaw = cols[2];
+                    } else if (cols.length >= 4 && /^\d{4}$/.test(cols[1])) {
+                        // Format B: room, 2025, Jan, 1234
+                        year = Number(cols[1]);
+                        monthIndex = parseMonthIndex(cols[2]);
+                        readingRaw = cols[3];
+                    } else {
+                        skipped++;
+                        continue;
+                    }
+
+                    if (!Number.isFinite(year) || monthIndex === null) { skipped++; continue; }
+                    const reading = Number(String(readingRaw || '').trim());
+                    if (!Number.isFinite(reading) || reading < 0) { skipped++; continue; }
+
+                    // Respect the existing future-month guard
+                    if (isFutureYearMonth(year, monthIndex, new Date())) { skipped++; continue; }
+
+                    const key = `${year}-${months[monthIndex]}`;
+                    const tenantData = findTenantForRoom(roomData);
+                    if (!tenantData || !tenantData?.id) { skipped++; continue; }
+
+                    try {
+                        await updateDoc(doc(db, 'properties', tenantData.id), { [`waterReadings.${key}`]: reading });
+                        imported++;
+                    } catch (e) {
+                        console.warn('Water import failed for', roomData?.roomId, key, e);
+                        failed++;
+                    }
                 }
             }
 
