@@ -77,8 +77,10 @@
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center gap-5 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
+                        <a href="#" data-section="room-details" onclick="showSection('room-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Room Details</a>
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
                         <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link hover:text-blue-200 transition cursor-pointer">Water Bill</a>
+                        <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link hover:text-blue-200 transition cursor-pointer">Expenses</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -95,9 +97,44 @@
         <!-- Main Content -->
         <main class="container mx-auto px-4 py-8">
             
-            <!-- Dashboard Summary -->
-            <section id="dashboard" class="section-tab active mb-16">
-                <h2 class="text-3xl font-bold mb-8 text-gray-700">Dashboard Overview</h2>
+            <!-- Dashboard (Financial Summary) -->
+            <section id="dashboard" class="section-tab mb-16">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h2 class="text-3xl font-bold text-gray-700">Dashboard</h2>
+                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                        <span class="font-semibold">Year</span>
+                        <button type="button" onclick="changeDashboardYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span id="dashboard-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
+                        <button type="button" onclick="changeDashboardYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="w-full overflow-x-auto">
+                        <table class="text-sm w-full border-collapse">
+                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                <tr>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Rent Collected</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Expenses</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Water Charges</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Pending Rent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboardBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">Rent Collected includes only months marked Paid. Water Charges are computed from meter readings.</p>
+            </section>
+
+            <!-- Room Details (formerly Dashboard) -->
+            <section id="room-details" class="section-tab active mb-16">
+                <h2 class="text-3xl font-bold mb-8 text-gray-700">Room Details</h2>
 
                 <!-- Occupancy Metrics - Maximized -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 mb-12 md:mb-16">
@@ -339,6 +376,72 @@
                                     </td>
                                 </tr>
                             </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Expenses Section -->
+            <section id="expenses" class="section-tab mb-10">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                    <h2 class="text-2xl font-bold text-gray-700">Expenses</h2>
+                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                        <span class="font-semibold">Year</span>
+                        <button type="button" onclick="changeExpensesYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span id="expenses-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
+                        <button type="button" onclick="changeExpensesYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-gray-500 mb-4">Add item-wise expenses (salary, electricity, internet, maintenance). Dashboard shows month totals.</p>
+
+                <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <form id="expenseForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Date</label>
+                            <input type="date" id="expenseDate" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Category</label>
+                            <select id="expenseCategory" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="House Keeping Salary">House Keeping Salary</option>
+                                <option value="Electricity Bill">Electricity Bill</option>
+                                <option value="Internet Bill">Internet Bill</option>
+                                <option value="Painting">Painting</option>
+                                <option value="Room Maintenance">Room Maintenance</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Note</label>
+                            <input type="text" id="expenseNote" placeholder="Optional" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Amount (₹)</label>
+                            <input type="number" id="expenseAmount" min="0" step="0.01" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div class="md:col-span-4 flex justify-end">
+                            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Add Expense</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="w-full overflow-x-auto">
+                        <table class="text-sm w-full border-collapse">
+                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                <tr>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[9rem]">Date</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[12rem]">Category</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[14rem]">Note</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[8rem]">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -593,7 +696,7 @@
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -722,11 +825,15 @@
         // GLOBAL STATE
         let currentUser = null;
         let unsubscribe = null;
+        let expensesUnsubscribe = null;
         let allPropertiesData = [];
+        let allExpensesData = [];
         let currentLedgerPropId = null;
         let currentLedgerYear = new Date().getFullYear();
         let currentRentDetailsYear = new Date().getFullYear();
         let currentWaterBillYear = new Date().getFullYear();
+        let currentDashboardYear = new Date().getFullYear();
+        let currentExpensesYear = new Date().getFullYear();
 
         // HELPERS (room matching + occupancy)
         function isOccupiedRecord(record) {
@@ -2147,6 +2254,209 @@
 
             // Keep quick lists in sync
             try { window.renderPendingThisMonthCard(); } catch (e) { console.warn("⚠️ renderPendingThisMonthCard failed:", e); }
+
+            // Keep dashboards in sync
+            try { window.renderFinancialDashboard(); } catch (e) { console.warn("⚠️ renderFinancialDashboard failed:", e); }
+        };
+
+        // DASHBOARD (Financial Summary)
+        function getMonthKey(year, monthIndex) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return `${year}-${months[monthIndex]}`;
+        }
+
+        function formatMonthLabel(year, monthIndex) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return `${months[monthIndex]} ${year}`;
+        }
+
+        function sumExpensesForMonth(monthKey) {
+            if (!Array.isArray(allExpensesData)) return 0;
+            return allExpensesData
+                .filter(e => String(e?.monthKey || '') === String(monthKey))
+                .reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
+        }
+
+        function computeRentCollectedForMonth(year, monthIndex) {
+            const key = getMonthKey(year, monthIndex);
+            let total = 0;
+
+            Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+
+                const history = tenantData?.paymentHistory || {};
+                const totals = tenantData?.paymentTotals || {};
+                const status = history?.[key] || null;
+
+                const archived = tenantData?.archivedTenant || null;
+                const archivedHistory = archived?.paymentHistory || {};
+                const archivedTotals = archived?.paymentTotals || {};
+                const archivedStatus = archivedHistory?.[key] || null;
+
+                const useArchived = (!status || status === 'None') && archivedStatus;
+                const effectiveStatus = useArchived ? archivedStatus : status;
+                if (effectiveStatus !== 'Paid') return;
+
+                const effectiveTotals = useArchived ? archivedTotals : totals;
+                const effectiveRent = useArchived ? (Number(archived?.rent) || 0) : (Number(tenantData?.rent) || 0);
+
+                const storedTotal = Number(effectiveTotals?.[key]);
+                if (Number.isFinite(storedTotal)) total += storedTotal;
+                else total += effectiveRent;
+            });
+
+            return total;
+        }
+
+        function computePendingRentForMonth(year, monthIndex) {
+            const key = getMonthKey(year, monthIndex);
+            let total = 0;
+
+            Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+
+                const history = tenantData?.paymentHistory || {};
+                const status = history?.[key] || null;
+
+                const archived = tenantData?.archivedTenant || null;
+                const archivedHistory = archived?.paymentHistory || {};
+                const archivedStatus = archivedHistory?.[key] || null;
+
+                const useArchived = (!status || status === 'None') && archivedStatus;
+                const effectiveStatus = useArchived ? archivedStatus : status;
+                if (effectiveStatus !== 'Pending') return;
+
+                const effectiveRent = useArchived ? (Number(archived?.rent) || 0) : (Number(tenantData?.rent) || 0);
+                total += effectiveRent;
+            });
+
+            return total;
+        }
+
+        function computeWaterChargesForMonth(year, monthIndex) {
+            let total = 0;
+            Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+
+                const rate = Number(tenantData?.waterRate);
+                const effectiveRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(roomData.roomNo);
+                const result = computeWaterForMonth(tenantData, year, monthIndex, effectiveRate);
+
+                let amt = Number(result?.amount);
+                if (!Number.isFinite(amt)) {
+                    const archived = tenantData?.archivedTenant || null;
+                    if (archived) {
+                        const archivedRate = Number(archived?.waterRate);
+                        const archivedEffectiveRate = Number.isFinite(archivedRate) ? archivedRate : getDefaultWaterRateForRoom(roomData.roomNo);
+                        const archivedResult = computeWaterForMonth(archived, year, monthIndex, archivedEffectiveRate);
+                        amt = Number(archivedResult?.amount);
+                    }
+                }
+
+                if (!Number.isFinite(amt)) return;
+                total += amt;
+            });
+            return total;
+        }
+
+        window.renderFinancialDashboard = () => {
+            const yearLabel = document.getElementById('dashboard-year');
+            if (yearLabel) yearLabel.textContent = String(currentDashboardYear);
+
+            const body = document.getElementById('dashboardBody');
+            if (!body) return;
+
+            const year = (typeof currentDashboardYear === 'number' && Number.isFinite(currentDashboardYear))
+                ? currentDashboardYear
+                : new Date().getFullYear();
+
+            const rows = [];
+            for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+                const key = getMonthKey(year, monthIndex);
+                const rentCollected = computeRentCollectedForMonth(year, monthIndex);
+                const pendingRent = computePendingRentForMonth(year, monthIndex);
+                const waterCharges = computeWaterChargesForMonth(year, monthIndex);
+                const expenses = sumExpensesForMonth(key);
+
+                rows.push({
+                    monthLabel: formatMonthLabel(year, monthIndex),
+                    rentCollected,
+                    expenses,
+                    waterCharges,
+                    pendingRent
+                });
+            }
+
+            body.innerHTML = rows.map(r => {
+                const rentText = `₹${Math.round(r.rentCollected).toLocaleString('en-IN')}`;
+                const expText = `₹${Math.round(r.expenses).toLocaleString('en-IN')}`;
+                const waterText = `₹${Number(r.waterCharges).toFixed(2)}`;
+                const pendingText = `₹${Math.round(r.pendingRent).toLocaleString('en-IN')}`;
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="border px-4 py-3 font-semibold text-gray-800 bg-white">${escapeHtml(r.monthLabel)}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-green-700 bg-white">${rentText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-red-700 bg-white">${expText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-blue-700 bg-white">${waterText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-orange-700 bg-white">${pendingText}</td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        window.changeDashboardYear = (delta) => {
+            currentDashboardYear = (Number(currentDashboardYear) || new Date().getFullYear()) + (Number(delta) || 0);
+            window.renderFinancialDashboard();
+        };
+
+        // EXPENSES
+        window.changeExpensesYear = (delta) => {
+            currentExpensesYear = (Number(currentExpensesYear) || new Date().getFullYear()) + (Number(delta) || 0);
+            window.renderExpensesList();
+            window.renderFinancialDashboard();
+        };
+
+        window.renderExpensesList = () => {
+            const yearLabel = document.getElementById('expenses-year');
+            if (yearLabel) yearLabel.textContent = String(currentExpensesYear);
+
+            const tbody = document.getElementById('expensesBody');
+            if (!tbody) return;
+
+            const year = (typeof currentExpensesYear === 'number' && Number.isFinite(currentExpensesYear))
+                ? currentExpensesYear
+                : new Date().getFullYear();
+
+            const filtered = (Array.isArray(allExpensesData) ? allExpensesData : [])
+                .filter(e => {
+                    const d = parseDateValue(e?.date);
+                    return d ? d.getFullYear() === year : (Number(e?.year) === year);
+                });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400">No expenses for this year.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(e => {
+                const monthKey = String(e?.monthKey || '');
+                const dateStr = String(e?.date || '');
+                const category = String(e?.category || '');
+                const note = String(e?.note || '');
+                const amount = Number(e?.amount) || 0;
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="border px-4 py-3 text-sm bg-white">${escapeHtml(monthKey)}</td>
+                        <td class="border px-4 py-3 text-sm bg-white">${escapeHtml(dateStr)}</td>
+                        <td class="border px-4 py-3 text-sm font-semibold bg-white">${escapeHtml(category)}</td>
+                        <td class="border px-4 py-3 text-sm bg-white">${escapeHtml(note)}</td>
+                        <td class="border px-4 py-3 text-right font-semibold bg-white">₹${amount.toLocaleString('en-IN')}</td>
+                    </tr>
+                `;
+            }).join('');
         };
 
         // DASHBOARD: PENDING THIS MONTH (compact list)
@@ -2304,7 +2614,7 @@
                     ? 'bg-red-100 text-red-800 border-red-200'
                     : 'bg-purple-100 text-purple-800 border-purple-200';
                 return `
-                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-200 transition" onclick="window.showSection('dashboard'); window.openRoomDetailModal('${item.roomNo}')">
+                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-200 transition" onclick="window.showSection('room-details'); window.openRoomDetailModal('${item.roomNo}')">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="font-semibold text-gray-800">Room ${item.roomNo} • ${item.tenant}</p>
@@ -2350,11 +2660,23 @@
             console.log("✓ Page loaded, initializing room cards");
             window.generateRoomCards();
             try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+
+            // Expenses form submit
+            const expenseForm = document.getElementById('expenseForm');
+            if (expenseForm) {
+                expenseForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (typeof window.addExpense === 'function') {
+                        await window.addExpense();
+                    }
+                });
+            }
         });
 
         window.logout = async () => {
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
+            if (expensesUnsubscribe) expensesUnsubscribe();
             await signOut(auth);
             window.location.reload();
         };
@@ -2412,7 +2734,23 @@
                     document.getElementById('login-screen').classList.add('hidden-section');
                     document.getElementById('app-content').classList.remove('hidden-section');
                     document.getElementById('login-error').classList.add('hidden');
+
+                    // Initialize year labels
+                    try {
+                        const dy = document.getElementById('dashboard-year');
+                        if (dy) dy.textContent = String(currentDashboardYear);
+                        const ey = document.getElementById('expenses-year');
+                        if (ey) ey.textContent = String(currentExpensesYear);
+                    } catch (e) {
+                        console.warn('⚠️ Year label init failed:', e);
+                    }
+
                     initDataListener();
+                    subscribeExpenses();
+
+                    // Initial renders (safe if data not loaded yet)
+                    try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
+                    try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
                 } catch (err) {
                     console.error("Authorization check error:", err);
                     await signOut(auth);
@@ -2421,6 +2759,8 @@
                 }
             } else {
                 console.log("✓ User signed out");
+                if (unsubscribe) { try { unsubscribe(); } catch {} unsubscribe = null; }
+                if (expensesUnsubscribe) { try { expensesUnsubscribe(); } catch {} expensesUnsubscribe = null; }
                 document.getElementById('login-screen').classList.remove('hidden-section');
                 document.getElementById('app-content').classList.add('hidden-section');
             }
@@ -2466,6 +2806,104 @@
                 }
             });
         }
+
+        function parseAmountSafe(raw) {
+            const cleaned = String(raw || '').replace(/,/g, '').trim();
+            const n = Number(cleaned);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function subscribeExpenses() {
+            try {
+                if (expensesUnsubscribe) {
+                    expensesUnsubscribe();
+                    expensesUnsubscribe = null;
+                }
+
+                const expensesCol = collection(db, 'expenses');
+                const qExp = query(expensesCol, orderBy('date', 'desc'));
+                expensesUnsubscribe = onSnapshot(qExp, (snap) => {
+                    const items = [];
+                    snap.forEach(docSnap => {
+                        items.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    allExpensesData = items;
+                    try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
+                    try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
+                }, (err) => {
+                    console.error('❌ Expenses subscription failed:', err);
+                });
+            } catch (e) {
+                console.error('❌ subscribeExpenses error:', e);
+            }
+        }
+
+        window.addExpense = async () => {
+            const dateEl = document.getElementById('expenseDate');
+            const categoryEl = document.getElementById('expenseCategory');
+            const amountEl = document.getElementById('expenseAmount');
+            const noteEl = document.getElementById('expenseNote');
+
+            const dateStr = String(dateEl?.value || '').trim();
+            const category = String(categoryEl?.value || '').trim();
+            const amount = parseAmountSafe(amountEl?.value);
+            const note = String(noteEl?.value || '').trim();
+
+            if (!dateStr) {
+                await uiAlert('Please select a date.');
+                return;
+            }
+            if (!category) {
+                await uiAlert('Please select a category.');
+                return;
+            }
+            if (amount === null || amount <= 0) {
+                await uiAlert('Please enter a valid amount.');
+                return;
+            }
+
+            const d = parseDateValue(dateStr);
+            if (!d) {
+                await uiAlert('Invalid date.');
+                return;
+            }
+
+            const year = d.getFullYear();
+            const monthIndex = d.getMonth();
+            const monthKey = getMonthKey(year, monthIndex);
+
+            try {
+                await addDoc(collection(db, 'expenses'), {
+                    date: dateStr,
+                    year,
+                    monthKey,
+                    category,
+                    amount,
+                    note,
+                    createdAt: serverTimestamp(),
+                    createdBy: String(auth.currentUser?.email || '')
+                });
+
+                if (amountEl) amountEl.value = '';
+                if (noteEl) noteEl.value = '';
+
+                currentExpensesYear = year;
+                currentDashboardYear = year;
+                try {
+                    const dy = document.getElementById('dashboard-year');
+                    if (dy) dy.textContent = String(currentDashboardYear);
+                    const ey = document.getElementById('expenses-year');
+                    if (ey) ey.textContent = String(currentExpensesYear);
+                } catch {}
+
+                showNotification('✓ Expense saved', 'success');
+                try { window.renderExpensesList(); } catch {}
+                try { window.renderFinancialDashboard(); } catch {}
+            } catch (e) {
+                console.error('❌ addExpense failed:', e);
+                showNotification('Failed to save expense: ' + (e?.message || e), 'error');
+            }
+        };
 
         // Load dashboard row data from Firestore rooms collection
         async function loadDashboardDataFromFirestore() {
