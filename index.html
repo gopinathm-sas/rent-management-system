@@ -48,8 +48,9 @@
         #rentWaterTable th:nth-child(2), #rentWaterTable td:nth-child(2) { position: sticky; left: 6rem; z-index: 30; }
         #rentWaterTable th:nth-child(3), #rentWaterTable td:nth-child(3) { position: sticky; left: 12rem; z-index: 30; }
 
-        /* Desktop view toggle: hide mobile-only nav */
+        /* Desktop view toggle: hide mobile-only nav + floating quick nav */
         .force-desktop .mobile-bottom-nav { display: none !important; }
+        .force-desktop .quick-nav-desktop { display: none !important; }
 
         /* Mobile: make horizontal scrolling less cramped */
         @media (max-width: 640px) {
@@ -545,7 +546,7 @@
         </main>
 
         <!-- Floating Quick Nav (desktop/tablet) -->
-        <div class="fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
+        <div class="quick-nav-desktop fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
             <button type="button" onclick="showSection('dashboard')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
                 <i class="fa-solid fa-chart-line text-blue-600"></i>
                 <span class="hidden md:inline">Dashboard</span>
