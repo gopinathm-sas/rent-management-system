@@ -2155,6 +2155,7 @@
                 pending.push({
                     roomNoKey,
                     roomNoLabel: roomData?.roomNo ?? roomNoKey,
+                    roomId: roomData?.roomId ?? null,
                     tenant: tenantData?.tenant || 'Tenant',
                     amount: rent
                 });
@@ -2171,7 +2172,7 @@
                 const amountLabel = item.amount ? `₹${item.amount.toLocaleString('en-IN')}` : '₹0';
                 const safeTenant = escapeHtml(String(item.tenant || 'Tenant'));
                 return `
-                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-orange-50 hover:border-orange-200 transition" onclick="window.openRoomDetailModal('${item.roomNoKey}')">
+                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-orange-50 hover:border-orange-200 transition" onclick="window.openRentDetailsForRoom('${item.roomNoKey}', '${escapeHtml(String(item.roomId || ''))}')">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="text-sm font-bold text-gray-800">Room ${escapeHtml(String(item.roomNoLabel))}</div>
@@ -2182,6 +2183,37 @@
                     </button>
                 `;
             }).join('');
+        };
+
+        // Jump helper: open Rent Details and focus a room row
+        window.openRentDetailsForRoom = (roomNoKey, roomId = '') => {
+            try {
+                window.showSection('rent-details');
+
+                // Ensure table is present and up to date
+                try { window.renderRentDetailsTable(); } catch (e) { /* ignore */ }
+
+                setTimeout(() => {
+                    const tbody = document.getElementById('rentDetailsBody');
+                    if (!tbody) return;
+
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    const match = rows.find(tr => {
+                        const rid = String(tr?.dataset?.roomId || '').trim();
+                        const rkey = String(tr?.dataset?.roomNoKey || '').trim();
+                        if (roomId && rid && rid === String(roomId).trim()) return true;
+                        return String(roomNoKey).trim() && rkey === String(roomNoKey).trim();
+                    });
+
+                    if (!match) return;
+
+                    match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    match.classList.add('ring-2', 'ring-orange-300');
+                    setTimeout(() => match.classList.remove('ring-2', 'ring-orange-300'), 1200);
+                }, 150);
+            } catch (e) {
+                console.warn('openRentDetailsForRoom failed', e);
+            }
         };
 
         // DASHBOARD: RENT REVISION DUE SOON (based on relocation anniversary)
@@ -3324,7 +3356,7 @@
                 const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
                 
                 let row = `
-                    <tr class="${rowClass}">
+                    <tr class="${rowClass}" data-room-id="${escapeHtml(roomData.roomId)}" data-room-no-key="${escapeHtml(roomNo)}">
                         <td class="border px-4 py-3 font-semibold text-blue-600 bg-white min-w-[6rem]">${escapeHtml(roomData.roomId)}</td>
                         <td class="border px-4 py-3 font-semibold bg-white min-w-[6rem]">${escapeHtml(roomData.roomNo)}</td>
                         <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
