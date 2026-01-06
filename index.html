@@ -1223,6 +1223,183 @@
             }, 4000);
         };
 
+        // HOVER-CARD MODALS (avoid browser prompt/confirm)
+        window.showHoverInputModal = ({
+            title = 'Input required',
+            subtitle = '',
+            label = 'Value',
+            placeholder = '',
+            value = '',
+            inputType = 'text',
+            inputMode = undefined,
+            okText = 'Save',
+            cancelText = 'Cancel',
+        } = {}) => {
+            return new Promise((resolve) => {
+                const existing = document.getElementById('hoverInputModal');
+                if (existing) existing.remove();
+
+                const modal = document.createElement('div');
+                modal.id = 'hoverInputModal';
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+
+                const safeTitle = escapeHtml(String(title ?? ''));
+                const safeSubtitle = escapeHtml(String(subtitle ?? ''));
+                const safeLabel = escapeHtml(String(label ?? ''));
+                const safePlaceholder = escapeHtml(String(placeholder ?? ''));
+                const safeValue = escapeHtml(String(value ?? ''));
+                const safeOkText = escapeHtml(String(okText ?? 'OK'));
+                const safeCancelText = escapeHtml(String(cancelText ?? 'Cancel'));
+
+                const inputModeAttr = inputMode ? ` inputmode="${escapeHtml(String(inputMode))}"` : '';
+
+                modal.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border-l-8 border-blue-600" role="dialog" aria-modal="true" aria-labelledby="hoverInputTitle">
+                        <div class="p-6 border-b">
+                            <h3 id="hoverInputTitle" class="text-xl font-bold text-gray-800">${safeTitle}</h3>
+                            ${safeSubtitle ? `<p class=\"text-sm text-gray-500 mt-1\">${safeSubtitle}</p>` : ''}
+                        </div>
+                        <div class="p-6">
+                            <label for="hoverInputField" class="block text-sm font-semibold text-gray-700 mb-2">${safeLabel}</label>
+                            <input id="hoverInputField" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" type="${escapeHtml(String(inputType))}"${inputModeAttr} placeholder="${safePlaceholder}" value="${safeValue}" />
+                        </div>
+                        <div class="p-6 pt-0 flex justify-end gap-3">
+                            <button type="button" id="hoverInputCancel" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">${safeCancelText}</button>
+                            <button type="button" id="hoverInputOk" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">${safeOkText}</button>
+                        </div>
+                    </div>
+                `;
+
+                const cleanup = () => {
+                    document.removeEventListener('keydown', onKeyDown);
+                    modal.remove();
+                };
+
+                const onKeyDown = (e) => {
+                    if (e.key === 'Escape') {
+                        cleanup();
+                        resolve(null);
+                    }
+                };
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        cleanup();
+                        resolve(null);
+                    }
+                });
+
+                document.body.appendChild(modal);
+                document.addEventListener('keydown', onKeyDown);
+
+                const inputEl = modal.querySelector('#hoverInputField');
+                const okBtn = modal.querySelector('#hoverInputOk');
+                const cancelBtn = modal.querySelector('#hoverInputCancel');
+
+                if (inputEl) {
+                    setTimeout(() => {
+                        inputEl.focus();
+                        if (typeof inputEl.select === 'function') inputEl.select();
+                    }, 0);
+                    inputEl.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            okBtn?.click();
+                        }
+                    });
+                }
+
+                cancelBtn?.addEventListener('click', () => {
+                    cleanup();
+                    resolve(null);
+                });
+
+                okBtn?.addEventListener('click', () => {
+                    const v = inputEl ? String(inputEl.value ?? '') : '';
+                    cleanup();
+                    resolve(v);
+                });
+            });
+        };
+
+        window.showHoverConfirmModal = ({
+            title = 'Confirm',
+            message = '',
+            confirmText = 'OK',
+            cancelText = 'Cancel',
+            danger = false,
+        } = {}) => {
+            return new Promise((resolve) => {
+                const existing = document.getElementById('hoverConfirmModal');
+                if (existing) existing.remove();
+
+                const modal = document.createElement('div');
+                modal.id = 'hoverConfirmModal';
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+
+                const safeTitle = escapeHtml(String(title ?? ''));
+                const safeMessage = escapeHtml(String(message ?? ''));
+                const safeConfirmText = escapeHtml(String(confirmText ?? 'OK'));
+                const safeCancelText = escapeHtml(String(cancelText ?? 'Cancel'));
+                const borderClass = danger ? 'border-red-600' : 'border-blue-600';
+                const confirmClass = danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700';
+
+                modal.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border-l-8 ${borderClass}" role="dialog" aria-modal="true" aria-labelledby="hoverConfirmTitle">
+                        <div class="p-6 border-b">
+                            <h3 id="hoverConfirmTitle" class="text-xl font-bold text-gray-800">${safeTitle}</h3>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-sm text-gray-600">${safeMessage}</p>
+                        </div>
+                        <div class="p-6 pt-0 flex justify-end gap-3">
+                            <button type="button" id="hoverConfirmCancel" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">${safeCancelText}</button>
+                            <button type="button" id="hoverConfirmOk" class="px-4 py-2 rounded-lg ${confirmClass} text-white font-semibold">${safeConfirmText}</button>
+                        </div>
+                    </div>
+                `;
+
+                const cleanup = () => {
+                    document.removeEventListener('keydown', onKeyDown);
+                    modal.remove();
+                };
+
+                const onKeyDown = (e) => {
+                    if (e.key === 'Escape') {
+                        cleanup();
+                        resolve(false);
+                    }
+                };
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        cleanup();
+                        resolve(false);
+                    }
+                });
+
+                document.body.appendChild(modal);
+                document.addEventListener('keydown', onKeyDown);
+
+                const okBtn = modal.querySelector('#hoverConfirmOk');
+                const cancelBtn = modal.querySelector('#hoverConfirmCancel');
+
+                setTimeout(() => {
+                    okBtn?.focus();
+                }, 0);
+
+                cancelBtn?.addEventListener('click', () => {
+                    cleanup();
+                    resolve(false);
+                });
+
+                okBtn?.addEventListener('click', () => {
+                    cleanup();
+                    resolve(true);
+                });
+            });
+        };
+
         // UPDATE OCCUPANCY METRICS - Count only the 12 immutable rooms
         window.updateOccupancyMetrics = () => {
             // Count only the 12 immutable rooms
@@ -2149,7 +2326,14 @@
                 alert("You must be logged in to delete.");
                 return;
             }
-            if (confirm('Are you sure you want to delete this property?')) {
+            const ok = await window.showHoverConfirmModal({
+                title: 'Delete this property?',
+                message: 'This will permanently delete the record from the database.',
+                confirmText: 'Delete',
+                cancelText: 'Cancel',
+                danger: true
+            });
+            if (ok) {
                 try {
                     await deleteDoc(doc(db, "properties", id));
                 } catch (error) {
@@ -2725,7 +2909,7 @@
                         ? 'bg-white text-gray-700 border-gray-200 cursor-pointer hover:bg-gray-50'
                         : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
                     let display = '-';
-                    let title = occupied ? 'Click to enter meter reading' : 'Vacant - No tenant';
+                    let title = occupied ? 'Click to add a meter reading' : 'Vacant — no tenant';
 
                     if (occupied) {
                         const key = getWaterMonthKey(selectedYear, monthIndex);
@@ -2747,10 +2931,10 @@
                             const savedNum = Number(savedReading);
                             if (savedReading !== null && savedReading !== undefined && savedReading !== '' && Number.isFinite(savedNum)) {
                                 display = `${savedNum}<div class="text-[11px] text-gray-500">reading</div>`;
-                                title = `Reading saved (${savedNum}). Rate: ${effectiveRate}/unit. Add previous month reading to calculate units.`;
+                                title = `Saved reading: ${savedNum}. Rate: ${effectiveRate}/unit. Add the previous month reading to calculate units.`;
                             } else {
                                 display = '<span class="text-gray-400">—</span>';
-                                title = `No reading for ${month}. Rate: ${effectiveRate}/unit. Click to enter.`;
+                                title = `No reading for ${month} ${selectedYear}. Rate: ${effectiveRate}/unit. Click to add.`;
                             }
                         }
                     }
@@ -2784,12 +2968,25 @@
 
                 const key = getWaterMonthKey(year, monthIndex);
                 const existing = tenantRecord?.waterReadings?.[key];
-                const input = prompt(`Enter meter reading for ${key} (Room ${roomId})`, existing ?? '');
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const monthLabel = months?.[monthIndex] ? `${months[monthIndex]} ${year}` : String(key);
+
+                const input = await window.showHoverInputModal({
+                    title: 'Water meter reading',
+                    subtitle: `Room ${roomId} • ${monthLabel}`,
+                    label: 'Enter the current meter reading',
+                    placeholder: 'e.g. 1234',
+                    value: (existing ?? '').toString(),
+                    inputType: 'number',
+                    inputMode: 'numeric',
+                    okText: 'Save',
+                    cancelText: 'Cancel'
+                });
                 if (input === null) return;
 
                 const value = Number(String(input).trim());
                 if (!Number.isFinite(value) || value < 0) {
-                    showNotification('Invalid reading. Enter a non-negative number.', 'warning');
+                    showNotification('Invalid reading. Please enter a non-negative number.', 'warning');
                     return;
                 }
 
