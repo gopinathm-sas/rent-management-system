@@ -109,7 +109,7 @@
         </nav>
 
         <!-- Main Content -->
-        <main class="container mx-auto px-4 py-8">
+        <main class="container mx-auto px-4 py-8 pb-28 sm:pb-8">
             
             <!-- Dashboard (Financial Summary) -->
             <section id="dashboard" class="section-tab active mb-16">
@@ -509,13 +509,55 @@
 
         </main>
 
-        <!-- Floating Left-Side Button for Rent Details (25% from top) -->
-        <button onclick="showSection('rent-details')" 
-            class="fixed left-6 text-white bg-purple-600 hover:bg-purple-700 rounded-full w-16 h-16 flex items-center justify-center shadow-lg transition z-30" 
-            style="top: 25%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"
-            title="View Rent Details">
-            <i class="fa-solid fa-receipt text-xl"></i>
-        </button>
+        <!-- Floating Quick Nav (desktop/tablet) -->
+        <div class="fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
+            <button type="button" onclick="showSection('dashboard')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
+                <i class="fa-solid fa-chart-line text-blue-600"></i>
+                <span class="hidden md:inline">Dashboard</span>
+            </button>
+            <button type="button" onclick="showSection('room-details')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Room Details">
+                <i class="fa-solid fa-house text-blue-600"></i>
+                <span class="hidden md:inline">Rooms</span>
+            </button>
+            <button type="button" onclick="showSection('rent-details')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Rent Details">
+                <i class="fa-solid fa-receipt text-purple-600"></i>
+                <span class="hidden md:inline">Rent</span>
+            </button>
+            <button type="button" onclick="showSection('water-bill')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Water Bill">
+                <i class="fa-solid fa-droplet text-blue-600"></i>
+                <span class="hidden md:inline">Water</span>
+            </button>
+            <button type="button" onclick="showSection('expenses')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Expenses">
+                <i class="fa-solid fa-wallet text-red-600"></i>
+                <span class="hidden md:inline">Expenses</span>
+            </button>
+        </div>
+
+        <!-- Bottom Nav (mobile) -->
+        <div class="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
+            <div class="max-w-screen-sm mx-auto px-3 py-2 grid grid-cols-5 gap-2">
+                <button type="button" onclick="showSection('dashboard')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                    <i class="fa-solid fa-chart-line text-blue-600 text-base"></i>
+                    <span class="mt-1">Dash</span>
+                </button>
+                <button type="button" onclick="showSection('room-details')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                    <i class="fa-solid fa-house text-blue-600 text-base"></i>
+                    <span class="mt-1">Rooms</span>
+                </button>
+                <button type="button" onclick="showSection('rent-details')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                    <i class="fa-solid fa-receipt text-purple-600 text-base"></i>
+                    <span class="mt-1">Rent</span>
+                </button>
+                <button type="button" onclick="showSection('water-bill')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                    <i class="fa-solid fa-droplet text-blue-600 text-base"></i>
+                    <span class="mt-1">Water</span>
+                </button>
+                <button type="button" onclick="showSection('expenses')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                    <i class="fa-solid fa-wallet text-red-600 text-base"></i>
+                    <span class="mt-1">Cost</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- TENANT DETAILS MODAL -->
