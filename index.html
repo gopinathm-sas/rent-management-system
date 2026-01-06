@@ -667,7 +667,9 @@
 
         function formatDateForDisplay(date, fallback = 'N/A') {
             const d = date instanceof Date ? date : parseDateValue(date);
-            return d ? d.toLocaleDateString('en-IN') : fallback;
+            return d
+                ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                : fallback;
         }
 
         function addYears(date, years = 1) {
