@@ -681,10 +681,17 @@
 
         // Rent revision is considered due 1 year after last revision date.
         // If last revision is missing, fallback to relocation date.
+        // If tenant is marked as `noAnnualRevision`, revision tracking is disabled.
         function getRentRevisionDates(tenantData, today = new Date()) {
             const t = tenantData || {};
             const relocateDate = parseDateValue(t.relocate);
             const lastRevisionDate = parseDateValue(t.lastRentRevisionAt);
+
+            const noAnnualRevision = Boolean(t.noAnnualRevision);
+            if (noAnnualRevision) {
+                return { relocateDate, lastRevisionDate, nextDue: null, daysTo: null, noAnnualRevision: true };
+            }
+
             const base = lastRevisionDate || relocateDate;
 
             const normalizedToday = new Date(today);
@@ -695,7 +702,7 @@
                 ? Math.round((nextDue.getTime() - normalizedToday.getTime()) / (1000 * 60 * 60 * 24))
                 : null;
 
-            return { relocateDate, lastRevisionDate, nextDue, daysTo };
+            return { relocateDate, lastRevisionDate, nextDue, daysTo, noAnnualRevision: false };
         }
 
         // GLOBAL STATE
@@ -889,6 +896,7 @@
             const contact = tenantData?.contact || 'N/A';
             const rent = tenantData?.rent || 'N/A';
             const deposit = tenantData?.deposit || 'N/A';
+            const noAnnualRevision = Boolean(tenantData?.noAnnualRevision);
             const unRevisedRent = tenantData?.unRevisedRent;
             const hasUnRevisedRent = unRevisedRent !== null && unRevisedRent !== undefined && String(unRevisedRent).trim() !== '';
             const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRent) : NaN;
@@ -900,13 +908,17 @@
             const lastRevisionDate = revisionInfo?.lastRevisionDate || parseDateValue(tenantData?.lastRentRevisionAt);
             const nextDue = revisionInfo?.nextDue || null;
             const daysTo = revisionInfo?.daysTo;
-            const revisionStatus = (isOccupied && daysTo !== null && daysTo !== undefined)
-                ? (daysTo < 0
-                    ? `Overdue by ${Math.abs(daysTo)} day${Math.abs(daysTo) === 1 ? '' : 's'}`
-                    : (daysTo === 0
-                        ? 'Due today'
-                        : `Due in ${daysTo} day${daysTo === 1 ? '' : 's'}`))
-                : 'N/A';
+            const revisionStatus = !isOccupied
+                ? 'N/A'
+                : (noAnnualRevision
+                    ? 'No annual revision'
+                    : (daysTo !== null && daysTo !== undefined
+                        ? (daysTo < 0
+                            ? `Overdue by ${Math.abs(daysTo)} day${Math.abs(daysTo) === 1 ? '' : 's'}`
+                            : (daysTo === 0
+                                ? 'Due today'
+                                : `Due in ${daysTo} day${daysTo === 1 ? '' : 's'}`))
+                        : 'N/A'));
             
             const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
             const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
@@ -993,7 +1005,16 @@
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-600 font-semibold">Next Revision</p>
-                                        <p class="text-lg font-bold ${daysTo !== null && daysTo !== undefined && daysTo <= 0 ? 'text-red-700' : 'text-gray-800'}">${nextDue ? formatDateForDisplay(nextDue) : 'N/A'} <span class="text-xs font-semibold ml-2">(${revisionStatus})</span></p>
+                                        <p class="text-lg font-bold ${(!noAnnualRevision && daysTo !== null && daysTo !== undefined && daysTo <= 0) ? 'text-red-700' : 'text-gray-800'}">${noAnnualRevision ? 'Disabled' : (nextDue ? formatDateForDisplay(nextDue) : 'N/A')} <span class="text-xs font-semibold ml-2">(${revisionStatus})</span></p>
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="inline-flex items-start gap-3 cursor-pointer">
+                                            <input id="noAnnualRevision_${roomData.roomId}" type="checkbox" class="mt-1" ${noAnnualRevision ? 'checked' : ''} ${isOccupied ? '' : 'disabled'} onchange="window.updateNoAnnualRevision('${roomData.roomId}', this.checked)" />
+                                            <span>
+                                                <span class="text-sm font-semibold text-gray-800">No annual revision</span>
+                                                <span class="block text-xs text-gray-500">Tick to exclude this tenant from the Rent Revision Due Soon list.</span>
+                                            </span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -1073,6 +1094,8 @@
                     updatePayload.ebAcNo = null;
                     updatePayload.keyNo = null;
                     updatePayload.relocate = null;
+                    updatePayload.lastRentRevisionAt = null;
+                    updatePayload.noAnnualRevision = false;
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
                     updatePayload.paymentTotals = {};
@@ -1105,6 +1128,53 @@
             } catch (error) {
                 console.error("Error updating room status:", error);
                 showNotification("Error: " + error.message, "error");
+            }
+        };
+
+        // TOGGLE: NO ANNUAL REVISION (per-tenant)
+        window.updateNoAnnualRevision = async (roomId, checked) => {
+            if (!currentUser) {
+                showNotification("Please login first", "warning");
+                return;
+            }
+
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(IMMUTABLE_ROOMS_DATA[immutableRoomNo])
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord?.id) {
+                    showNotification("Cannot update: Tenant record not found", "error");
+                    return;
+                }
+
+                await updateDoc(doc(db, "properties", tenantRecord.id), {
+                    noAnnualRevision: Boolean(checked),
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                });
+
+                showNotification(`✓ Annual revision ${checked ? 'disabled' : 'enabled'} for Room ${roomId}`, "success");
+
+                // Refresh dependent UI
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                // Keep the modal text in sync quickly
+                if (immutableRoomNo) {
+                    setTimeout(() => {
+                        window.closeRoomDetailModal();
+                        window.openRoomDetailModal(immutableRoomNo);
+                    }, 150);
+                }
+            } catch (error) {
+                console.error("Error updating noAnnualRevision:", error);
+                showNotification("Error: " + error.message, "error");
+
+                // Best-effort: revert checkbox visual state
+                const el = document.getElementById(`noAnnualRevision_${roomId}`);
+                if (el) el.checked = !Boolean(checked);
             }
         };
 
@@ -1221,6 +1291,7 @@
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = findTenantForRoom(roomData);
                 if (!isOccupiedRecord(tenantData)) continue;
+                if (tenantData?.noAnnualRevision) continue;
 
                 const { relocateDate, lastRevisionDate, nextDue, daysTo } = getRentRevisionDates(tenantData, today);
                 if (!nextDue || daysTo === null || daysTo === undefined) continue;
