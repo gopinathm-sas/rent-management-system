@@ -4356,7 +4356,12 @@
                         if (result.units !== null && result.amount !== null) {
                             const unitsText = `${result.units}`;
                             const amountText = `₹${Number(result.amount).toFixed(2)}`;
-                            display = `${unitsText}<div class="text-[11px] text-gray-500">${amountText}</div>`;
+                            display = `
+                                <div class="leading-tight">
+                                    <div class="text-[13px] font-extrabold text-blue-700">${amountText}</div>
+                                    <div class="text-[12px] font-semibold text-gray-700">Units: ${unitsText}</div>
+                                </div>
+                            `;
                             title = `Units: ${unitsText} | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}`;
                             if (result.units < 0) {
                                 cellClass = 'bg-red-50 text-red-700 border-red-200 cursor-pointer hover:bg-red-100';
