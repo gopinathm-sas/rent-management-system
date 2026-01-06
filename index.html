@@ -212,13 +212,13 @@
                         </div>
                     </div>
                     
-                    <!-- Card 3: Total Rent Received (Current Month) -->
+                    <!-- Card 3: Total Rent Received (Previous Month) -->
                     <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-green-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Rent Received</p>
                                 <p class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-green-600" id="rent-received">₹0</p>
-                                <p class="text-base text-gray-400 mt-4">This month</p>
+                                <p class="text-base text-gray-400 mt-4">Last month</p>
                             </div>
                             <i class="fa-solid fa-circle-check text-green-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
@@ -2435,7 +2435,10 @@
             let totalReceived = 0;
 
             const now = new Date();
-            const currentMonthKey = `${now.getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][now.getMonth()]}`;
+            const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            // Post-paid model: show stats for the previous month.
+            const prev = getPrevYearMonth(now.getFullYear(), now.getMonth());
+            const targetMonthKey = `${prev.year}-${monthNames[prev.monthIndex]}`;
             
             Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
@@ -2447,14 +2450,18 @@
                     const history = tenantData?.paymentHistory || {};
                     const totals = tenantData?.paymentTotals || {};
                     const rent = parseFloat(tenantData?.rent) || 0;
-                    const status = history[currentMonthKey] || tenantData?.payStatus || 'None';
+                    const hasAnyHistory = history && Object.keys(history).some(k => {
+                        const v = history[k];
+                        return v !== null && v !== undefined && String(v).trim() !== '';
+                    });
+                    const status = history[targetMonthKey] || (!hasAnyHistory ? (tenantData?.payStatus || 'None') : 'None');
 
                     if (status === 'Pending') {
                         totalPending += rent;
                     } else if (status === 'Rent Only') {
                         totalReceived += rent;
                     } else if (status === 'Paid') {
-                        const storedTotal = Number(totals?.[currentMonthKey]);
+                        const storedTotal = Number(totals?.[targetMonthKey]);
                         if (Number.isFinite(storedTotal)) {
                             totalReceived += storedTotal;
                         } else {
