@@ -224,13 +224,13 @@
                         </div>
                     </div>
                     
-                    <!-- Card 4: Pending Rent (Current Month) -->
+                    <!-- Card 4: Pending Rent (Previous Month) -->
                     <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-orange-500 hover:shadow-2xl transition transform hover:scale-105">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Pending Rent</p>
                                 <p class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-orange-600" id="pending-rent">₹0</p>
-                                <p class="text-base text-gray-400 mt-4">This month</p>
+                                <p class="text-base text-gray-400 mt-4">Last month</p>
                             </div>
                             <i class="fa-solid fa-exclamation-triangle text-orange-500 text-5xl md:text-6xl opacity-20"></i>
                         </div>
@@ -249,10 +249,10 @@
                     <p class="text-xs text-gray-500 mt-4">Based on last rent revision date (fallback: relocation date). Click a tenant to open their room card and edit rent.</p>
                 </div>
 
-                <!-- Pending this Month (Quick List) -->
+                <!-- Pending last Month (Quick List) -->
                 <div id="pendingThisMonthCard" class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 mb-12">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                        <h3 class="text-xl md:text-2xl font-bold text-gray-800">Pending this month</h3>
+                        <h3 class="text-xl md:text-2xl font-bold text-gray-800">Pending last month</h3>
                         <span id="pending-this-month-count" class="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-semibold bg-orange-50 text-orange-800 border border-orange-200">0</span>
                     </div>
                     <div id="pendingThisMonthList" class="space-y-3">
@@ -2662,7 +2662,8 @@
 
             const now = new Date();
             const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-            const currentMonthKey = `${now.getFullYear()}-${monthNames[now.getMonth()]}`;
+            const prev = getPrevYearMonth(now.getFullYear(), now.getMonth());
+            const targetMonthKey = `${prev.year}-${monthNames[prev.monthIndex]}`;
 
             const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
             const pending = [];
@@ -2673,7 +2674,7 @@
                 if (!isOccupiedRecord(tenantData)) continue;
 
                 const history = tenantData?.paymentHistory || {};
-                const status = history[currentMonthKey] || tenantData?.payStatus || 'None';
+                const status = history[targetMonthKey] || tenantData?.payStatus || 'None';
                 if (status !== 'Pending') continue;
 
                 const rent = Number(tenantData?.rent) || 0;
@@ -2693,7 +2694,7 @@
             }
 
             if (pending.length === 0) {
-                listEl.innerHTML = '<p class="text-gray-400">No pending rents for this month.</p>';
+                listEl.innerHTML = '<p class="text-gray-400">No pending rents for last month.</p>';
                 return;
             }
 
@@ -3974,12 +3975,14 @@
             if (totalTenantsEl) totalTenantsEl.innerText = list.filter(p => p.status === 'Occupied').length;
             
             const now = new Date();
-            const currentMonthKey = `${now.getFullYear()}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][now.getMonth()]}`;
+            const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const prev = getPrevYearMonth(now.getFullYear(), now.getMonth());
+            const targetMonthKey = `${prev.year}-${monthNames[prev.monthIndex]}`;
 
             let totalPending = 0;
             list.forEach(p => {
                 const history = p?.paymentHistory || {};
-                const status = history[currentMonthKey] || p?.payStatus || 'None';
+                const status = history[targetMonthKey] || p?.payStatus || 'None';
                 if (status === 'Pending') {
                     totalPending += (Number(p?.rent) || 0);
                 }
@@ -4337,6 +4340,7 @@
 
         function computeWaterForMonth(tenantData, year, monthIndex, waterRate) {
             const readings = tenantData?.waterReadings || {};
+            const resetMap = tenantData?.waterMeterReset || {};
             const currentKey = getWaterMonthKey(year, monthIndex);
             const prev = getPrevYearMonth(year, monthIndex);
             const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
@@ -4350,14 +4354,27 @@
             const currentNum = hasCurrent ? Number(currentReading) : NaN;
             const prevNum = hasPrev ? Number(prevReading) : NaN;
 
+            const isMeterReset = Boolean(resetMap?.[currentKey]);
+
+            // If meter was replaced/reset this month, units are computed from 0 → current.
+            if (isMeterReset) {
+                if (!Number.isFinite(currentNum)) {
+                    return { currentReading: null, units: null, amount: null, meterReset: true };
+                }
+                const units = currentNum * WATER_UNITS_MULTIPLIER;
+                const rate = Number.isFinite(waterRate) ? waterRate : DEFAULT_WATER_RATE;
+                const amount = units * rate;
+                return { currentReading: currentNum, units, amount, meterReset: true };
+            }
+
             if (!Number.isFinite(currentNum) || !Number.isFinite(prevNum)) {
-                return { currentReading: Number.isFinite(currentNum) ? currentNum : null, units: null, amount: null };
+                return { currentReading: Number.isFinite(currentNum) ? currentNum : null, units: null, amount: null, meterReset: false };
             }
 
             const units = (currentNum - prevNum) * WATER_UNITS_MULTIPLIER;
             const rate = Number.isFinite(waterRate) ? waterRate : DEFAULT_WATER_RATE;
             const amount = units * rate;
-            return { currentReading: currentNum, units, amount };
+            return { currentReading: currentNum, units, amount, meterReset: false };
         }
 
         window.renderWaterBillTable = () => {
@@ -4406,6 +4423,8 @@
                         const rate = Number(tenantData?.waterRate);
                         const effectiveRate = Number.isFinite(rate) ? rate : DEFAULT_WATER_RATE;
                         const result = computeWaterForMonth(tenantData, selectedYear, monthIndex, effectiveRate);
+                        const resetMap = tenantData?.waterMeterReset || {};
+                        const isReset = Boolean(resetMap?.[key]);
 
                         if (result.units !== null && result.amount !== null) {
                             const unitsText = `${result.units}`;
@@ -4414,9 +4433,10 @@
                                 <div class="leading-tight">
                                     <div class="text-[13px] font-extrabold text-blue-700">${amountText}</div>
                                     <div class="text-[12px] font-semibold text-gray-700">Units: ${unitsText}</div>
+                                    ${isReset ? '<div class="text-[11px] font-semibold text-gray-500">Reset</div>' : ''}
                                 </div>
                             `;
-                            title = `Units: ${unitsText} (×${WATER_UNITS_MULTIPLIER}) | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}`;
+                            title = `Units: ${unitsText} (×${WATER_UNITS_MULTIPLIER}) | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}${isReset ? ' | Meter reset: yes' : ''}`;
                             if (result.units < 0) {
                                 cellClass = 'bg-red-50 text-red-700 border-red-200 cursor-pointer hover:bg-red-100';
                                 title = `⚠️ Reading decreased. Units: ${unitsText} (×${WATER_UNITS_MULTIPLIER}) | Rate: ${effectiveRate}/unit | Check readings | Key: ${key}`;
@@ -4426,7 +4446,7 @@
                             const savedNum = Number(savedReading);
                             if (savedReading !== null && savedReading !== undefined && savedReading !== '' && Number.isFinite(savedNum)) {
                                 display = `${savedNum}<div class="text-[11px] text-gray-500">reading</div>`;
-                                title = `Saved reading: ${savedNum}. Rate: ${effectiveRate}/unit. Add the previous month reading to calculate units.`;
+                                title = `Saved reading: ${savedNum}. Rate: ${effectiveRate}/unit.${isReset ? ' Meter reset: yes (units = reading × 10).' : ' Add the previous month reading to calculate units.'}`;
                             } else {
                                 display = '<span class="text-gray-400">—</span>';
                                 title = `No reading for ${month} ${selectedYear}. Rate: ${effectiveRate}/unit. Click to add.`;
@@ -4476,6 +4496,7 @@
 
                 const key = getWaterMonthKey(year, monthIndex);
                 const existing = tenantRecord?.waterReadings?.[key];
+                const existingReset = Boolean((tenantRecord?.waterMeterReset || {})?.[key]);
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const monthLabel = months?.[monthIndex] ? `${months[monthIndex]} ${year}` : String(key);
 
@@ -4494,7 +4515,8 @@
                         subtitle: `Room ${roomId} • ${monthLabel}`,
                         infoRows: [
                             { label: `Previous month reading (${prevLabel})`, value: prevDisplay },
-                            { label: 'Units multiplier', value: `×${WATER_UNITS_MULTIPLIER}` }
+                            { label: 'Units multiplier', value: `×${WATER_UNITS_MULTIPLIER}` },
+                            { label: 'Meter reset this month', value: existingReset ? 'Yes' : 'No' }
                         ],
                         label: 'Enter the current meter reading',
                         placeholder: 'e.g. 1234',
@@ -4512,19 +4534,45 @@
                         continue;
                     }
 
-                    if (Number.isFinite(prevReadingNum) && value < prevReadingNum) {
-                        const ok = await window.uiConfirm({
-                            title: 'Reading is lower than last month',
-                            message: `Previous (${prevLabel}) = ${prevReadingNum}. You entered ${value}. This will result in negative units. Save anyway?`,
-                            confirmText: 'Save Anyway',
-                            cancelText: 'Re-enter',
-                            danger: true
+                    let resetFlagToSave = existingReset;
+                    if (existingReset) {
+                        const keep = await window.uiConfirm({
+                            title: 'Meter reset flag',
+                            message: 'This month is currently marked as “meter replaced/reset”. Keep this setting?',
+                            confirmText: 'Keep Reset',
+                            cancelText: 'Remove Reset',
+                            danger: false
                         });
-                        if (!ok) continue;
+                        resetFlagToSave = Boolean(keep);
+                    }
+
+                    if (Number.isFinite(prevReadingNum) && value < prevReadingNum) {
+                        const isReplacement = await window.uiConfirm({
+                            title: 'Reading is lower than last month',
+                            message: `Previous (${prevLabel}) = ${prevReadingNum}. You entered ${value}.\n\nIf the water meter was replaced and restarted from 0, choose “Meter Replaced” (units will be calculated from 0 → current for this month).`,
+                            confirmText: 'Meter Replaced',
+                            cancelText: 'Not replaced',
+                            danger: false
+                        });
+                        if (isReplacement) {
+                            resetFlagToSave = true;
+                        } else {
+                            const ok = await window.uiConfirm({
+                                title: 'Save decreased reading?',
+                                message: 'This will result in negative units for this month. Save anyway?',
+                                confirmText: 'Save Anyway',
+                                cancelText: 'Re-enter',
+                                danger: true
+                            });
+                            if (!ok) continue;
+                        }
                     }
 
                     const ref = doc(db, 'properties', tenantRecord.id);
-                    await updateDoc(ref, { [`waterReadings.${key}`]: value });
+                    await updateDoc(ref, {
+                        [`waterReadings.${key}`]: value,
+                        [`waterMeterReset.${key}`]: resetFlagToSave
+                    });
                     showNotification('✓ Water reading saved', 'success');
                     window.renderWaterBillTable();
                     return;
