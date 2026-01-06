@@ -1051,7 +1051,9 @@
             const nowM = now.getMonth();
             if (y > nowY) return true;
             if (y < nowY) return false;
-            return m > nowM;
+            // Post-paid model: lock the current month as well.
+            // Example: during Jan, Jan is locked; it becomes editable only in Feb.
+            return m >= nowM;
         }
 
         function pickBestRoomRecord(records) {
@@ -4068,7 +4070,7 @@
                     row += `
                         <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
                             ${clickHandler}
-                            title="${occupied ? (isFuture ? 'Future month (disabled)' : 'Click to toggle: ' + status) : 'Vacant - No tenant'}">
+                            title="${occupied ? (isFuture ? 'Locked month (current/future) — disabled until next month' : 'Click to toggle: ' + status) : 'Vacant - No tenant'}">
                             ${icon || displayText}
                         </td>
                     `;
@@ -4193,7 +4195,7 @@
             }
 
             if (isFutureYearMonth(year, monthIndex, new Date())) {
-                showNotification('Future months are disabled.', 'warning');
+                showNotification('Current & future months are disabled (available after month ends).', 'warning');
                 return;
             }
 
@@ -4267,7 +4269,7 @@
 
             if (Number.isFinite(year) && monthIndex >= 0) {
                 if (isFutureYearMonth(year, monthIndex, new Date())) {
-                    showNotification('Future months are disabled.', 'warning');
+                    showNotification('Current & future months are disabled (available after month ends).', 'warning');
                     return;
                 }
             }
@@ -4435,7 +4437,7 @@
                     if (occupied && isFuture) {
                         cellClass = 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
                         display = '<span class="text-gray-400">—</span>';
-                        title = `Future month (disabled)`;
+                        title = `Locked month (current/future) — disabled until next month`;
                     }
 
                     const clickHandler = (occupied && !isFuture)
@@ -4456,7 +4458,7 @@
         window.setWaterReading = async (roomId, year, monthIndex) => {
             try {
                 if (isFutureYearMonth(year, monthIndex, new Date())) {
-                    showNotification('Future months are disabled.', 'warning');
+                    showNotification('Current & future months are disabled (available after month ends).', 'warning');
                     return;
                 }
 
