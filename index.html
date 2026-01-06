@@ -1328,6 +1328,8 @@
             confirmText = 'OK',
             cancelText = 'Cancel',
             danger = false,
+            hideCancel = false,
+            dismissValue = false,
         } = {}) => {
             return new Promise((resolve) => {
                 const existing = document.getElementById('hoverConfirmModal');
@@ -1353,7 +1355,7 @@
                             <p class="text-sm text-gray-600">${safeMessage}</p>
                         </div>
                         <div class="p-6 pt-0 flex justify-end gap-3">
-                            <button type="button" id="hoverConfirmCancel" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">${safeCancelText}</button>
+                            ${hideCancel ? '' : `<button type="button" id="hoverConfirmCancel" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">${safeCancelText}</button>`}
                             <button type="button" id="hoverConfirmOk" class="px-4 py-2 rounded-lg ${confirmClass} text-white font-semibold">${safeConfirmText}</button>
                         </div>
                     </div>
@@ -1367,14 +1369,14 @@
                 const onKeyDown = (e) => {
                     if (e.key === 'Escape') {
                         cleanup();
-                        resolve(false);
+                        resolve(Boolean(dismissValue));
                     }
                 };
 
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) {
                         cleanup();
-                        resolve(false);
+                        resolve(Boolean(dismissValue));
                     }
                 });
 
@@ -1398,6 +1400,61 @@
                     resolve(true);
                 });
             });
+        };
+
+        // Feature flag: set to false to use native browser dialogs (quick rollback)
+        const USE_HOVER_CARD_DIALOGS = true;
+
+        // Wrapper APIs so dialog UX is easy to roll back
+        window.uiAlert = async ({
+            title = 'Notice',
+            message = '',
+            okText = 'OK',
+            danger = false,
+        } = {}) => {
+            if (!USE_HOVER_CARD_DIALOGS) {
+                alert(String(message ?? ''));
+                return true;
+            }
+            return window.showHoverConfirmModal({
+                title,
+                message,
+                confirmText: okText,
+                hideCancel: true,
+                danger,
+                dismissValue: true,
+            });
+        };
+
+        window.uiConfirm = async ({
+            title = 'Confirm',
+            message = '',
+            confirmText = 'OK',
+            cancelText = 'Cancel',
+            danger = false,
+        } = {}) => {
+            if (!USE_HOVER_CARD_DIALOGS) {
+                return confirm(String(message ?? ''));
+            }
+            return window.showHoverConfirmModal({ title, message, confirmText, cancelText, danger });
+        };
+
+        window.uiPrompt = async ({
+            title = 'Input required',
+            subtitle = '',
+            label = 'Value',
+            placeholder = '',
+            value = '',
+            inputType = 'text',
+            inputMode = undefined,
+            okText = 'Save',
+            cancelText = 'Cancel',
+        } = {}) => {
+            if (!USE_HOVER_CARD_DIALOGS) {
+                const promptLabel = [title, subtitle, label].filter(Boolean).join('\n');
+                return prompt(promptLabel, String(value ?? ''));
+            }
+            return window.showHoverInputModal({ title, subtitle, label, placeholder, value, inputType, inputMode, okText, cancelText });
         };
 
         // UPDATE OCCUPANCY METRICS - Count only the 12 immutable rooms
@@ -1659,7 +1716,12 @@
             }, (error) => {
                 console.error("Data fetch error:", error);
                 if (error.code === 'permission-denied') {
-                    alert("Permission denied. Database rules might not be set to public/test mode.");
+                    void window.uiAlert({
+                        title: 'Permission denied',
+                        message: 'Access was blocked by Firestore rules. Please check your Firebase permissions/rules and try again.',
+                        danger: true,
+                        okText: 'OK'
+                    });
                 }
             });
         }
@@ -1971,7 +2033,12 @@
                 await updateDoc(propRef, updatePayload);
             } catch (e) {
                 console.error("Update failed", e);
-                alert("Failed to update status: " + e.message);
+                void window.uiAlert({
+                    title: 'Update failed',
+                    message: 'Could not update payment status. ' + (e?.message || ''),
+                    danger: true,
+                    okText: 'OK'
+                });
             }
         };
 
@@ -2281,7 +2348,10 @@
         if (formElement) {
             formElement.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (!currentUser) return alert("Please login");
+                if (!currentUser) {
+                    void window.uiAlert({ title: 'Sign in required', message: 'Please sign in to save a room.', okText: 'OK' });
+                    return;
+                }
                 
                 const btnText = document.getElementById('btn-text');
                 const btnLoader = document.getElementById('btn-loader');
@@ -2293,8 +2363,14 @@
                 const tName = document.getElementById('tenantName').value.trim();
                 const tenant = (status === 'Occupied' && tName) ? tName : (status === 'Occupied' ? 'Assigned' : 'None');
 
-                if (!name) { alert("Room No/Address is required"); return; }
-                if (isNaN(rent) || rent <= 0) { alert("Invalid Rent Amount"); return; }
+                if (!name) {
+                    void window.uiAlert({ title: 'Missing room name', message: 'Please enter the room number / name.', okText: 'OK' });
+                    return;
+                }
+                if (isNaN(rent) || rent <= 0) {
+                    void window.uiAlert({ title: 'Invalid rent amount', message: 'Please enter a rent amount greater than 0.', okText: 'OK' });
+                    return;
+                }
 
                 btnText.innerText = "Saving...";
                 btnLoader.classList.remove('hidden');
@@ -2311,7 +2387,12 @@
                     window.toggleTenantInput();
                 } catch (err) {
                     console.error("Add failed", err);
-                    alert("Error saving: " + err.message);
+                    void window.uiAlert({
+                        title: 'Could not save',
+                        message: 'Error saving: ' + (err?.message || 'Unknown error'),
+                        danger: true,
+                        okText: 'OK'
+                    });
                 } finally {
                     btnText.innerText = "Save Room";
                     btnLoader.classList.add('hidden');
@@ -2323,10 +2404,10 @@
 
         window.deleteProperty = async (id) => {
             if (!currentUser) {
-                alert("You must be logged in to delete.");
+                void window.uiAlert({ title: 'Sign in required', message: 'Please sign in to delete a record.', okText: 'OK' });
                 return;
             }
-            const ok = await window.showHoverConfirmModal({
+            const ok = await window.uiConfirm({
                 title: 'Delete this property?',
                 message: 'This will permanently delete the record from the database.',
                 confirmText: 'Delete',
@@ -2338,7 +2419,12 @@
                     await deleteDoc(doc(db, "properties", id));
                 } catch (error) {
                     console.error("Error deleting: ", error);
-                    alert("Failed to delete: " + error.message);
+                    void window.uiAlert({
+                        title: 'Delete failed',
+                        message: 'Failed to delete: ' + (error?.message || 'Unknown error'),
+                        danger: true,
+                        okText: 'OK'
+                    });
                 }
             }
         };
@@ -2346,7 +2432,7 @@
         // SAVE DASHBOARD ROW (Persist room metadata to Firestore) and sync to properties
         window.saveDashboardRow = async (rowIndex) => {
             if (!currentUser) {
-                alert("Please login first");
+                void window.uiAlert({ title: 'Sign in required', message: 'Please sign in first.', okText: 'OK' });
                 return;
             }
 
@@ -2364,11 +2450,11 @@
 
             // Validate: Room ID and Room No must be present
             if (!roomId) {
-                alert("Room ID is required");
+                void window.uiAlert({ title: 'Missing Room ID', message: 'Please enter a Room ID before saving.', okText: 'OK' });
                 return;
             }
             if (!roomNo) {
-                alert("Room No is required");
+                void window.uiAlert({ title: 'Missing Room No', message: 'Please enter a Room No before saving.', okText: 'OK' });
                 return;
             }
 
@@ -2415,14 +2501,19 @@
                     }
                 }
 
-                alert(`✓ Room ${roomId} saved successfully!`);
+                void window.uiAlert({ title: 'Saved', message: `Room ${roomId} saved successfully.`, okText: 'OK' });
                 console.log(`✓ Saved dashboard row ${rowIndex} with roomId: ${roomId}`);
 
                 // Refresh views
                 window.applyFilters();
             } catch (error) {
                 console.error("Save failed:", error);
-                alert(`Failed to save room: ${error.message}`);
+                void window.uiAlert({
+                    title: 'Save failed',
+                    message: `Failed to save room: ${error?.message || 'Unknown error'}`,
+                    danger: true,
+                    okText: 'OK'
+                });
             }
         };
 
@@ -2971,7 +3062,7 @@
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const monthLabel = months?.[monthIndex] ? `${months[monthIndex]} ${year}` : String(key);
 
-                const input = await window.showHoverInputModal({
+                const input = await window.uiPrompt({
                     title: 'Water meter reading',
                     subtitle: `Room ${roomId} • ${monthLabel}`,
                     label: 'Enter the current meter reading',
