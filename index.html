@@ -1271,7 +1271,7 @@
             const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
             const archivedTenant = tenantData?.archivedTenant || null;
             const restoreCandidate = findRestoreCandidateForRoomId(roomData.roomId);
-            const canRestoreArchivedTenant = !!restoreCandidate;
+            const canRestoreArchivedTenant = !isOccupied && !!restoreCandidate;
             const unRevisedRent = tenantData?.unRevisedRent;
             const hasUnRevisedRent = unRevisedRent !== null && unRevisedRent !== undefined && String(unRevisedRent).trim() !== '';
             const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRent) : NaN;
@@ -1862,23 +1862,26 @@
                     no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
                 );
                 const roomData = immutableRoomNo ? IMMUTABLE_ROOMS_DATA[immutableRoomNo] : null;
-                const tenantRecord = findRestoreCandidateForRoomId(roomId) || (immutableRoomNo
+                const currentRecord = roomData
                     ? findTenantForRoom(roomData)
-                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim())));
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
 
-                if (!tenantRecord?.id) {
-                    showNotification('Cannot restore: tenant record not found.', 'warning');
-                    return;
-                }
-
-                // If duplicates exist, the best-room-record can look occupied even when the latest record is vacant.
-                // Our selector prefers a vacant archived record; if still occupied here, block restore.
-                if (isOccupiedRecord(tenantRecord)) {
+                // Block restore only if the room is actually occupied.
+                if (currentRecord && isOccupiedRecord(currentRecord)) {
                     showNotification('Cannot restore: room is currently occupied.', 'warning');
                     return;
                 }
 
-                const archivedTenant = tenantRecord?.archivedTenant;
+                // Source record holds the archived tenant snapshot (may be a different duplicate doc).
+                const sourceRecord = findRestoreCandidateForRoomId(roomId);
+                const archivedTenant = sourceRecord?.archivedTenant;
+                const targetRecord = (currentRecord && currentRecord.id) ? currentRecord : sourceRecord;
+
+                if (!targetRecord?.id) {
+                    showNotification('Cannot restore: tenant record not found.', 'warning');
+                    return;
+                }
+
                 const hasArchived = !!archivedTenant && (
                     String(archivedTenant?.tenant || '').trim() ||
                     String(archivedTenant?.contact || '').trim() ||
@@ -1932,7 +1935,7 @@
                     updatedBy: currentUser.uid
                 };
 
-                await updateDoc(doc(db, 'properties', tenantRecord.id), updatePayload);
+                await updateDoc(doc(db, 'properties', targetRecord.id), updatePayload);
 
                 showNotification(`✓ Restored tenant data for Room ${roomId}`, 'success');
 
