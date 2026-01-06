@@ -1048,6 +1048,11 @@
                                 <button onclick="window.openAddTenantModal('${roomData.roomId}'); window.closeRoomDetailModal();" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition text-base">
                                     ${isOccupied ? '✎ Edit Tenant' : '+ Add Tenant'}
                                 </button>
+                                ${(isOccupied && !noAnnualRevision) ? `
+                                <button onclick="window.markRentRevised('${roomData.roomId}')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-lg transition text-base">
+                                    Mark Rent Revised
+                                </button>
+                                ` : ''}
                                 ${canRestoreArchivedTenant ? `
                                 <button onclick="window.restoreArchivedTenant('${roomData.roomId}')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition text-base">
                                     Restore Tenant (Testing)
@@ -1290,6 +1295,122 @@
                 window.renderWaterBillTable();
             } catch (error) {
                 console.error('markTenantVacated failed', error);
+                showNotification('Error: ' + (error?.message || 'Unknown error'), 'error');
+            }
+        };
+
+        // OPTION 2: MARK RENT REVISED (sets last revision date, optional rent update)
+        window.markRentRevised = async (roomId) => {
+            if (!currentUser) {
+                showNotification('Please login first', 'warning');
+                return;
+            }
+
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const roomData = immutableRoomNo ? IMMUTABLE_ROOMS_DATA[immutableRoomNo] : null;
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(roomData)
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord || !isOccupiedRecord(tenantRecord)) {
+                    showNotification('Cannot mark revised: room is vacant or tenant not found.', 'warning');
+                    return;
+                }
+
+                if (Boolean(tenantRecord?.noAnnualRevision)) {
+                    showNotification('Annual revision is disabled for this tenant.', 'warning');
+                    return;
+                }
+
+                const tenantName = String(tenantRecord?.tenant || '').trim() || 'Tenant';
+                const ok = await window.uiConfirm({
+                    title: 'Mark rent as revised?',
+                    message: `This will update the last rent revision date for ${tenantName}.`,
+                    confirmText: 'Continue',
+                    cancelText: 'Cancel',
+                    danger: false
+                });
+                if (!ok) return;
+
+                const revisionDateStr = await window.uiPrompt({
+                    title: 'Revision date',
+                    subtitle: `Room ${roomId}`,
+                    label: 'Select the rent revision date',
+                    value: formatDateForInput(new Date()),
+                    inputType: 'date',
+                    okText: 'Next',
+                    cancelText: 'Cancel'
+                });
+                if (revisionDateStr === null) return;
+
+                const revisionDateParsed = parseDateValue(String(revisionDateStr).trim());
+                if (!revisionDateParsed) {
+                    showNotification('Invalid revision date. Please choose a valid date.', 'warning');
+                    return;
+                }
+
+                const currentRentValue = tenantRecord?.rent;
+                const currentRentLabel = (currentRentValue === null || currentRentValue === undefined || String(currentRentValue).trim() === '')
+                    ? ''
+                    : String(currentRentValue);
+
+                const newRentStr = await window.uiPrompt({
+                    title: 'New monthly rent (optional)',
+                    subtitle: `Room ${roomId}`,
+                    label: 'Enter the new rent amount (leave blank to keep same)',
+                    placeholder: currentRentLabel ? `Current: ${currentRentLabel}` : 'e.g. 12000',
+                    value: '',
+                    inputType: 'number',
+                    okText: 'Save',
+                    cancelText: 'Keep Same'
+                });
+
+                let shouldUpdateRent = false;
+                let newRentNumber = null;
+                if (newRentStr !== null) {
+                    const trimmed = String(newRentStr).trim();
+                    if (trimmed) {
+                        const parsed = Number(trimmed);
+                        if (!Number.isFinite(parsed) || parsed <= 0) {
+                            showNotification('Invalid rent amount. Please enter a valid number.', 'warning');
+                            return;
+                        }
+                        shouldUpdateRent = true;
+                        newRentNumber = parsed;
+                    }
+                }
+
+                const updatePayload = {
+                    lastRentRevisionAt: formatDateForInput(revisionDateParsed),
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+
+                if (shouldUpdateRent) {
+                    updatePayload.unRevisedRent = tenantRecord?.rent ?? null;
+                    updatePayload.unRevisedRentCapturedAt = serverTimestamp();
+                    updatePayload.rent = newRentNumber;
+                }
+
+                await updateDoc(doc(db, 'properties', tenantRecord.id), updatePayload);
+
+                showNotification(`✓ Rent revision saved for Room ${roomId}`, 'success');
+
+                // Refresh modal + views
+                if (immutableRoomNo) {
+                    window.closeRoomDetailModal();
+                    setTimeout(() => window.openRoomDetailModal(immutableRoomNo), 150);
+                }
+                window.generateRoomCards();
+                window.renderRentDetailsTable();
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                window.renderWaterBillTable();
+            } catch (error) {
+                console.error('markRentRevised failed', error);
                 showNotification('Error: ' + (error?.message || 'Unknown error'), 'error');
             }
         };
