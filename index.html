@@ -395,7 +395,17 @@
                         </button>
                     </div>
                 </div>
-                <p class="text-gray-500 mb-4">Enter monthly meter reading for each tenant. Units = (current − previous). Amount = Units × Rate</p>
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <p class="text-gray-500">Enter monthly meter reading for each tenant. Units = (current − previous) × 10. Amount = Units × Rate</p>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">
+                            Reset Water Rate Defaults
+                        </button>
+                        <button type="button" onclick="openWaterImportModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                            Import Readings
+                        </button>
+                    </div>
+                </div>
 
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="w-full overflow-x-auto">
@@ -592,6 +602,42 @@
                     <i class="fa-solid fa-wallet text-red-600 text-base"></i>
                     <span class="mt-1">Cost</span>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WATER READINGS IMPORT MODAL -->
+    <div id="waterImportModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="water-import-title" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100">
+            <div class="px-6 py-4 border-b flex items-center justify-between">
+                <div>
+                    <h3 id="water-import-title" class="text-xl font-bold text-gray-800">Import Water Readings</h3>
+                    <p class="text-sm text-gray-500 mt-1">Paste rows copied from Excel (CSV or tab-separated).</p>
+                </div>
+                <button type="button" onclick="closeWaterImportModal()" class="text-gray-500 hover:text-red-600 text-2xl" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-gray-700">
+                    <p class="font-semibold text-blue-900 mb-2">Supported formats (one row per line)</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><span class="font-mono">RoomId, 2025-Jan, 1234</span></li>
+                        <li><span class="font-mono">RoomNo, 2025-Jan, 1234</span></li>
+                        <li><span class="font-mono">RoomId, 2025, Jan, 1234</span></li>
+                        <li>Separator can be comma or tab</li>
+                    </ul>
+                    <p class="text-xs text-gray-500 mt-2">Note: Units are calculated as (current − previous) × 10.</p>
+                </div>
+
+                <textarea id="waterImportText" rows="10" class="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" placeholder="Paste here..."></textarea>
+
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <button type="button" onclick="document.getElementById('waterImportText').value='';" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">Clear</button>
+                    <div class="flex gap-3 justify-end">
+                        <button type="button" onclick="closeWaterImportModal()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">Cancel</button>
+                        <button type="button" onclick="runWaterImport()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Import</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -848,6 +894,9 @@
         const DEFAULT_WATER_RATE = 0.25;
         const DISCOUNTED_WATER_RATE = 0.20;
         const DISCOUNTED_WATER_ROOMS = new Set(['11', '12', '13']);
+
+        // Business rule: water units are (current - previous) multiplied by this factor.
+        const WATER_UNITS_MULTIPLIER = 10;
 
         const RENT_WATER_SERVICE_CHARGE = 60;
 
@@ -4300,7 +4349,7 @@
                 return { currentReading: Number.isFinite(currentNum) ? currentNum : null, units: null, amount: null };
             }
 
-            const units = currentNum - prevNum;
+            const units = (currentNum - prevNum) * WATER_UNITS_MULTIPLIER;
             const rate = Number.isFinite(waterRate) ? waterRate : DEFAULT_WATER_RATE;
             const amount = units * rate;
             return { currentReading: currentNum, units, amount };
@@ -4362,10 +4411,10 @@
                                     <div class="text-[12px] font-semibold text-gray-700">Units: ${unitsText}</div>
                                 </div>
                             `;
-                            title = `Units: ${unitsText} | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}`;
+                            title = `Units: ${unitsText} (×${WATER_UNITS_MULTIPLIER}) | Amount: ${amountText} | Rate: ${effectiveRate}/unit | Key: ${key}`;
                             if (result.units < 0) {
                                 cellClass = 'bg-red-50 text-red-700 border-red-200 cursor-pointer hover:bg-red-100';
-                                title = `⚠️ Reading decreased. Units: ${unitsText} | Rate: ${effectiveRate}/unit | Check readings | Key: ${key}`;
+                                title = `⚠️ Reading decreased. Units: ${unitsText} (×${WATER_UNITS_MULTIPLIER}) | Rate: ${effectiveRate}/unit | Check readings | Key: ${key}`;
                             }
                         } else {
                             const savedReading = tenantData?.waterReadings?.[key];
@@ -4439,7 +4488,8 @@
                         title: 'Water meter reading',
                         subtitle: `Room ${roomId} • ${monthLabel}`,
                         infoRows: [
-                            { label: `Previous month reading (${prevLabel})`, value: prevDisplay }
+                            { label: `Previous month reading (${prevLabel})`, value: prevDisplay },
+                            { label: 'Units multiplier', value: `×${WATER_UNITS_MULTIPLIER}` }
                         ],
                         label: 'Enter the current meter reading',
                         placeholder: 'e.g. 1234',
@@ -4478,6 +4528,159 @@
                 console.error('setWaterReading failed', e);
                 showNotification('Error: ' + e.message, 'error');
             }
+        };
+
+        // Reset water rates to defaults (0.25 or 0.20 for rooms 11–13)
+        window.resetWaterRatesToDefault = async () => {
+            const ok = await window.uiConfirm({
+                title: 'Reset water rate defaults',
+                message: 'This will set water rate to 0.25 for all rooms, and 0.20 for rooms 11–13. Continue?',
+                confirmText: 'Reset',
+                cancelText: 'Cancel',
+                danger: false
+            });
+            if (!ok) return;
+
+            let updated = 0;
+            let skipped = 0;
+            let failed = 0;
+
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+            for (const roomNo of roomNos) {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                const tenantData = findTenantForRoom(roomData);
+                if (!tenantData || !tenantData?.id) { skipped++; continue; }
+
+                const defaultRate = getDefaultWaterRateForRoom(roomData.roomNo);
+                try {
+                    await updateDoc(doc(db, 'properties', tenantData.id), { waterRate: defaultRate });
+                    updated++;
+                } catch (e) {
+                    console.warn('resetWaterRatesToDefault failed for', roomData?.roomId, e);
+                    failed++;
+                }
+            }
+
+            showNotification(`✓ Water rates reset. Updated: ${updated}, Skipped: ${skipped}, Failed: ${failed}`, failed ? 'warning' : 'success');
+            try { window.renderWaterBillTable(); } catch {}
+        };
+
+        // Import readings from pasted Excel/CSV
+        window.openWaterImportModal = () => {
+            const el = document.getElementById('waterImportModal');
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+            el.setAttribute('aria-hidden', 'false');
+            setTimeout(() => {
+                try { document.getElementById('waterImportText')?.focus(); } catch {}
+            }, 50);
+        };
+
+        window.closeWaterImportModal = () => {
+            const el = document.getElementById('waterImportModal');
+            if (!el) return;
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+            el.setAttribute('aria-hidden', 'true');
+        };
+
+        function parseMonthIndex(monthRaw) {
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const m = String(monthRaw || '').trim();
+            if (!m) return null;
+            const asNum = Number(m);
+            if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) return asNum - 1;
+            const abbr = m.slice(0, 3).toLowerCase();
+            const idx = months.findIndex(x => x.toLowerCase() === abbr);
+            return idx >= 0 ? idx : null;
+        }
+
+        function resolveRoomData(roomToken) {
+            const token = String(roomToken || '').trim();
+            if (!token) return null;
+            // Match by roomNo
+            const normalizedRoomNo = token.padStart(2, '0');
+            if (IMMUTABLE_ROOMS_DATA[normalizedRoomNo]) return IMMUTABLE_ROOMS_DATA[normalizedRoomNo];
+            // Match by roomId
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA);
+            const matchNo = roomNos.find(no => String(IMMUTABLE_ROOMS_DATA[no]?.roomId || '').trim().toLowerCase() === token.toLowerCase());
+            return matchNo ? IMMUTABLE_ROOMS_DATA[matchNo] : null;
+        }
+
+        window.runWaterImport = async () => {
+            const text = String(document.getElementById('waterImportText')?.value || '').trim();
+            if (!text) {
+                await window.uiAlert('Paste some rows first.');
+                return;
+            }
+
+            const ok = await window.uiConfirm({
+                title: 'Import water readings',
+                message: 'This will write readings into Firestore for matching rooms/months. Continue?',
+                confirmText: 'Import',
+                cancelText: 'Cancel'
+            });
+            if (!ok) return;
+
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+            let imported = 0;
+            let skipped = 0;
+            let failed = 0;
+
+            for (const line of lines) {
+                const parts = line.includes('\t') ? line.split('\t') : line.split(',');
+                const cols = parts.map(p => String(p).trim()).filter(p => p !== '');
+                if (cols.length < 3) { skipped++; continue; }
+
+                const roomToken = cols[0];
+                const roomData = resolveRoomData(roomToken);
+                if (!roomData) { skipped++; continue; }
+
+                let year = null;
+                let monthIndex = null;
+                let readingRaw = null;
+
+                // Format A: room, 2025-Jan, 1234
+                if (cols.length >= 3 && /^\d{4}-[A-Za-z]{3}$/.test(cols[1])) {
+                    year = Number(cols[1].slice(0, 4));
+                    monthIndex = parseMonthIndex(cols[1].slice(5));
+                    readingRaw = cols[2];
+                } else if (cols.length >= 4 && /^\d{4}$/.test(cols[1])) {
+                    // Format B: room, 2025, Jan, 1234
+                    year = Number(cols[1]);
+                    monthIndex = parseMonthIndex(cols[2]);
+                    readingRaw = cols[3];
+                } else {
+                    skipped++;
+                    continue;
+                }
+
+                if (!Number.isFinite(year) || monthIndex === null) { skipped++; continue; }
+                const reading = Number(String(readingRaw || '').trim());
+                if (!Number.isFinite(reading) || reading < 0) { skipped++; continue; }
+
+                // Respect the existing future-month guard
+                if (isFutureYearMonth(year, monthIndex, new Date())) { skipped++; continue; }
+
+                const key = `${year}-${months[monthIndex]}`;
+                const tenantData = findTenantForRoom(roomData);
+                if (!tenantData || !tenantData?.id) { skipped++; continue; }
+
+                try {
+                    await updateDoc(doc(db, 'properties', tenantData.id), { [`waterReadings.${key}`]: reading });
+                    imported++;
+                } catch (e) {
+                    console.warn('Water import failed for', roomData?.roomId, key, e);
+                    failed++;
+                }
+            }
+
+            await window.uiAlert(`Import finished. Imported: ${imported}. Skipped: ${skipped}. Failed: ${failed}.`);
+            window.closeWaterImportModal();
+            try { window.renderWaterBillTable(); } catch {}
         };
 
     </script>
