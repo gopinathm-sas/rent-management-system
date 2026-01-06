@@ -862,6 +862,17 @@
             return 0;
         }
 
+        function isFutureYearMonth(year, monthIndex, now = new Date()) {
+            const y = Number(year);
+            const m = Number(monthIndex);
+            if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+            const nowY = now.getFullYear();
+            const nowM = now.getMonth();
+            if (y > nowY) return true;
+            if (y < nowY) return false;
+            return m > nowM;
+        }
+
         function pickBestRoomRecord(records) {
             if (!Array.isArray(records) || records.length === 0) return null;
             const sorted = [...records].sort((a, b) => {
@@ -3831,9 +3842,12 @@
                         <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
                 `;
 
-                months.forEach(month => {
+                const now = new Date();
+                months.forEach((month, monthIndex) => {
                     const key = `${selectedYear}-${month}`;
                     const status = history[key] || 'None';
+
+                    const isFuture = isFutureYearMonth(selectedYear, monthIndex, now);
                     
                     // If room is vacant, always show gray cells
                     let cellClass = occupied
@@ -3859,14 +3873,22 @@
                     }
                     }
 
-                    // Only allow clicking if tenant is occupied
-                    const clickHandler = occupied ? `onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')"` : '';
+                    // Only allow clicking if tenant is occupied and month is not in the future
+                    const clickHandler = (occupied && !isFuture)
+                        ? `onclick="window.toggleMonthStatus('${roomData.roomId}', '${key}', '${status}')"`
+                        : '';
+
+                    if (occupied && isFuture) {
+                        cellClass = "bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed";
+                        displayText = "-";
+                        icon = "";
+                    }
                     
                     row += `
                         <td class="border px-4 py-3 text-center font-bold ${cellClass}" 
                             ${clickHandler}
-                            title="${occupied ? 'Click to toggle: ' + status : 'Vacant - No tenant'}">
-                            ${displayText}
+                            title="${occupied ? (isFuture ? 'Future month (disabled)' : 'Click to toggle: ' + status) : 'Vacant - No tenant'}">
+                            ${icon || displayText}
                         </td>
                     `;
                 });
@@ -3989,6 +4011,11 @@
                 return;
             }
 
+            if (isFutureYearMonth(year, monthIndex, new Date())) {
+                showNotification('Future months are disabled.', 'warning');
+                return;
+            }
+
             const tenantData = pickBestRoomRecord(allPropertiesData.filter(p => p.id === prop.id)) || prop;
             const rent = Number(tenantData?.rent) || 0;
             const waterRate = (tenantData?.waterRate !== null && tenantData?.waterRate !== undefined && tenantData?.waterRate !== '')
@@ -4056,6 +4083,13 @@
             const year = Number(parts?.[0]);
             const monthLabel = parts?.[1];
             const monthIndex = months.indexOf(monthLabel);
+
+            if (Number.isFinite(year) && monthIndex >= 0) {
+                if (isFutureYearMonth(year, monthIndex, new Date())) {
+                    showNotification('Future months are disabled.', 'warning');
+                    return;
+                }
+            }
 
             const rent = Number(prop?.rent) || 0;
             const waterRate = (prop?.waterRate !== null && prop?.waterRate !== undefined && String(prop?.waterRate).trim() !== '')
@@ -4161,6 +4195,7 @@
                 return;
             }
 
+            const now = new Date();
             tbody.innerHTML = roomNos.map(roomNo => {
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = findTenantForRoom(roomData);
@@ -4176,6 +4211,7 @@
                 `;
 
                 months.forEach((month, monthIndex) => {
+                    const isFuture = isFutureYearMonth(selectedYear, monthIndex, now);
                     let cellClass = occupied
                         ? 'bg-white text-gray-700 border-gray-200 cursor-pointer hover:bg-gray-50'
                         : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
@@ -4210,7 +4246,15 @@
                         }
                     }
 
-                    const clickHandler = occupied ? `onclick="window.setWaterReading('${roomData.roomId}', ${selectedYear}, ${monthIndex})"` : '';
+                    if (occupied && isFuture) {
+                        cellClass = 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
+                        display = '<span class="text-gray-400">—</span>';
+                        title = `Future month (disabled)`;
+                    }
+
+                    const clickHandler = (occupied && !isFuture)
+                        ? `onclick="window.setWaterReading('${roomData.roomId}', ${selectedYear}, ${monthIndex})"`
+                        : '';
                     row += `
                         <td class="border px-3 py-2 text-center align-top ${cellClass}" ${clickHandler} title="${escapeHtml(title)}">
                             ${display}
@@ -4225,6 +4269,11 @@
 
         window.setWaterReading = async (roomId, year, monthIndex) => {
             try {
+                if (isFutureYearMonth(year, monthIndex, new Date())) {
+                    showNotification('Future months are disabled.', 'warning');
+                    return;
+                }
+
                 const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
                     no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
                 );
