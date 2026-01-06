@@ -4073,9 +4073,11 @@
 
                     const isFuture = isFutureYearMonth(selectedYear, monthIndex, now);
                     
-                    // If room is vacant, always show gray cells
+                    // Base styling:
+                    // - Occupied + editable month: white + clickable (even if status is None)
+                    // - Vacant OR locked month: greyed out
                     let cellClass = occupied
-                        ? "bg-gray-100 text-gray-600 border-gray-300 cursor-pointer hover:bg-gray-200"
+                        ? "bg-white text-gray-700 border-gray-300 cursor-pointer hover:bg-gray-50"
                         : "bg-gray-100 text-gray-600 border-gray-300 cursor-not-allowed";
                     let displayText = "-";
                     let icon = "";
@@ -4083,18 +4085,23 @@
                     // Only show payment statuses if tenant status is 'Occupied'
                     if (occupied) {
                         if (status === 'Pending') {
-                        cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
-                        displayText = "✗";
-                        icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
-                    } else if (status === 'Rent Only') {
-                        cellClass = "bg-purple-100 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-200";
-                        displayText = "✓";
-                        icon = '<i class="fa-solid fa-check text-purple-600"></i>';
-                    } else if (status === 'Paid') {
-                        cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
-                        displayText = "✓";
-                        icon = '<i class="fa-solid fa-check text-green-600"></i>';
-                    }
+                            cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
+                            displayText = "✗";
+                            icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
+                        } else if (status === 'Rent Only') {
+                            cellClass = "bg-purple-100 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-200";
+                            displayText = "✓";
+                            icon = '<i class="fa-solid fa-check text-purple-600"></i>';
+                        } else if (status === 'Paid') {
+                            cellClass = "bg-green-100 text-green-700 border-green-300 cursor-pointer hover:bg-green-200";
+                            displayText = "✓";
+                            icon = '<i class="fa-solid fa-check text-green-600"></i>';
+                        } else {
+                            // None status (editable past months): keep white/clickable base styling
+                            cellClass = "bg-white text-gray-700 border-gray-300 cursor-pointer hover:bg-gray-50";
+                            displayText = "-";
+                            icon = "";
+                        }
                     }
 
                     // Only allow clicking if tenant is occupied and month is not in the future
