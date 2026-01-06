@@ -4639,7 +4639,14 @@
             }
 
             function tryParseMonthHeader(cell) {
-                const raw = String(cell || '').trim();
+                const raw0 = String(cell || '').trim();
+                if (!raw0) return null;
+
+                // Excel sometimes adds non-breaking spaces / superscripts / stray symbols in copied headers
+                const raw = raw0
+                    .replace(/\u00A0/g, ' ')
+                    .replace(/[^A-Za-z0-9\s\/-]/g, '')
+                    .trim();
                 if (!raw) return null;
 
                 // Support: 2025-Apr, 2025 Apr, Apr-2025, April 2025
@@ -4668,6 +4675,14 @@
                     const yy = Number(m4[2]);
                     const year = Number.isFinite(yy) ? (yy >= 0 && yy <= 69 ? 2000 + yy : 1900 + yy) : NaN;
                     const monthIndex = parseMonthIndex(m4[1]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+                // Tolerate a stray trailing digit after 2-digit year (e.g., May-241)
+                const m4b = raw.match(/^([A-Za-z]{3,}|\d{1,2})\s*[-/ ]\s*(\d{2})\d$/);
+                if (m4b) {
+                    const yy = Number(m4b[2]);
+                    const year = Number.isFinite(yy) ? (yy >= 0 && yy <= 69 ? 2000 + yy : 1900 + yy) : NaN;
+                    const monthIndex = parseMonthIndex(m4b[1]);
                     if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
                 }
                 const m5 = raw.match(/^(\d{2})\s*[-/ ]\s*([A-Za-z]{3,}|\d{1,2})$/);
