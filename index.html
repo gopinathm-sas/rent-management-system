@@ -98,7 +98,7 @@
         <main class="container mx-auto px-4 py-8">
             
             <!-- Dashboard (Financial Summary) -->
-            <section id="dashboard" class="section-tab mb-16">
+            <section id="dashboard" class="section-tab active mb-16">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h2 class="text-3xl font-bold text-gray-700">Dashboard</h2>
                     <div class="flex items-center gap-2 text-sm text-gray-700">
@@ -133,7 +133,7 @@
             </section>
 
             <!-- Room Details (formerly Dashboard) -->
-            <section id="room-details" class="section-tab active mb-16">
+            <section id="room-details" class="section-tab mb-16">
                 <h2 class="text-3xl font-bold mb-8 text-gray-700">Room Details</h2>
 
                 <!-- Occupancy Metrics - Maximized -->
@@ -2658,6 +2658,7 @@
         // Initialize room cards on page load
         document.addEventListener('DOMContentLoaded', () => {
             console.log("✓ Page loaded, initializing room cards");
+            try { window.showSection('dashboard'); } catch (e) { console.warn("⚠️ showSection('dashboard') failed:", e); }
             window.generateRoomCards();
             try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
 
