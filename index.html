@@ -102,9 +102,13 @@
             <h1 class="text-3xl font-bold mb-2 text-gray-800">Munirathnam Illam</h1>
             <p class="text-gray-500 mb-8">Secure Rent Management System</p>
             
-            <button onclick="loginWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
+            <button onclick="loginWithGoogle('user')" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-3" alt="Google">
                 Sign in with Google
+            </button>
+            <button onclick="loginWithGoogle('admin')" class="w-full mt-3 bg-gray-900 border border-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-black transition flex items-center justify-center shadow-sm">
+                <i class="fa-solid fa-shield-halved mr-3"></i>
+                Admin Portal Login
             </button>
             <p id="login-error" role="alert" aria-live="assertive" class="text-red-500 text-sm mt-4 hidden text-left bg-red-50 p-3 rounded border border-red-200"></p>
         </div>
@@ -122,12 +126,16 @@
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <div class="flex items-center gap-2 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
+                    <div data-user-only="1" class="flex items-center gap-2 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
                         <a href="#" data-section="room-details" onclick="showSection('room-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Room Details</a>
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
                         <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link hover:text-blue-200 transition cursor-pointer">Water Bill</a>
                         <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link hover:text-blue-200 transition cursor-pointer">Expenses</a>
+                    </div>
+
+                    <div data-admin-only="1" style="display:none" class="flex items-center gap-2 text-sm font-semibold overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
+                        <a href="#" data-section="admin" onclick="showSection('admin')" class="nav-link hover:text-blue-200 transition cursor-pointer">Admin</a>
                     </div>
                     
                     <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
@@ -515,6 +523,25 @@
                 </div>
             </section>
 
+            <!-- Admin Section (Admin Portal only) -->
+            <section id="admin" class="section-tab mb-16">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Admin</h2>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
+                    <p class="text-sm text-gray-600 mb-2">Admin-only settings. Regular users cannot view this.</p>
+                    <p class="text-xs text-orange-700 mb-4">Note: Email automation is paused while running on Firebase Spark (no server-side Functions).</p>
+
+                    <label class="block text-gray-700 font-semibold mb-2">Admin Email (saved for future)</label>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input id="adminEmailInput" type="email" placeholder="admin@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <button type="button" onclick="saveAdminEmail()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Save</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
+                </div>
+            </section>
+
             <!-- Rooms Section -->
             <section id="rooms" class="section-tab mb-10">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -564,7 +591,7 @@
         </main>
 
         <!-- Floating Quick Nav (desktop/tablet) -->
-        <div class="quick-nav-desktop fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
+        <div data-user-only="1" class="quick-nav-desktop fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
             <button type="button" onclick="showSection('dashboard')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
                 <i class="fa-solid fa-chart-line text-blue-600"></i>
                 <span class="hidden md:inline">Dashboard</span>
@@ -588,7 +615,7 @@
         </div>
 
         <!-- Bottom Nav (mobile) -->
-        <div class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
+        <div data-user-only="1" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
             <div class="max-w-screen-sm mx-auto px-3 py-2 grid grid-cols-5 gap-2">
                 <button type="button" onclick="showSection('dashboard')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-chart-line text-blue-600 text-base"></i>
@@ -609,6 +636,15 @@
                 <button type="button" onclick="showSection('expenses')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-wallet text-red-600 text-base"></i>
                     <span class="mt-1">Cost</span>
+                </button>
+            </div>
+        </div>
+
+        <div data-admin-only="1" style="display:none" class="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
+            <div class="max-w-screen-sm mx-auto px-3 py-2">
+                <button type="button" onclick="showSection('admin')" class="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 bg-white shadow-sm text-sm font-semibold text-gray-700">
+                    <i class="fa-solid fa-shield-halved text-blue-600"></i>
+                    <span>Admin</span>
                 </button>
             </div>
         </div>
@@ -845,7 +881,7 @@
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -1023,6 +1059,69 @@
         let currentWaterBillYear = new Date().getFullYear();
         let currentDashboardYear = new Date().getFullYear();
         let currentExpensesYear = new Date().getFullYear();
+
+        let isAdminSession = false;
+
+        function setLoginMode(mode) {
+            const next = (mode === 'admin') ? 'admin' : 'user';
+            try { sessionStorage.setItem('loginMode', next); } catch (e) {}
+            return next;
+        }
+
+        function getLoginMode() {
+            try {
+                const v = sessionStorage.getItem('loginMode');
+                return v === 'admin' ? 'admin' : 'user';
+            } catch {
+                return 'user';
+            }
+        }
+
+        function applySessionNavMode() {
+            document.querySelectorAll('[data-user-only]').forEach(el => {
+                el.style.display = isAdminSession ? 'none' : '';
+            });
+            document.querySelectorAll('[data-admin-only]').forEach(el => {
+                el.style.display = isAdminSession ? '' : 'none';
+            });
+        }
+
+        async function loadAdminSettings() {
+            if (!currentUser || !isAdminSession) return;
+            try {
+                const ref = doc(db, 'adminSettings', 'main');
+                const snap = await getDoc(ref);
+                const email = snap.exists() ? (snap.data()?.adminEmail || '') : '';
+                const input = document.getElementById('adminEmailInput');
+                if (input) input.value = String(email || '');
+            } catch (e) {
+                console.warn('⚠️ loadAdminSettings failed:', e);
+            }
+        }
+
+        window.saveAdminEmail = async () => {
+            if (!currentUser || !isAdminSession) {
+                showNotification('Admin login required', 'warning');
+                return;
+            }
+            const input = document.getElementById('adminEmailInput');
+            const email = String(input?.value || '').trim();
+            if (!email || !email.includes('@')) {
+                showNotification('Please enter a valid admin email', 'warning');
+                return;
+            }
+            try {
+                await setDoc(doc(db, 'adminSettings', 'main'), {
+                    adminEmail: email,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                }, { merge: true });
+                showNotification('✓ Admin email saved', 'success');
+            } catch (e) {
+                console.error('saveAdminEmail failed', e);
+                showNotification('Error: ' + (e?.message || 'Unknown error'), 'error');
+            }
+        };
 
         // HELPERS (room matching + occupancy)
         function isOccupiedRecord(record) {
@@ -2623,10 +2722,95 @@
                     evictDay.setHours(0, 0, 0, 0);
                     if (evictDay.getTime() > normalizedToday.getTime()) continue;
 
+                    // Best-effort: build a settlement snapshot for emailing, if notice date exists.
+                    let autoEvictionSettlement = null;
+                    try {
+                        const noticeDate = parseDateValue(tenantRecord?.evictionNoticeDate);
+                        if (noticeDate) {
+                            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                            const servicePerMonth = Number(RENT_WATER_SERVICE_CHARGE) || 0;
+                            const rateRaw = Number(tenantRecord?.waterRate);
+                            const roomNo2 = String(tenantRecord?.roomNo || '').trim();
+                            const waterRate2 = Number.isFinite(rateRaw) ? rateRaw : getDefaultWaterRateForRoom(roomNo2);
+                            const rent2 = Number(tenantRecord?.rent) || 0;
+                            const deposit2 = Number(tenantRecord?.deposit) || 0;
+
+                            const start = new Date(noticeDate);
+                            const end = new Date(evictDay);
+                            start.setHours(0, 0, 0, 0);
+                            end.setHours(0, 0, 0, 0);
+                            if (end.getTime() >= start.getTime()) {
+                                const monthList = [];
+                                let y = start.getFullYear();
+                                let m = start.getMonth();
+                                const endY = end.getFullYear();
+                                const endM = end.getMonth();
+                                while (y < endY || (y === endY && m <= endM)) {
+                                    monthList.push({ year: y, monthIndex: m, key: `${y}-${months[m]}` });
+                                    m += 1;
+                                    if (m >= 12) { m = 0; y += 1; }
+                                }
+
+                                const waterByMonth = {};
+                                const serviceByMonth = {};
+                                let waterTotal = 0;
+                                const missingWaterMonths = [];
+                                for (const it of monthList) {
+                                    const w = computeWaterForMonth(tenantRecord, it.year, it.monthIndex, waterRate2);
+                                    const amt = Number(w?.amount);
+                                    const units = Number(w?.units);
+                                    const hasAmount = Number.isFinite(amt) && Number.isFinite(units) && units >= 0;
+                                    if (hasAmount) {
+                                        waterByMonth[it.key] = Math.round(amt);
+                                        waterTotal += amt;
+                                    } else {
+                                        waterByMonth[it.key] = 0;
+                                        missingWaterMonths.push(it.key);
+                                    }
+                                    serviceByMonth[it.key] = servicePerMonth;
+                                }
+
+                                const rentMonths = monthList.length;
+                                const rentDeduction = rentMonths * rent2;
+                                const mandatoryNoticeRent = rent2;
+                                const serviceDeduction = rentMonths * servicePerMonth;
+                                const totalDeduction = rentDeduction + mandatoryNoticeRent + waterTotal + serviceDeduction;
+                                const refund = deposit2 - totalDeduction;
+
+                                autoEvictionSettlement = {
+                                    noticeDate: formatDateForInput(noticeDate),
+                                    vacateDate: formatDateForInput(evictDay),
+                                    months: monthList.map(x => x.key),
+                                    rentPerMonth: rent2,
+                                    waterRate: waterRate2,
+                                    serviceChargePerMonth: servicePerMonth,
+                                    serviceChargeTotal: Math.round(serviceDeduction),
+                                    mandatoryNoticeRent,
+                                    rentDeduction,
+                                    waterDeduction: Math.round(waterTotal),
+                                    totalDeduction: Math.round(totalDeduction),
+                                    deposit: Math.round(deposit2),
+                                    refund: Math.round(refund),
+                                    waterByMonth,
+                                    serviceByMonth,
+                                    missingWaterMonths,
+                                    autoGenerated: true,
+                                    finalized: false,
+                                    createdAt: serverTimestamp(),
+                                    createdBy: currentUser.uid
+                                };
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Auto settlement snapshot failed:', e);
+                    }
+
                     // Archive old tenant details into a snapshot before clearing
                     const archivedTenant = {
                         archivedAt: serverTimestamp(),
                         reason: 'eviction',
+                        vacateDate: formatDateForInput(evictDay),
+                        vacateNotes: 'Auto-vacated (eviction date reached)',
                         tenant: tenantRecord?.tenant ?? null,
                         contact: tenantRecord?.contact ?? null,
                         rent: tenantRecord?.rent ?? null,
@@ -2640,7 +2824,7 @@
                         noAnnualRevision: Boolean(tenantRecord?.noAnnualRevision),
                         evictionDate: tenantRecord?.evictionDate ?? null,
                         evictionNoticeDate: tenantRecord?.evictionNoticeDate ?? null,
-                        evictionSettlement: tenantRecord?.evictionSettlement ?? null,
+                        evictionSettlement: autoEvictionSettlement ?? (tenantRecord?.evictionSettlement ?? null),
                         paymentHistory: tenantRecord?.paymentHistory ?? {},
                         paymentTotals: tenantRecord?.paymentTotals ?? {},
                         waterReadings: tenantRecord?.waterReadings ?? {},
@@ -3647,19 +3831,22 @@
         };
 
         // AUTH FUNCTIONS - Expose to window
-        window.loginWithGoogle = async () => {
-            console.log("✓ loginWithGoogle clicked");
+        window.loginWithGoogle = async (mode = 'user') => {
+            const nextMode = setLoginMode(mode);
+            console.log("✓ loginWithGoogle clicked (mode):", nextMode);
             const errorMsg = document.getElementById('login-error');
             if (errorMsg) errorMsg.classList.add('hidden');
             try {
                 const result = await signInWithPopup(auth, provider);
                 console.log("✓ Sign-in successful:", result.user.email);
-                // Generate room cards immediately after login
-                setTimeout(() => {
-                    window.generateRoomCards();
-                    window.updateOccupancyMetrics();
-                    try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
-                }, 100);
+                // For user sessions, kick UI refresh quickly (admin portal skips app data)
+                if (getLoginMode() !== 'admin') {
+                    setTimeout(() => {
+                        window.generateRoomCards();
+                        window.updateOccupancyMetrics();
+                        try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                    }, 100);
+                }
             } catch (error) {
                 console.error("❌ Login failed:", error);
                 let message = "Login failed: " + error.message;
@@ -3678,8 +3865,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log("✓ Page loaded, initializing room cards");
             try { window.showSection('dashboard'); } catch (e) { console.warn("⚠️ showSection('dashboard') failed:", e); }
-            window.generateRoomCards();
-            try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+            if (getLoginMode() !== 'admin') {
+                window.generateRoomCards();
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+            }
 
             // Expenses form submit
             const expenseForm = document.getElementById('expenseForm');
@@ -3697,12 +3886,21 @@
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
             if (expensesUnsubscribe) expensesUnsubscribe();
+            try { sessionStorage.removeItem('loginMode'); } catch (e) {}
             await signOut(auth);
             window.location.reload();
         };
 
         // SECTION NAVIGATION
         window.showSection = (sectionName) => {
+            if (isAdminSession && sectionName !== 'admin') {
+                showNotification('Admin Portal: only Admin section is available', 'warning');
+                sectionName = 'admin';
+            }
+            if (!isAdminSession && sectionName === 'admin') {
+                showNotification('Admin access required', 'warning');
+                sectionName = 'dashboard';
+            }
             // Hide all sections
             document.querySelectorAll('.section-tab').forEach(section => {
                 section.classList.remove('active');
@@ -3730,24 +3928,30 @@
             if (user) {
                 console.log("✓ User signed in:", user.email);
                 
-                // Check authorization against Firestore authorizedUsers collection
+                // Check authorization against Firestore authorizedUsers/adminUsers collections
                 try {
-                    const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-                    const authRef = doc(db, "authorizedUsers", user.email);
+                    const mode = getLoginMode();
+                    const authCol = (mode === 'admin') ? 'adminUsers' : 'authorizedUsers';
+                    const authRef = doc(db, authCol, user.email);
                     const authSnapshot = await getDoc(authRef);
-                    
+
                     if (!authSnapshot.exists()) {
-                        // User not authorized - sign them out
-                        console.error("❌ Unauthorized user:", user.email);
+                        console.error("❌ Unauthorized user:", user.email, 'mode=', mode);
                         await signOut(auth);
-                        document.getElementById('login-error').innerText = `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                        const msg = (mode === 'admin')
+                            ? `❌ ADMIN ACCESS DENIED\n\nYour email (${user.email}) is not an admin.\n\nPlease contact the administrator.`
+                            : `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                        document.getElementById('login-error').innerText = msg;
                         document.getElementById('login-error').classList.remove('hidden');
                         return;
                     }
-                    
+
+                    isAdminSession = (mode === 'admin');
+                    applySessionNavMode();
+
                     // User is authorized - proceed with login
                     currentUser = user;
-                    console.log("✓ User authorized:", user.email);
+                    console.log("✓ User authorized:", user.email, 'mode=', mode);
                     document.getElementById('user-name').innerText = user.displayName || 'User';
                     let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
                     document.getElementById('user-photo').src = photoURL;
@@ -3765,12 +3969,17 @@
                         console.warn('⚠️ Year label init failed:', e);
                     }
 
-                    initDataListener();
-                    subscribeExpenses();
+                    if (!isAdminSession) {
+                        initDataListener();
+                        subscribeExpenses();
 
-                    // Initial renders (safe if data not loaded yet)
-                    try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
-                    try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
+                        // Initial renders (safe if data not loaded yet)
+                        try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
+                        try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
+                    } else {
+                        try { await loadAdminSettings(); } catch (e) { console.warn('⚠️ loadAdminSettings failed:', e); }
+                        try { window.showSection('admin'); } catch (e) { console.warn("⚠️ showSection('admin') failed:", e); }
+                    }
                 } catch (err) {
                     console.error("Authorization check error:", err);
                     await signOut(auth);
@@ -3779,6 +3988,8 @@
                 }
             } else {
                 console.log("✓ User signed out");
+                isAdminSession = false;
+                applySessionNavMode();
                 if (unsubscribe) { try { unsubscribe(); } catch {} unsubscribe = null; }
                 if (expensesUnsubscribe) { try { expensesUnsubscribe(); } catch {} expensesUnsubscribe = null; }
                 document.getElementById('login-screen').classList.remove('hidden-section');

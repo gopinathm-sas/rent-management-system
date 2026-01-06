@@ -1,0 +1,29 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "firestore.rules",
+      "package.json",
+      "package-lock.json",
+      "node_modules/**",
+      "functions/**",
+      "tests/**",
+      "clear-data.js",
+      "delete_collections.js",
+      "DELETE_README.md",
+      "DASHBOARD_GUIDE.md",
+      "SECURITY.md",
+      "VERSION_4.0_MASTER_COPY.md",
+      "hello.txt",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
