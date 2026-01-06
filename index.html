@@ -901,6 +901,12 @@
             const noAnnualRevision = Boolean(tenantData?.noAnnualRevision);
             const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
             const evictionDate = parseDateValue(tenantData?.evictionDate);
+            const archivedTenant = tenantData?.archivedTenant || null;
+            const canRestoreArchivedTenant = !isOccupied && !!archivedTenant && (
+                String(archivedTenant?.tenant || '').trim() ||
+                String(archivedTenant?.contact || '').trim() ||
+                (archivedTenant?.rent !== null && archivedTenant?.rent !== undefined)
+            );
             const unRevisedRent = tenantData?.unRevisedRent;
             const hasUnRevisedRent = unRevisedRent !== null && unRevisedRent !== undefined && String(unRevisedRent).trim() !== '';
             const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRent) : NaN;
@@ -1038,6 +1044,11 @@
                                 <button onclick="window.openAddTenantModal('${roomData.roomId}'); window.closeRoomDetailModal();" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition text-base">
                                     ${isOccupied ? '✎ Edit Tenant' : '+ Add Tenant'}
                                 </button>
+                                ${canRestoreArchivedTenant ? `
+                                <button onclick="window.restoreArchivedTenant('${roomData.roomId}')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition text-base">
+                                    Restore Tenant (Testing)
+                                </button>
+                                ` : ''}
                                 ${isOccupied ? `
                                 <button onclick="window.markTenantVacated('${roomData.roomId}')" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition text-base">
                                     Mark Vacant
@@ -1275,6 +1286,104 @@
                 window.renderWaterBillTable();
             } catch (error) {
                 console.error('markTenantVacated failed', error);
+                showNotification('Error: ' + (error?.message || 'Unknown error'), 'error');
+            }
+        };
+
+        // TESTING HELPER: RESTORE TENANT DATA FROM THE LAST ARCHIVE
+        window.restoreArchivedTenant = async (roomId) => {
+            if (!currentUser) {
+                showNotification('Please login first', 'warning');
+                return;
+            }
+
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const roomData = immutableRoomNo ? IMMUTABLE_ROOMS_DATA[immutableRoomNo] : null;
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(roomData)
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord?.id) {
+                    showNotification('Cannot restore: tenant record not found.', 'warning');
+                    return;
+                }
+
+                if (isOccupiedRecord(tenantRecord)) {
+                    showNotification('Cannot restore: room is currently occupied.', 'warning');
+                    return;
+                }
+
+                const archivedTenant = tenantRecord?.archivedTenant;
+                const hasArchived = !!archivedTenant && (
+                    String(archivedTenant?.tenant || '').trim() ||
+                    String(archivedTenant?.contact || '').trim() ||
+                    (archivedTenant?.rent !== null && archivedTenant?.rent !== undefined)
+                );
+                if (!hasArchived) {
+                    showNotification('No archived tenant data found to restore.', 'warning');
+                    return;
+                }
+
+                const archivedName = String(archivedTenant?.tenant || '').trim() || 'the archived tenant';
+                const ok = await window.uiConfirm({
+                    title: 'Restore tenant data (testing)?',
+                    message: `This will restore ${archivedName}'s details back into Room ${roomId}.`,
+                    confirmText: 'Restore',
+                    cancelText: 'Cancel',
+                    danger: true
+                });
+                if (!ok) return;
+
+                const restoredArchivedTenant = {
+                    ...(archivedTenant || {}),
+                    restoredAt: serverTimestamp(),
+                    restoredBy: currentUser.uid
+                };
+
+                const updatePayload = {
+                    status: 'Occupied',
+                    archivedTenant: restoredArchivedTenant,
+                    tenant: archivedTenant?.tenant ?? null,
+                    contact: archivedTenant?.contact ?? null,
+                    rent: archivedTenant?.rent ?? null,
+                    waterRate: archivedTenant?.waterRate ?? null,
+                    deposit: archivedTenant?.deposit ?? null,
+                    ebServNo: archivedTenant?.ebServNo ?? null,
+                    ebAcNo: archivedTenant?.ebAcNo ?? null,
+                    keyNo: archivedTenant?.keyNo ?? null,
+                    relocate: archivedTenant?.relocate ?? null,
+                    lastRentRevisionAt: archivedTenant?.lastRentRevisionAt ?? null,
+                    noAnnualRevision: Boolean(archivedTenant?.noAnnualRevision),
+                    evictionConfirmed: Boolean(archivedTenant?.evictionConfirmed),
+                    evictionDate: archivedTenant?.evictionDate ?? null,
+                    payStatus: null,
+                    paymentHistory: archivedTenant?.paymentHistory ?? {},
+                    paymentTotals: archivedTenant?.paymentTotals ?? {},
+                    waterReadings: archivedTenant?.waterReadings ?? {},
+                    unRevisedRent: archivedTenant?.unRevisedRent ?? null,
+                    unRevisedRentCapturedAt: archivedTenant?.unRevisedRentCapturedAt ?? null,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+
+                await updateDoc(doc(db, 'properties', tenantRecord.id), updatePayload);
+
+                showNotification(`✓ Restored tenant data for Room ${roomId}`, 'success');
+
+                if (immutableRoomNo) {
+                    window.closeRoomDetailModal();
+                    setTimeout(() => window.openRoomDetailModal(immutableRoomNo), 150);
+                }
+                window.generateRoomCards();
+                window.renderRentDetailsTable();
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                window.renderWaterBillTable();
+            } catch (error) {
+                console.error('restoreArchivedTenant failed', error);
                 showNotification('Error: ' + (error?.message || 'Unknown error'), 'error');
             }
         };
