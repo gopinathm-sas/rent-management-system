@@ -1038,6 +1038,11 @@
                                 <button onclick="window.openAddTenantModal('${roomData.roomId}'); window.closeRoomDetailModal();" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition text-base">
                                     ${isOccupied ? '✎ Edit Tenant' : '+ Add Tenant'}
                                 </button>
+                                ${isOccupied ? `
+                                <button onclick="window.markTenantVacated('${roomData.roomId}')" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition text-base">
+                                    Mark Vacant
+                                </button>
+                                ` : ''}
                                 <button onclick="window.closeRoomDetailModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 rounded-lg transition text-base">
                                     Close
                                 </button>
@@ -1144,6 +1149,133 @@
             } catch (error) {
                 console.error("Error updating room status:", error);
                 showNotification("Error: " + error.message, "error");
+            }
+        };
+
+        // OPTION 1: MANUAL MOVE-OUT (archive + mark vacant)
+        window.markTenantVacated = async (roomId) => {
+            if (!currentUser) {
+                showNotification("Please login first", "warning");
+                return;
+            }
+
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const roomData = immutableRoomNo ? IMMUTABLE_ROOMS_DATA[immutableRoomNo] : null;
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(roomData)
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord || !isOccupiedRecord(tenantRecord)) {
+                    showNotification('Cannot mark vacant: room is already vacant or tenant not found.', 'warning');
+                    return;
+                }
+
+                const tenantName = String(tenantRecord?.tenant || '').trim() || 'Tenant';
+                const ok = await window.uiConfirm({
+                    title: 'Mark room as vacant?',
+                    message: `This will archive ${tenantName}'s details and set the room to Vacant.`,
+                    confirmText: 'Mark Vacant',
+                    cancelText: 'Cancel',
+                    danger: true
+                });
+                if (!ok) return;
+
+                const vacateDateStr = await window.uiPrompt({
+                    title: 'Vacate date',
+                    subtitle: `Room ${roomId}`,
+                    label: 'Select the vacate date',
+                    value: formatDateForInput(new Date()),
+                    inputType: 'date',
+                    okText: 'Next',
+                    cancelText: 'Cancel'
+                });
+                if (vacateDateStr === null) return;
+                const vacateDateParsed = parseDateValue(String(vacateDateStr).trim());
+                if (!vacateDateParsed) {
+                    showNotification('Invalid vacate date. Please choose a valid date.', 'warning');
+                    return;
+                }
+
+                const vacateNotes = await window.uiPrompt({
+                    title: 'Vacate notes (optional)',
+                    subtitle: `Room ${roomId}`,
+                    label: 'Add a short note (optional)',
+                    placeholder: 'e.g. Left keys with caretaker',
+                    value: '',
+                    inputType: 'text',
+                    okText: 'Save',
+                    cancelText: 'Skip'
+                });
+
+                const archivedTenant = {
+                    archivedAt: serverTimestamp(),
+                    reason: 'manual-vacate',
+                    vacateDate: formatDateForInput(vacateDateParsed),
+                    vacateNotes: vacateNotes === null ? '' : String(vacateNotes).trim(),
+                    tenant: tenantRecord?.tenant ?? null,
+                    contact: tenantRecord?.contact ?? null,
+                    rent: tenantRecord?.rent ?? null,
+                    waterRate: tenantRecord?.waterRate ?? null,
+                    deposit: tenantRecord?.deposit ?? null,
+                    ebServNo: tenantRecord?.ebServNo ?? null,
+                    ebAcNo: tenantRecord?.ebAcNo ?? null,
+                    keyNo: tenantRecord?.keyNo ?? null,
+                    relocate: tenantRecord?.relocate ?? null,
+                    lastRentRevisionAt: tenantRecord?.lastRentRevisionAt ?? null,
+                    noAnnualRevision: Boolean(tenantRecord?.noAnnualRevision),
+                    evictionConfirmed: Boolean(tenantRecord?.evictionConfirmed),
+                    evictionDate: tenantRecord?.evictionDate ?? null,
+                    paymentHistory: tenantRecord?.paymentHistory ?? {},
+                    paymentTotals: tenantRecord?.paymentTotals ?? {},
+                    waterReadings: tenantRecord?.waterReadings ?? {},
+                    unRevisedRent: tenantRecord?.unRevisedRent ?? null,
+                    unRevisedRentCapturedAt: tenantRecord?.unRevisedRentCapturedAt ?? null,
+                };
+
+                const updatePayload = {
+                    status: 'Vacant',
+                    archivedTenant,
+                    tenant: null,
+                    contact: null,
+                    rent: null,
+                    waterRate: null,
+                    deposit: null,
+                    ebServNo: null,
+                    ebAcNo: null,
+                    keyNo: null,
+                    relocate: null,
+                    lastRentRevisionAt: null,
+                    noAnnualRevision: false,
+                    evictionConfirmed: false,
+                    evictionDate: null,
+                    payStatus: null,
+                    paymentHistory: {},
+                    paymentTotals: {},
+                    waterReadings: {},
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+
+                await updateDoc(doc(db, 'properties', tenantRecord.id), updatePayload);
+
+                showNotification(`✓ Room ${roomId} marked as Vacant`, 'success');
+
+                // Refresh modal + views
+                if (immutableRoomNo) {
+                    window.closeRoomDetailModal();
+                    setTimeout(() => window.openRoomDetailModal(immutableRoomNo), 150);
+                }
+                window.generateRoomCards();
+                window.renderRentDetailsTable();
+                try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                window.renderWaterBillTable();
+            } catch (error) {
+                console.error('markTenantVacated failed', error);
+                showNotification('Error: ' + (error?.message || 'Unknown error'), 'error');
             }
         };
 
