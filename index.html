@@ -151,7 +151,7 @@
             <section id="dashboard" class="section-tab active mb-16">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Dashboard</h2>
-                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-gray-700">
                         <span class="font-semibold">Year</span>
                         <button type="button" onclick="changeDashboardYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
                             <i class="fa-solid fa-chevron-left"></i>
@@ -159,6 +159,9 @@
                         <span id="dashboard-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
                         <button type="button" onclick="changeDashboardYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
                             <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                        <button id="cleanupLockedMonthsBtn" data-cleanup-btn="1" type="button" onclick="runLockedMonthsCleanup()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700" title="Clears any saved Paid/Pending/Rent Only totals in current & future months (post-paid lock)">
+                            One-time cleanup
                         </button>
                     </div>
                 </div>
@@ -184,7 +187,12 @@
 
             <!-- Room Details (formerly Dashboard) -->
             <section id="room-details" class="section-tab mb-16">
-                <h2 class="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-gray-700">Room Details</h2>
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-700">Room Details</h2>
+                    <button data-cleanup-btn="1" type="button" onclick="runLockedMonthsCleanup()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700" title="One-time: clears any saved Paid/Pending/Rent Only totals in current & future months (post-paid lock)">
+                        One-time cleanup
+                    </button>
+                </div>
 
                 <!-- Occupancy Metrics - Maximized -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8 mb-10 sm:mb-12 md:mb-16">
@@ -342,7 +350,7 @@
 
                 <!-- Rent & Water (+60) Table -->
                 <div class="mt-12">
-                    <h3 class="text-xl font-bold text-gray-700 mb-2">Rent &amp; Water (+₹60)</h3>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Rent and Water</h3>
                     <p class="text-gray-500 mb-4">Auto-calculated from Rent Details. When a month is marked <span class="font-semibold">Paid (green)</span> there, this table shows <span class="font-semibold">Rent + Water Bill + 60</span>.</p>
 
                     <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -2594,6 +2602,115 @@
             return total;
         }
 
+        // ONE-TIME CLEANUP: Clear any saved Rent/Water statuses & totals for locked months (current+future).
+        // This prevents old future-month data from polluting dashboards after switching to post-paid locking.
+        window.runLockedMonthsCleanup = async () => {
+            const now = new Date();
+            const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+            const ok = await window.uiConfirm({
+                title: 'One-time cleanup',
+                message: `This will clear any saved Rent/Water statuses & totals for locked months (current & future) across all tenants.\n\nIt will not affect past months.\n\nContinue?`,
+                confirmText: 'Yes, cleanup',
+                cancelText: 'Cancel',
+                danger: true,
+            });
+            if (!ok) return;
+
+            const parseKey = (keyRaw) => {
+                const s = String(keyRaw || '').trim();
+                const parts = s.split('-');
+                if (parts.length < 2) return null;
+                const year = Number(parts[0]);
+                const monthLabel = String(parts.slice(1).join('-') || '').trim();
+                const monthIndex = months.indexOf(monthLabel);
+                if (!Number.isFinite(year) || monthIndex < 0) return null;
+                return { year, monthIndex };
+            };
+
+            let docsTouched = 0;
+            let fieldsCleared = 0;
+
+            const props = Array.isArray(allPropertiesData) ? allPropertiesData : [];
+            if (props.length === 0) {
+                showNotification('No properties loaded yet. Please wait for data to load and try again.', 'info');
+                return;
+            }
+
+            // Process sequentially to avoid burst writes.
+            for (const prop of props) {
+                const payload = {};
+
+                const history = prop?.paymentHistory || {};
+                const totals = prop?.paymentTotals || {};
+
+                for (const key of Object.keys(history)) {
+                    const parsed = parseKey(key);
+                    if (!parsed) continue;
+                    if (!isFutureYearMonth(parsed.year, parsed.monthIndex, now)) continue;
+                    payload[`paymentHistory.${key}`] = null;
+                    fieldsCleared++;
+                }
+                for (const key of Object.keys(totals)) {
+                    const parsed = parseKey(key);
+                    if (!parsed) continue;
+                    if (!isFutureYearMonth(parsed.year, parsed.monthIndex, now)) continue;
+                    payload[`paymentTotals.${key}`] = null;
+                    fieldsCleared++;
+                }
+
+                const archived = prop?.archivedTenant || null;
+                const archivedHistory = archived?.paymentHistory || {};
+                const archivedTotals = archived?.paymentTotals || {};
+
+                for (const key of Object.keys(archivedHistory)) {
+                    const parsed = parseKey(key);
+                    if (!parsed) continue;
+                    if (!isFutureYearMonth(parsed.year, parsed.monthIndex, now)) continue;
+                    payload[`archivedTenant.paymentHistory.${key}`] = null;
+                    fieldsCleared++;
+                }
+                for (const key of Object.keys(archivedTotals)) {
+                    const parsed = parseKey(key);
+                    if (!parsed) continue;
+                    if (!isFutureYearMonth(parsed.year, parsed.monthIndex, now)) continue;
+                    payload[`archivedTenant.paymentTotals.${key}`] = null;
+                    fieldsCleared++;
+                }
+
+                const keysToUpdate = Object.keys(payload);
+                if (keysToUpdate.length === 0) continue;
+
+                try {
+                    const propRef = doc(db, 'properties', prop.id);
+                    await updateDoc(propRef, payload);
+                    docsTouched++;
+                } catch (e) {
+                    console.error('Cleanup update failed for property', prop?.id, e);
+                    showNotification(`Cleanup failed for a property: ${e.message}`, 'error');
+                    // Continue with the rest.
+                }
+            }
+
+            showNotification(`✓ Cleanup complete: ${docsTouched} properties updated, ${fieldsCleared} fields cleared.`, 'success');
+
+            // Hide button for this browser session (optional UX).
+            try {
+                const btns = Array.from(document.querySelectorAll('[data-cleanup-btn="1"]'));
+                btns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.add('opacity-60', 'cursor-not-allowed');
+                    btn.textContent = 'Cleanup done';
+                });
+            } catch (e) { /* ignore */ }
+
+            // Force a UI refresh immediately; Firestore snapshot will also refresh.
+            try { window.renderRentDetailsTable(); } catch (e) { /* ignore */ }
+            try { window.renderRentWaterTable(); } catch (e) { /* ignore */ }
+            try { window.updateOccupancyMetrics(); } catch (e) { /* ignore */ }
+            try { window.renderFinancialDashboard(); } catch (e) { /* ignore */ }
+        };
+
         window.renderFinancialDashboard = () => {
             const yearLabel = document.getElementById('dashboard-year');
             if (yearLabel) yearLabel.textContent = String(currentDashboardYear);
@@ -2606,11 +2723,15 @@
                 : new Date().getFullYear();
 
             const rows = [];
+            const now = new Date();
             for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
                 const key = getMonthKey(year, monthIndex);
-                const rentCollected = computeRentCollectedForMonth(year, monthIndex);
-                const pendingRent = computePendingRentForMonth(year, monthIndex);
-                const waterCharges = computeWaterChargesForMonth(year, monthIndex);
+                const locked = isFutureYearMonth(year, monthIndex, now);
+
+                // Post-paid model: current & future months are locked (ignore any old saved data).
+                const rentCollected = locked ? 0 : computeRentCollectedForMonth(year, monthIndex);
+                const pendingRent = locked ? 0 : computePendingRentForMonth(year, monthIndex);
+                const waterCharges = locked ? 0 : computeWaterChargesForMonth(year, monthIndex);
                 const expenses = sumExpensesForMonth(key);
 
                 rows.push({
@@ -2618,22 +2739,27 @@
                     rentCollected,
                     expenses,
                     waterCharges,
-                    pendingRent
+                    pendingRent,
+                    locked
                 });
             }
 
             body.innerHTML = rows.map(r => {
-                const rentText = `₹${Math.round(r.rentCollected).toLocaleString('en-IN')}`;
+                const rentText = r.locked ? '—' : `₹${Math.round(r.rentCollected).toLocaleString('en-IN')}`;
                 const expText = `₹${Math.round(r.expenses).toLocaleString('en-IN')}`;
-                const waterText = `₹${Math.round(Number(r.waterCharges) || 0).toLocaleString('en-IN')}`;
-                const pendingText = `₹${Math.round(r.pendingRent).toLocaleString('en-IN')}`;
+                const waterText = r.locked ? '—' : `₹${Math.round(Number(r.waterCharges) || 0).toLocaleString('en-IN')}`;
+                const pendingText = r.locked ? '—' : `₹${Math.round(r.pendingRent).toLocaleString('en-IN')}`;
+
+                const rowClass = r.locked ? 'border-b bg-gray-50' : 'border-b hover:bg-gray-50';
+                const valueCellClass = r.locked ? 'text-gray-400' : '';
+
                 return `
-                    <tr class="border-b hover:bg-gray-50">
+                    <tr class="${rowClass}">
                         <td class="border px-4 py-3 font-semibold text-gray-800 bg-white">${escapeHtml(r.monthLabel)}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-green-700 bg-white">${rentText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-green-700 bg-white ${valueCellClass}">${rentText}</td>
                         <td class="border px-4 py-3 text-right font-semibold text-red-700 bg-white">${expText}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-blue-700 bg-white">${waterText}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-orange-700 bg-white">${pendingText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-blue-700 bg-white ${valueCellClass}">${waterText}</td>
+                        <td class="border px-4 py-3 text-right font-semibold text-orange-700 bg-white ${valueCellClass}">${pendingText}</td>
                     </tr>
                 `;
             }).join('');
@@ -4139,6 +4265,8 @@
                 ? currentRentDetailsYear
                 : new Date().getFullYear();
 
+            const now = new Date();
+
             const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
             if (roomNos.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">No room data found.</td></tr>';
@@ -4161,9 +4289,11 @@
                         <td class="border px-4 py-3 font-semibold text-gray-800 text-sm bg-white min-w-[10rem]">${escapeHtml(tenantName)}</td>
                 `;
 
-                months.forEach(month => {
+                months.forEach((month, monthIndex) => {
                     const key = `${selectedYear}-${month}`;
                     const status = history[key] || 'None';
+
+                    const locked = isFutureYearMonth(selectedYear, monthIndex, now);
 
                     const totals = tenantData?.paymentTotals || {};
                     const storedTotal = Number(totals?.[key]);
@@ -4176,13 +4306,21 @@
                     let displayText = "-";
                     let title = occupied ? 'Calculated from Rent Details' : 'Vacant - No tenant';
 
-                    if (occupied && status === 'Pending') {
+                    // Post-paid model: current & future months are locked.
+                    // Hide any previously saved values (to avoid confusion) and grey them out.
+                    if (locked) {
+                        cellClass = "bg-gray-200 text-gray-400 border-gray-300";
+                        displayText = "-";
+                        title = 'Locked (available after month ends).';
+                    }
+
+                    if (!locked && occupied && status === 'Pending') {
                         cellClass = "bg-red-100 text-red-800 border-red-300";
                         displayText = "0";
                         title = 'Pending = 0';
                     }
 
-                    if (occupied && status === 'Rent Only') {
+                    if (!locked && occupied && status === 'Rent Only') {
                         cellClass = "bg-purple-100 text-purple-800 border-purple-300";
                         if (Number.isFinite(rentOnlyAmount) && rentOnlyAmount > 0) {
                             const asInt = Math.round(rentOnlyAmount);
@@ -4195,7 +4333,7 @@
                         }
                     }
 
-                    if (occupied && status === 'Paid') {
+                    if (!locked && occupied && status === 'Paid') {
                         cellClass = "bg-green-100 text-green-800 border-green-300";
                         if (Number.isFinite(storedTotal)) {
                             // Display as plain number in cell (example: 5910)
