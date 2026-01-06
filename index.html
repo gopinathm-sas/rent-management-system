@@ -1124,6 +1124,35 @@
 
                 // If changing to VACANT, archive (clear) all tenant details
                 if (newStatus === 'Vacant') {
+                    const shouldArchive = isOccupiedRecord(tenantRecord) ||
+                        String(tenantRecord?.tenant || '').trim() ||
+                        String(tenantRecord?.contact || '').trim() ||
+                        (tenantRecord?.rent !== null && tenantRecord?.rent !== undefined);
+
+                    if (shouldArchive) {
+                        updatePayload.archivedTenant = {
+                            archivedAt: serverTimestamp(),
+                            reason: 'status-to-vacant',
+                            tenant: tenantRecord?.tenant ?? null,
+                            contact: tenantRecord?.contact ?? null,
+                            rent: tenantRecord?.rent ?? null,
+                            waterRate: tenantRecord?.waterRate ?? null,
+                            deposit: tenantRecord?.deposit ?? null,
+                            ebServNo: tenantRecord?.ebServNo ?? null,
+                            ebAcNo: tenantRecord?.ebAcNo ?? null,
+                            keyNo: tenantRecord?.keyNo ?? null,
+                            relocate: tenantRecord?.relocate ?? null,
+                            lastRentRevisionAt: tenantRecord?.lastRentRevisionAt ?? null,
+                            noAnnualRevision: Boolean(tenantRecord?.noAnnualRevision),
+                            evictionDate: tenantRecord?.evictionDate ?? null,
+                            paymentHistory: tenantRecord?.paymentHistory ?? {},
+                            paymentTotals: tenantRecord?.paymentTotals ?? {},
+                            waterReadings: tenantRecord?.waterReadings ?? {},
+                            unRevisedRent: tenantRecord?.unRevisedRent ?? null,
+                            unRevisedRentCapturedAt: tenantRecord?.unRevisedRentCapturedAt ?? null,
+                        };
+                    }
+
                     updatePayload.tenant = null;
                     updatePayload.contact = null;
                     updatePayload.rent = null;
@@ -1135,7 +1164,6 @@
                     updatePayload.relocate = null;
                     updatePayload.lastRentRevisionAt = null;
                     updatePayload.noAnnualRevision = false;
-                    updatePayload.evictionConfirmed = false;
                     updatePayload.evictionDate = null;
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
@@ -1246,7 +1274,6 @@
                     relocate: tenantRecord?.relocate ?? null,
                     lastRentRevisionAt: tenantRecord?.lastRentRevisionAt ?? null,
                     noAnnualRevision: Boolean(tenantRecord?.noAnnualRevision),
-                    evictionConfirmed: Boolean(tenantRecord?.evictionConfirmed),
                     evictionDate: tenantRecord?.evictionDate ?? null,
                     paymentHistory: tenantRecord?.paymentHistory ?? {},
                     paymentTotals: tenantRecord?.paymentTotals ?? {},
@@ -1269,7 +1296,6 @@
                     relocate: null,
                     lastRentRevisionAt: null,
                     noAnnualRevision: false,
-                    evictionConfirmed: false,
                     evictionDate: null,
                     payStatus: null,
                     paymentHistory: {},
@@ -1482,7 +1508,6 @@
                     relocate: archivedTenant?.relocate ?? null,
                     lastRentRevisionAt: archivedTenant?.lastRentRevisionAt ?? null,
                     noAnnualRevision: Boolean(archivedTenant?.noAnnualRevision),
-                    evictionConfirmed: Boolean(archivedTenant?.evictionConfirmed),
                     evictionDate: archivedTenant?.evictionDate ?? null,
                     payStatus: null,
                     paymentHistory: archivedTenant?.paymentHistory ?? {},
@@ -1691,7 +1716,6 @@
                         relocate: null,
                         lastRentRevisionAt: null,
                         noAnnualRevision: false,
-                        evictionConfirmed: false,
                         evictionDate: null,
                         payStatus: null,
                         paymentHistory: {},
