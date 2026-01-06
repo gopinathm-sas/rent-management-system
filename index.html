@@ -625,6 +625,7 @@
                         <li><span class="font-mono">RoomNo, 2025-Jan, 1234</span></li>
                         <li><span class="font-mono">RoomId, 2025, Jan, 1234</span></li>
                         <li><span class="font-mono">Excel table format:</span> <span class="font-mono">Room No</span>, <span class="font-mono">Room ID</span>, <span class="font-mono">Tenant Name</span>, <span class="font-mono">Apr</span>, <span class="font-mono">May</span>, <span class="font-mono">Jun</span>…</li>
+                        <li><span class="font-mono">Excel month headers may include year:</span> <span class="font-mono">Apr-2024</span>, <span class="font-mono">Apr 24</span>, <span class="font-mono">04/2024</span>, <span class="font-mono">2024-Apr</span></li>
                         <li>Separator can be comma or tab</li>
                     </ul>
                     <p class="text-xs text-gray-500 mt-2">If month headers don’t include a year (e.g. “April”), the import uses the Water Bill year currently selected in the app.</p>
@@ -4658,6 +4659,36 @@
                 if (m3) {
                     const year = Number(m3[2]);
                     const monthIndex = parseMonthIndex(m3[1]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+
+                // Support 2-digit year forms: Apr-24, Apr 24, 04/24, 24-Apr
+                const m4 = raw.match(/^([A-Za-z]{3,}|\d{1,2})\s*[-/ ]\s*(\d{2})$/);
+                if (m4) {
+                    const yy = Number(m4[2]);
+                    const year = Number.isFinite(yy) ? (yy >= 0 && yy <= 69 ? 2000 + yy : 1900 + yy) : NaN;
+                    const monthIndex = parseMonthIndex(m4[1]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+                const m5 = raw.match(/^(\d{2})\s*[-/ ]\s*([A-Za-z]{3,}|\d{1,2})$/);
+                if (m5) {
+                    const yy = Number(m5[1]);
+                    const year = Number.isFinite(yy) ? (yy >= 0 && yy <= 69 ? 2000 + yy : 1900 + yy) : NaN;
+                    const monthIndex = parseMonthIndex(m5[2]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+
+                // Support numeric month with 4-digit year: 04/2024, 4-2024, 2024/04
+                const m6 = raw.match(/^(\d{1,2})\s*[-/ ]\s*(\d{4})$/);
+                if (m6) {
+                    const monthIndex = parseMonthIndex(m6[1]);
+                    const year = Number(m6[2]);
+                    if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
+                }
+                const m7 = raw.match(/^(\d{4})\s*[-/ ]\s*(\d{1,2})$/);
+                if (m7) {
+                    const year = Number(m7[1]);
+                    const monthIndex = parseMonthIndex(m7[2]);
                     if (Number.isFinite(year) && monthIndex !== null) return { year, monthIndex };
                 }
 
