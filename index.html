@@ -1064,6 +1064,21 @@
             return m >= nowM;
         }
 
+        function findRestoreCandidateForRoomId(roomId) {
+            const rid = String(roomId || '').trim();
+            if (!rid) return null;
+            const candidates = (Array.isArray(allPropertiesData) ? allPropertiesData : [])
+                .filter(p => String(p?.roomId || '').trim() === rid);
+
+            const withArchived = candidates.filter(p => p && p.archivedTenant);
+            if (withArchived.length === 0) return null;
+
+            const vacantArchived = withArchived.filter(p => !isOccupiedRecord(p));
+            const list = vacantArchived.length ? vacantArchived : withArchived;
+            const sorted = [...list].sort((a, b) => getRecordSortTimeMs(b) - getRecordSortTimeMs(a));
+            return sorted[0] || null;
+        }
+
         function pickBestRoomRecord(records) {
             if (!Array.isArray(records) || records.length === 0) return null;
             const sorted = [...records].sort((a, b) => {
@@ -1253,12 +1268,10 @@
             const noAnnualRevision = Boolean(tenantData?.noAnnualRevision);
             const evictionDate = parseDateValue(tenantData?.evictionDate);
             const evictionNoticeDate = parseDateValue(tenantData?.evictionNoticeDate);
+            const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
             const archivedTenant = tenantData?.archivedTenant || null;
-            const canRestoreArchivedTenant = !isOccupied && !!archivedTenant && (
-                String(archivedTenant?.tenant || '').trim() ||
-                String(archivedTenant?.contact || '').trim() ||
-                (archivedTenant?.rent !== null && archivedTenant?.rent !== undefined)
-            );
+            const restoreCandidate = findRestoreCandidateForRoomId(roomData.roomId);
+            const canRestoreArchivedTenant = !!restoreCandidate;
             const unRevisedRent = tenantData?.unRevisedRent;
             const hasUnRevisedRent = unRevisedRent !== null && unRevisedRent !== undefined && String(unRevisedRent).trim() !== '';
             const unRevisedRentNum = hasUnRevisedRent ? Number(unRevisedRent) : NaN;
@@ -1381,20 +1394,29 @@
                                     </div>
                                     <div class="col-span-2">
                                         <div class="flex flex-wrap gap-3">
-                                            <button ${isOccupied ? '' : 'disabled'} onclick="window.setEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${isOccupied ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.setEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Set Eviction Date
                                             </button>
-                                            <button ${(isOccupied && evictionDate) ? '' : 'disabled'} onclick="window.clearEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${(isOccupied && evictionConfirmed && evictionDate) ? '' : 'disabled'} onclick="window.clearEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed && evictionDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Clear Eviction Date
                                             </button>
-                                            <button ${isOccupied ? '' : 'disabled'} onclick="window.setEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${isOccupied ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.setEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Set Notice Date
                                             </button>
-                                            <button ${(isOccupied && evictionNoticeDate) ? '' : 'disabled'} onclick="window.clearEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionNoticeDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${(isOccupied && evictionConfirmed && evictionNoticeDate) ? '' : 'disabled'} onclick="window.clearEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed && evictionNoticeDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Clear Notice Date
                                             </button>
                                         </div>
-                                        <p class="text-xs text-gray-500 mt-2">When the eviction date is reached, the room auto-moves to Vacant (with archive).</p>
+                                        <p class="text-xs text-gray-500 mt-2">Tick <span class="font-semibold">Tenant confirmed eviction</span> to enable eviction/notice dates. When the eviction date is reached, the room auto-moves to Vacant (with archive).</p>
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="inline-flex items-start gap-3 cursor-pointer">
+                                            <input id="evictionConfirmed_${roomData.roomId}" type="checkbox" class="mt-1" ${evictionConfirmed ? 'checked' : ''} ${isOccupied ? '' : 'disabled'} onchange="window.updateEvictionConfirmed('${roomData.roomId}', this.checked)" />
+                                            <span>
+                                                <span class="text-sm font-semibold text-gray-800">Tenant confirmed eviction</span>
+                                                <span class="block text-xs text-gray-500">Enable eviction notice/date and deposit settlement controls.</span>
+                                            </span>
+                                        </label>
                                     </div>
                                     <div class="col-span-2">
                                         <label class="inline-flex items-start gap-3 cursor-pointer">
@@ -1411,12 +1433,12 @@
                             <!-- Eviction Settlement Section -->
                             <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-6">
                                 <h3 class="text-xl font-bold text-red-900 mb-2">🚪 Eviction Settlement (From Deposit)</h3>
-                                <p class="text-xs text-gray-600 mb-4">From the notice date till vacating, rent + water (full months) will be deducted from the security deposit, plus mandatory 1 month rent.</p>
+                                <p class="text-xs text-gray-600 mb-4">From the notice date till vacating, rent + water + ₹${RENT_WATER_SERVICE_CHARGE} (full months) will be deducted from the security deposit, plus mandatory 1 month rent (rent only).</p>
 
                                 ${settlementPreview.html}
 
                                 <div class="mt-4 flex flex-wrap gap-3">
-                                    <button ${isOccupied ? '' : 'disabled'} onclick="window.finalizeEvictionSettlementAndVacate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${isOccupied ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                    <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.finalizeEvictionSettlementAndVacate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                         Finalize Settlement & Mark Vacant
                                     </button>
                                 </div>
@@ -1840,15 +1862,17 @@
                     no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
                 );
                 const roomData = immutableRoomNo ? IMMUTABLE_ROOMS_DATA[immutableRoomNo] : null;
-                const tenantRecord = immutableRoomNo
+                const tenantRecord = findRestoreCandidateForRoomId(roomId) || (immutableRoomNo
                     ? findTenantForRoom(roomData)
-                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim())));
 
                 if (!tenantRecord?.id) {
                     showNotification('Cannot restore: tenant record not found.', 'warning');
                     return;
                 }
 
+                // If duplicates exist, the best-room-record can look occupied even when the latest record is vacant.
+                // Our selector prefers a vacant archived record; if still occupied here, block restore.
                 if (isOccupiedRecord(tenantRecord)) {
                     showNotification('Cannot restore: room is currently occupied.', 'warning');
                     return;
@@ -1930,6 +1954,7 @@
         // SET / CLEAR: EVICTION DATE (per-tenant)
         function computeEvictionSettlementPreview(tenantRecord, noticeDate, vacateDate) {
             const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const servicePerMonth = Number(RENT_WATER_SERVICE_CHARGE) || 0;
 
             const rent = Number(tenantRecord?.rent) || 0;
             const deposit = Number(tenantRecord?.deposit) || 0;
@@ -1989,6 +2014,8 @@
             const rentDeduction = rentMonths * rent;
             const mandatoryNoticeRent = rent; // Always exactly 1 month rent
 
+            const serviceDeduction = rentMonths * servicePerMonth;
+
             let waterDeductionKnown = 0;
             const missingWater = [];
 
@@ -2005,7 +2032,7 @@
 
                 const rentLabel = rent ? `₹${Math.round(rent).toLocaleString('en-IN')}` : '₹0';
                 const waterLabel = hasAmount ? `₹${Math.round(amt).toLocaleString('en-IN')}` : '—';
-                const waterMeta = hasAmount ? `${Math.round(units)} units` : 'Missing readings';
+                const waterMeta = hasAmount ? `${Math.round(units)} units + ₹${servicePerMonth}` : `Missing readings + ₹${servicePerMonth}`;
 
                 return `
                     <tr class="border-b">
@@ -2017,7 +2044,7 @@
                 `;
             }).join('');
 
-            const totalDeductionKnown = rentDeduction + mandatoryNoticeRent + waterDeductionKnown;
+            const totalDeductionKnown = rentDeduction + mandatoryNoticeRent + waterDeductionKnown + serviceDeduction;
             const refundKnown = deposit - totalDeductionKnown;
 
             const refundLabel = `₹${Math.round(Math.abs(refundKnown)).toLocaleString('en-IN')}`;
@@ -2045,8 +2072,8 @@
                                 <p class="text-lg font-bold">₹${Math.round(rentDeduction).toLocaleString('en-IN')}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-600 font-semibold">Water Deduction (known)</p>
-                                <p class="text-lg font-bold">₹${Math.round(waterDeductionKnown).toLocaleString('en-IN')}</p>
+                                <p class="text-xs text-gray-600 font-semibold">Water + Service (known)</p>
+                                <p class="text-lg font-bold">₹${Math.round(waterDeductionKnown + serviceDeduction).toLocaleString('en-IN')}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-600 font-semibold">Security Deposit</p>
@@ -2117,6 +2144,11 @@
                     return;
                 }
 
+                if (!Boolean(tenantRecord?.evictionConfirmed)) {
+                    showNotification('Please tick "Tenant confirmed eviction" first.', 'warning');
+                    return;
+                }
+
                 const existingDate = tenantRecord?.evictionDate;
                 const dateStr = await window.uiPrompt({
                     title: 'Eviction date',
@@ -2181,6 +2213,11 @@
                     return;
                 }
 
+                if (!Boolean(tenantRecord?.evictionConfirmed)) {
+                    showNotification('Please tick "Tenant confirmed eviction" first.', 'warning');
+                    return;
+                }
+
                 const ok = await window.uiConfirm({
                     title: 'Clear eviction date?',
                     message: `Room ${roomId} will no longer auto-vacate by eviction date.`,
@@ -2232,6 +2269,11 @@
 
                 if (!isOccupiedRecord(tenantRecord)) {
                     showNotification('Notice date can be set only for occupied rooms.', 'warning');
+                    return;
+                }
+
+                if (!Boolean(tenantRecord?.evictionConfirmed)) {
+                    showNotification('Please tick "Tenant confirmed eviction" first.', 'warning');
                     return;
                 }
 
@@ -2298,6 +2340,11 @@
                     return;
                 }
 
+                if (!Boolean(tenantRecord?.evictionConfirmed)) {
+                    showNotification('Please tick "Tenant confirmed eviction" first.', 'warning');
+                    return;
+                }
+
                 const ok = await window.uiConfirm({
                     title: 'Clear notice date?',
                     message: `Room ${roomId} will no longer have a notice date for settlement calculations.`,
@@ -2348,6 +2395,11 @@
                     return;
                 }
 
+                if (!Boolean(tenantRecord?.evictionConfirmed)) {
+                    showNotification('Please tick "Tenant confirmed eviction" first.', 'warning');
+                    return;
+                }
+
                 const noticeDate = parseDateValue(tenantRecord?.evictionNoticeDate);
                 if (!noticeDate) {
                     showNotification('Please set Eviction Notice Date first.', 'warning');
@@ -2376,7 +2428,7 @@
                 if (missing.length) {
                     const okMissing = await window.uiConfirm({
                         title: 'Missing water readings',
-                        message: `Water readings are missing for: ${missing.join(', ')}.\n\nFinalize with water for these months treated as 0?`,
+                        message: `Water readings are missing for: ${missing.join(', ')}.\n\nFinalize with water for these months treated as 0? (₹${RENT_WATER_SERVICE_CHARGE} service will still be applied per month)`,
                         confirmText: 'Finalize anyway',
                         cancelText: 'Cancel',
                         danger: true
@@ -2397,6 +2449,7 @@
 
                 // Build final settlement snapshot (treat missing water months as 0 but record them)
                 const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                const servicePerMonth = Number(RENT_WATER_SERVICE_CHARGE) || 0;
                 const rateRaw = Number(tenantRecord?.waterRate);
                 const roomNo = String(tenantRecord?.roomNo || '').trim();
                 const waterRate = Number.isFinite(rateRaw) ? rateRaw : getDefaultWaterRateForRoom(roomNo);
@@ -2427,6 +2480,7 @@
                 }
 
                 const waterByMonth = {};
+                const serviceByMonth = {};
                 let waterTotal = 0;
                 const missingWaterMonths = [];
                 for (const it of monthList) {
@@ -2441,12 +2495,15 @@
                         waterByMonth[it.key] = 0;
                         missingWaterMonths.push(it.key);
                     }
+
+                    serviceByMonth[it.key] = servicePerMonth;
                 }
 
                 const rentMonths = monthList.length;
                 const rentDeduction = rentMonths * rent;
                 const mandatoryNoticeRent = rent;
-                const totalDeduction = rentDeduction + mandatoryNoticeRent + waterTotal;
+                const serviceDeduction = rentMonths * servicePerMonth;
+                const totalDeduction = rentDeduction + mandatoryNoticeRent + waterTotal + serviceDeduction;
                 const refund = deposit - totalDeduction;
 
                 const evictionSettlement = {
@@ -2455,6 +2512,8 @@
                     months: monthList.map(x => x.key),
                     rentPerMonth: rent,
                     waterRate,
+                    serviceChargePerMonth: servicePerMonth,
+                    serviceChargeTotal: Math.round(serviceDeduction),
                     mandatoryNoticeRent,
                     rentDeduction,
                     waterDeduction: Math.round(waterTotal),
@@ -2462,6 +2521,7 @@
                     deposit,
                     refund: Math.round(refund),
                     waterByMonth,
+                    serviceByMonth,
                     missingWaterMonths,
                     createdAt: serverTimestamp(),
                     createdBy: currentUser.uid
@@ -2665,6 +2725,70 @@
 
                 // Best-effort: revert checkbox visual state
                 const el = document.getElementById(`noAnnualRevision_${roomId}`);
+                if (el) el.checked = !Boolean(checked);
+            }
+        };
+
+        // TOGGLE: TENANT CONFIRMED EVICTION (gates notice/eviction controls)
+        window.updateEvictionConfirmed = async (roomId, checked) => {
+            if (!currentUser) {
+                showNotification("Please login first", "warning");
+                return;
+            }
+
+            try {
+                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
+                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
+                );
+                const tenantRecord = immutableRoomNo
+                    ? findTenantForRoom(IMMUTABLE_ROOMS_DATA[immutableRoomNo])
+                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
+
+                if (!tenantRecord?.id) {
+                    showNotification("Cannot update: Tenant record not found", "error");
+                    return;
+                }
+
+                if (!isOccupiedRecord(tenantRecord)) {
+                    showNotification('Eviction confirmation can be set only for occupied rooms.', 'warning');
+                    return;
+                }
+
+                const payload = {
+                    evictionConfirmed: Boolean(checked),
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser.uid
+                };
+
+                if (!checked) {
+                    const ok = await window.uiConfirm({
+                        title: 'Turn off eviction confirmation?',
+                        message: 'This will disable eviction/notice controls. Do you also want to clear Notice Date and Eviction Date?',
+                        confirmText: 'Yes, clear dates',
+                        cancelText: 'Keep dates',
+                        danger: false
+                    });
+                    if (ok) {
+                        payload.evictionDate = null;
+                        payload.evictionNoticeDate = null;
+                        payload.evictionSettlement = null;
+                    }
+                }
+
+                await updateDoc(doc(db, "properties", tenantRecord.id), payload);
+                showNotification(`✓ Eviction confirmation ${checked ? 'enabled' : 'disabled'} for Room ${roomId}`, "success");
+
+                if (immutableRoomNo) {
+                    setTimeout(() => {
+                        window.closeRoomDetailModal();
+                        window.openRoomDetailModal(immutableRoomNo);
+                    }, 150);
+                }
+            } catch (error) {
+                console.error('updateEvictionConfirmed failed', error);
+                showNotification("Error: " + error.message, "error");
+
+                const el = document.getElementById(`evictionConfirmed_${roomId}`);
                 if (el) el.checked = !Boolean(checked);
             }
         };
