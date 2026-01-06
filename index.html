@@ -162,6 +162,18 @@
                     <p class="text-xs text-gray-500 mt-4">Based on last rent revision date (fallback: relocation date). Click a tenant to open their room card and edit rent.</p>
                 </div>
 
+                <!-- Pending this Month (Quick List) -->
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 mb-12">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h3 class="text-xl md:text-2xl font-bold text-gray-800">Pending this month</h3>
+                        <span id="pending-this-month-count" class="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-semibold bg-orange-50 text-orange-800 border border-orange-200">0</span>
+                    </div>
+                    <div id="pendingThisMonthList" class="space-y-3">
+                        <p class="text-gray-400">Loading...</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">Click a row to open the room card.</p>
+                </div>
+
                 <!-- 12 Immutable Rooms Section -->
                 <h3 class="text-3xl font-bold text-gray-800 mb-8">Room Details</h3>
                 <div id="roomCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2112,6 +2124,64 @@
             if (vacantEl) vacantEl.innerText = vacantCount;
             if (pendingEl) pendingEl.innerText = '₹' + totalPending.toLocaleString();
             if (receivedEl) receivedEl.innerText = '₹' + totalReceived.toLocaleString();
+
+            // Keep quick lists in sync
+            try { window.renderPendingThisMonthCard(); } catch (e) { console.warn("⚠️ renderPendingThisMonthCard failed:", e); }
+        };
+
+        // DASHBOARD: PENDING THIS MONTH (compact list)
+        window.renderPendingThisMonthCard = () => {
+            const listEl = document.getElementById('pendingThisMonthList');
+            const countEl = document.getElementById('pending-this-month-count');
+            if (!listEl) return;
+
+            const now = new Date();
+            const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const currentMonthKey = `${now.getFullYear()}-${monthNames[now.getMonth()]}`;
+
+            const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+            const pending = [];
+
+            for (const roomNoKey of roomNos) {
+                const roomData = IMMUTABLE_ROOMS_DATA[roomNoKey];
+                const tenantData = findTenantForRoom(roomData);
+                if (!isOccupiedRecord(tenantData)) continue;
+
+                const history = tenantData?.paymentHistory || {};
+                const status = history[currentMonthKey] || tenantData?.payStatus || 'None';
+                if (status !== 'Pending') continue;
+
+                const rent = Number(tenantData?.rent) || 0;
+                pending.push({
+                    roomNoKey,
+                    roomNoLabel: roomData?.roomNo ?? roomNoKey,
+                    tenant: tenantData?.tenant || 'Tenant',
+                    amount: rent
+                });
+            }
+
+            if (countEl) countEl.textContent = String(pending.length);
+
+            if (pending.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-400">No pending rents for this month.</p>';
+                return;
+            }
+
+            listEl.innerHTML = pending.map(item => {
+                const amountLabel = item.amount ? `₹${item.amount.toLocaleString('en-IN')}` : '₹0';
+                const safeTenant = escapeHtml(String(item.tenant || 'Tenant'));
+                return `
+                    <button type="button" class="w-full text-left p-4 rounded-lg border border-gray-200 hover:bg-orange-50 hover:border-orange-200 transition" onclick="window.openRoomDetailModal('${item.roomNoKey}')">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-bold text-gray-800">Room ${escapeHtml(String(item.roomNoLabel))}</div>
+                                <div class="text-xs text-gray-600 mt-1 truncate">${safeTenant}</div>
+                            </div>
+                            <div class="text-sm font-bold text-orange-700">${amountLabel}</div>
+                        </div>
+                    </button>
+                `;
+            }).join('');
         };
 
         // DASHBOARD: RENT REVISION DUE SOON (based on relocation anniversary)
