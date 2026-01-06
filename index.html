@@ -1848,6 +1848,7 @@
             label = 'Value',
             placeholder = '',
             value = '',
+            infoRows = [],
             inputType = 'text',
             inputMode = undefined,
             okText = 'Save',
@@ -1869,6 +1870,23 @@
                 const safeOkText = escapeHtml(String(okText ?? 'OK'));
                 const safeCancelText = escapeHtml(String(cancelText ?? 'Cancel'));
 
+                const normalizedInfoRows = Array.isArray(infoRows) ? infoRows : [];
+                const infoRowsHtml = normalizedInfoRows
+                    .filter(r => r && (r.label !== undefined || r.value !== undefined))
+                    .map(r => {
+                        const l = escapeHtml(String(r?.label ?? ''));
+                        const v = escapeHtml(String(r?.value ?? ''));
+                        if (!l && !v) return '';
+                        return `
+                            <div class="mb-3">
+                                ${l ? `<div class=\"block text-xs font-semibold text-gray-600 mb-1\">${l}</div>` : ''}
+                                <input class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-700" value="${v}" readonly disabled />
+                            </div>
+                        `;
+                    })
+                    .filter(Boolean)
+                    .join('');
+
                 const inputModeAttr = inputMode ? ` inputmode="${escapeHtml(String(inputMode))}"` : '';
 
                 modal.innerHTML = `
@@ -1878,6 +1896,7 @@
                             ${safeSubtitle ? `<p class=\"text-sm text-gray-500 mt-1\">${safeSubtitle}</p>` : ''}
                         </div>
                         <div class="p-6">
+                            ${infoRowsHtml ? `<div class=\"mb-4\">${infoRowsHtml}</div>` : ''}
                             <label for="hoverInputField" class="block text-sm font-semibold text-gray-700 mb-2">${safeLabel}</label>
                             <input id="hoverInputField" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" type="${escapeHtml(String(inputType))}"${inputModeAttr} placeholder="${safePlaceholder}" value="${safeValue}" />
                         </div>
@@ -2063,6 +2082,7 @@
             label = 'Value',
             placeholder = '',
             value = '',
+            infoRows = [],
             inputType = 'text',
             inputMode = undefined,
             okText = 'Save',
@@ -2072,7 +2092,7 @@
                 const promptLabel = [title, subtitle, label].filter(Boolean).join('\n');
                 return prompt(promptLabel, String(value ?? ''));
             }
-            return window.showHoverInputModal({ title, subtitle, label, placeholder, value, inputType, inputMode, okText, cancelText });
+            return window.showHoverInputModal({ title, subtitle, label, placeholder, value, infoRows, inputType, inputMode, okText, cancelText });
         };
 
         // UPDATE OCCUPANCY METRICS - Count only the 12 immutable rooms
@@ -3783,29 +3803,55 @@
                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 const monthLabel = months?.[monthIndex] ? `${months[monthIndex]} ${year}` : String(key);
 
-                const input = await window.uiPrompt({
-                    title: 'Water meter reading',
-                    subtitle: `Room ${roomId} • ${monthLabel}`,
-                    label: 'Enter the current meter reading',
-                    placeholder: 'e.g. 1234',
-                    value: (existing ?? '').toString(),
-                    inputType: 'number',
-                    inputMode: 'numeric',
-                    okText: 'Save',
-                    cancelText: 'Cancel'
-                });
-                if (input === null) return;
+                const prev = getPrevYearMonth(year, monthIndex);
+                const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
+                const prevReadingRaw = tenantRecord?.waterReadings?.[prevKey];
+                const prevReadingNum = (prevReadingRaw !== null && prevReadingRaw !== undefined && prevReadingRaw !== '')
+                    ? Number(prevReadingRaw)
+                    : NaN;
+                const prevLabel = months?.[prev.monthIndex] ? `${months[prev.monthIndex]} ${prev.year}` : String(prevKey);
+                const prevDisplay = Number.isFinite(prevReadingNum) ? String(prevReadingNum) : 'Not set';
 
-                const value = Number(String(input).trim());
-                if (!Number.isFinite(value) || value < 0) {
-                    showNotification('Invalid reading. Please enter a non-negative number.', 'warning');
+                while (true) {
+                    const input = await window.uiPrompt({
+                        title: 'Water meter reading',
+                        subtitle: `Room ${roomId} • ${monthLabel}`,
+                        infoRows: [
+                            { label: `Previous month reading (${prevLabel})`, value: prevDisplay }
+                        ],
+                        label: 'Enter the current meter reading',
+                        placeholder: 'e.g. 1234',
+                        value: (existing ?? '').toString(),
+                        inputType: 'number',
+                        inputMode: 'numeric',
+                        okText: 'Save',
+                        cancelText: 'Cancel'
+                    });
+                    if (input === null) return;
+
+                    const value = Number(String(input).trim());
+                    if (!Number.isFinite(value) || value < 0) {
+                        showNotification('Invalid reading. Please enter a non-negative number.', 'warning');
+                        continue;
+                    }
+
+                    if (Number.isFinite(prevReadingNum) && value < prevReadingNum) {
+                        const ok = await window.uiConfirm({
+                            title: 'Reading is lower than last month',
+                            message: `Previous (${prevLabel}) = ${prevReadingNum}. You entered ${value}. This will result in negative units. Save anyway?`,
+                            confirmText: 'Save Anyway',
+                            cancelText: 'Re-enter',
+                            danger: true
+                        });
+                        if (!ok) continue;
+                    }
+
+                    const ref = doc(db, 'properties', tenantRecord.id);
+                    await updateDoc(ref, { [`waterReadings.${key}`]: value });
+                    showNotification('✓ Water reading saved', 'success');
+                    window.renderWaterBillTable();
                     return;
                 }
-
-                const ref = doc(db, 'properties', tenantRecord.id);
-                await updateDoc(ref, { [`waterReadings.${key}`]: value });
-                showNotification('✓ Water reading saved', 'success');
-                window.renderWaterBillTable();
             } catch (e) {
                 console.error('setWaterReading failed', e);
                 showNotification('Error: ' + e.message, 'error');
