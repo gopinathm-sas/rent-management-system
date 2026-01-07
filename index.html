@@ -291,13 +291,8 @@
                     <h2 class="text-2xl font-bold text-gray-700">Rent Details</h2>
                     <div class="flex items-center gap-2 text-sm text-gray-700">
                         <span class="font-semibold">Year</span>
-                        <button type="button" onclick="changeRentDetailsYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
                         <span id="rent-details-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <button type="button" onclick="changeRentDetailsYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
+                        <span class="text-xs text-gray-500">(from Dashboard)</span>
                     </div>
                 </div>
                 <p class="text-gray-500 mb-4">Monthly rent payment status for all rooms - select a year, then click any month to toggle (Pending/Rent Only/Paid/None)</p>
@@ -402,13 +397,8 @@
                     <h2 class="text-2xl font-bold text-gray-700">Water Bill</h2>
                     <div class="flex items-center gap-2 text-sm text-gray-700">
                         <span class="font-semibold">Year</span>
-                        <button type="button" onclick="changeWaterBillYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
                         <span id="water-bill-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <button type="button" onclick="changeWaterBillYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
+                        <span class="text-xs text-gray-500">(from Dashboard)</span>
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -463,13 +453,25 @@
                     <h2 class="text-2xl font-bold text-gray-700">Expenses</h2>
                     <div class="flex items-center gap-2 text-sm text-gray-700">
                         <span class="font-semibold">Year</span>
-                        <button type="button" onclick="changeExpensesYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
                         <span id="expenses-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <button type="button" onclick="changeExpensesYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
+                        <span class="text-xs text-gray-500 mr-2">(from Dashboard)</span>
+
+                        <span class="font-semibold">Month</span>
+                        <select id="expenses-month-filter" onchange="window.setExpensesMonthFilter(this.value)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50">
+                            <option value="All">All</option>
+                            <option value="0">Jan</option>
+                            <option value="1">Feb</option>
+                            <option value="2">Mar</option>
+                            <option value="3">Apr</option>
+                            <option value="4">May</option>
+                            <option value="5">Jun</option>
+                            <option value="6">Jul</option>
+                            <option value="7">Aug</option>
+                            <option value="8">Sep</option>
+                            <option value="9">Oct</option>
+                            <option value="10">Nov</option>
+                            <option value="11">Dec</option>
+                        </select>
                     </div>
                 </div>
                 <p class="text-gray-500 mb-4">Add item-wise expenses (salary, electricity, internet, maintenance). Dashboard shows month totals.</p>
@@ -1060,6 +1062,82 @@
         let currentWaterBillYear = new Date().getFullYear();
         let currentDashboardYear = new Date().getFullYear();
         let currentExpensesYear = new Date().getFullYear();
+
+        const SELECTED_YEAR_STORAGE_KEY = 'selectedYear';
+        const EXPENSES_MONTH_FILTER_KEY = 'expensesMonthFilter';
+
+        function normalizeYear(rawYear) {
+            const nowY = new Date().getFullYear();
+            const y = Number(rawYear);
+            if (!Number.isFinite(y)) return nowY;
+            const yy = Math.trunc(y);
+            // Keep a reasonable bound to avoid weird UI states.
+            return Math.min(2100, Math.max(1970, yy));
+        }
+
+        function getSelectedYear() {
+            try {
+                const v = sessionStorage.getItem(SELECTED_YEAR_STORAGE_KEY);
+                if (v !== null && v !== undefined && String(v).trim() !== '') return normalizeYear(v);
+            } catch (e) { /* ignore */ }
+            return normalizeYear(currentDashboardYear);
+        }
+
+        function getExpensesMonthFilter() {
+            try {
+                const v = sessionStorage.getItem(EXPENSES_MONTH_FILTER_KEY);
+                if (v !== null && v !== undefined && String(v).trim() !== '') return String(v);
+            } catch (e) { /* ignore */ }
+            return 'All';
+        }
+
+        function syncYearVariables(year) {
+            const y = normalizeYear(year);
+            currentDashboardYear = y;
+            currentRentDetailsYear = y;
+            currentWaterBillYear = y;
+            currentExpensesYear = y;
+        }
+
+        function syncYearLabels(year) {
+            const y = normalizeYear(year);
+            try {
+                const dy = document.getElementById('dashboard-year');
+                if (dy) dy.textContent = String(y);
+                const ry = document.getElementById('rent-details-year');
+                if (ry) ry.textContent = String(y);
+                const wy = document.getElementById('water-bill-year');
+                if (wy) wy.textContent = String(y);
+                const ey = document.getElementById('expenses-year');
+                if (ey) ey.textContent = String(y);
+
+                const monthEl = document.getElementById('expenses-month-filter');
+                if (monthEl) monthEl.value = getExpensesMonthFilter();
+            } catch (e) { /* ignore */ }
+        }
+
+        function rerenderYearDependentViews() {
+            try { window.renderFinancialDashboard(); } catch (e) { /* ignore */ }
+            try { window.renderExpensesList(); } catch (e) { /* ignore */ }
+            try { window.renderRentDetailsTable(); } catch (e) { /* ignore */ }
+            try { window.renderRentWaterTable(); } catch (e) { /* ignore */ }
+            try { window.renderWaterBillTable(); } catch (e) { /* ignore */ }
+        }
+
+        function setSelectedYear(nextYear) {
+            const y = normalizeYear(nextYear);
+            try { sessionStorage.setItem(SELECTED_YEAR_STORAGE_KEY, String(y)); } catch (e) { /* ignore */ }
+            syncYearVariables(y);
+            syncYearLabels(y);
+            rerenderYearDependentViews();
+        }
+
+        window.setExpensesMonthFilter = (value) => {
+            const v = String(value || 'All');
+            try { sessionStorage.setItem(EXPENSES_MONTH_FILTER_KEY, v); } catch (e) { /* ignore */ }
+            // Only expenses list is filtered by month; dashboards stay year-based.
+            try { window.renderExpensesList(); } catch (e) { /* ignore */ }
+        };
 
         let isAdminSession = false;
 
@@ -3587,14 +3665,13 @@
 
         window.renderFinancialDashboard = () => {
             const yearLabel = document.getElementById('dashboard-year');
-            if (yearLabel) yearLabel.textContent = String(currentDashboardYear);
+            const selectedYear = getSelectedYear();
+            if (yearLabel) yearLabel.textContent = String(selectedYear);
 
             const body = document.getElementById('dashboardBody');
             if (!body) return;
 
-            const year = (typeof currentDashboardYear === 'number' && Number.isFinite(currentDashboardYear))
-                ? currentDashboardYear
-                : new Date().getFullYear();
+            const year = selectedYear;
 
             const rows = [];
             const now = new Date();
@@ -3640,36 +3717,51 @@
         };
 
         window.changeDashboardYear = (delta) => {
-            currentDashboardYear = (Number(currentDashboardYear) || new Date().getFullYear()) + (Number(delta) || 0);
-            window.renderFinancialDashboard();
+            const next = (Number(getSelectedYear()) || new Date().getFullYear()) + (Number(delta) || 0);
+            setSelectedYear(next);
         };
 
         // EXPENSES
         window.changeExpensesYear = (delta) => {
-            currentExpensesYear = (Number(currentExpensesYear) || new Date().getFullYear()) + (Number(delta) || 0);
-            window.renderExpensesList();
-            window.renderFinancialDashboard();
+            // Back-compat: year is controlled from Dashboard.
+            const next = (Number(getSelectedYear()) || new Date().getFullYear()) + (Number(delta) || 0);
+            setSelectedYear(next);
         };
 
         window.renderExpensesList = () => {
             const yearLabel = document.getElementById('expenses-year');
-            if (yearLabel) yearLabel.textContent = String(currentExpensesYear);
+            const selectedYear = getSelectedYear();
+            if (yearLabel) yearLabel.textContent = String(selectedYear);
+
+            const monthFilterEl = document.getElementById('expenses-month-filter');
+            if (monthFilterEl) monthFilterEl.value = getExpensesMonthFilter();
+            const monthFilterRaw = monthFilterEl ? monthFilterEl.value : getExpensesMonthFilter();
+            const monthFilterIndex = (String(monthFilterRaw) === 'All') ? null : Number(monthFilterRaw);
 
             const tbody = document.getElementById('expensesBody');
             if (!tbody) return;
 
-            const year = (typeof currentExpensesYear === 'number' && Number.isFinite(currentExpensesYear))
-                ? currentExpensesYear
-                : new Date().getFullYear();
+            const year = selectedYear;
 
+            const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
             const filtered = (Array.isArray(allExpensesData) ? allExpensesData : [])
                 .filter(e => {
                     const d = parseDateValue(e?.date);
-                    return d ? d.getFullYear() === year : (Number(e?.year) === year);
+                    const yOk = d ? d.getFullYear() === year : (Number(e?.year) === year);
+                    if (!yOk) return false;
+                    if (monthFilterIndex === null) return true;
+                    if (!Number.isFinite(monthFilterIndex) || monthFilterIndex < 0 || monthFilterIndex > 11) return true;
+
+                    if (d) return d.getMonth() === monthFilterIndex;
+                    const mk = String(e?.monthKey || '');
+                    const parts = mk.split('-');
+                    const mLabel = String(parts?.[1] || '').trim();
+                    const mi = monthLabels.indexOf(mLabel);
+                    return mi === monthFilterIndex;
                 });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400">No expenses for this year.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400">No expenses found for selected period.</td></tr>';
                 return;
             }
 
@@ -4028,10 +4120,7 @@
 
                     // Initialize year labels
                     try {
-                        const dy = document.getElementById('dashboard-year');
-                        if (dy) dy.textContent = String(currentDashboardYear);
-                        const ey = document.getElementById('expenses-year');
-                        if (ey) ey.textContent = String(currentExpensesYear);
+                        setSelectedYear(getSelectedYear());
                     } catch (e) {
                         console.warn('⚠️ Year label init failed:', e);
                     }
@@ -4185,14 +4274,7 @@
                 if (amountEl) amountEl.value = '';
                 if (noteEl) noteEl.value = '';
 
-                currentExpensesYear = year;
-                currentDashboardYear = year;
-                try {
-                    const dy = document.getElementById('dashboard-year');
-                    if (dy) dy.textContent = String(currentDashboardYear);
-                    const ey = document.getElementById('expenses-year');
-                    if (ey) ey.textContent = String(currentExpensesYear);
-                } catch {}
+                setSelectedYear(year);
 
                 showNotification('✓ Expense saved', 'success');
                 try { window.renderExpensesList(); } catch {}
@@ -4455,9 +4537,9 @@
         };
 
         window.changeRentDetailsYear = (delta) => {
-            currentRentDetailsYear += delta;
-            window.renderRentDetailsTable();
-            try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+            // Back-compat: year is controlled from Dashboard.
+            const next = (Number(getSelectedYear()) || new Date().getFullYear()) + (Number(delta) || 0);
+            setSelectedYear(next);
         };
 
         window.renderLedger = () => {
@@ -5098,9 +5180,7 @@
             const tbody = document.getElementById('rentDetailsBody');
             if (!tbody) return;
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const selectedYear = (typeof currentRentDetailsYear === 'number' && Number.isFinite(currentRentDetailsYear))
-                ? currentRentDetailsYear
-                : new Date().getFullYear();
+            const selectedYear = getSelectedYear();
 
             const yearLabel = document.getElementById('rent-details-year');
             if (yearLabel) yearLabel.innerText = String(selectedYear);
@@ -5199,9 +5279,7 @@
             if (!tbody) return;
 
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const selectedYear = (typeof currentRentDetailsYear === 'number' && Number.isFinite(currentRentDetailsYear))
-                ? currentRentDetailsYear
-                : new Date().getFullYear();
+            const selectedYear = getSelectedYear();
 
             const now = new Date();
 
@@ -5444,9 +5522,9 @@
 
         // WATER BILL (Meter reading → Units → Amount)
         window.changeWaterBillYear = (delta) => {
-            const next = (Number(currentWaterBillYear) || new Date().getFullYear()) + (Number(delta) || 0);
-            currentWaterBillYear = next;
-            window.renderWaterBillTable();
+            // Back-compat: year is controlled from Dashboard.
+            const next = (Number(getSelectedYear()) || new Date().getFullYear()) + (Number(delta) || 0);
+            setSelectedYear(next);
         };
 
         function getWaterMonthKey(year, monthIndex) {
@@ -5503,9 +5581,7 @@
             if (!tbody) return;
 
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const selectedYear = (typeof currentWaterBillYear === 'number' && Number.isFinite(currentWaterBillYear))
-                ? currentWaterBillYear
-                : new Date().getFullYear();
+            const selectedYear = getSelectedYear();
 
             const yearLabel = document.getElementById('water-bill-year');
             if (yearLabel) yearLabel.innerText = String(selectedYear);
