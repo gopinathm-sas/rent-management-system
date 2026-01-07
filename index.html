@@ -311,18 +311,102 @@
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Jan</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(0)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Jan">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Feb</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(1)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Feb">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Mar</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(2)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Mar">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Apr</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(3)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Apr">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>May</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(4)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for May">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Jun</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(5)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Jun">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Jul</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(6)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Jul">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Aug</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(7)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Aug">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Sep</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(8)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Sep">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Oct</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(9)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Oct">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Nov</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(10)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Nov">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div>Dec</div>
+                                            <button type="button" onclick="sendWaterBillsWhatsAppWebForMonth(11)" class="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-[11px] font-semibold text-gray-700" title="Open WhatsApp Web chats for Dec">
+                                                <i class="fa-brands fa-whatsapp"></i>
+                                            </button>
+                                        </div>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="rentDetailsBody" class="divide-y">
@@ -416,9 +500,6 @@
                     <div class="flex items-center gap-2">
                         <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">
                             Reset Water Rate Defaults
-                        </button>
-                        <button type="button" onclick="sendWaterBillsWhatsAppWeb()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">
-                            Send via WhatsApp Web
                         </button>
                         <button type="button" onclick="openWaterImportModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
                             Import Readings
@@ -5700,7 +5781,7 @@
             return digits;
         }
 
-        window.sendWaterBillsWhatsAppWeb = async () => {
+        window.sendWaterBillsWhatsAppWebForMonth = async (monthIndex) => {
             try {
                 if (!currentUser) {
                     showNotification('Please login first.', 'warning');
@@ -5712,33 +5793,19 @@
                     ? currentWaterBillYear
                     : new Date().getFullYear();
 
-                const monthInput = await window.uiPrompt({
-                    title: 'Send via WhatsApp Web',
-                    subtitle: `Choose a month for ${selectedYear} (1 = Jan, 12 = Dec)` ,
-                    label: 'Month number',
-                    placeholder: '1-12',
-                    value: '',
-                    inputType: 'number',
-                    inputMode: 'numeric',
-                    okText: 'Next',
-                    cancelText: 'Cancel'
-                });
-                if (monthInput === null) return;
-
-                const monthNum = Number(String(monthInput).trim());
-                if (!Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) {
-                    showNotification('Invalid month. Enter a number from 1 to 12.', 'warning');
+                const mIdx = Number(monthIndex);
+                if (!Number.isFinite(mIdx) || mIdx < 0 || mIdx > 11) {
+                    showNotification('Invalid month', 'warning');
                     return;
                 }
-                const monthIndex = monthNum - 1;
 
-                if (isFutureYearMonth(selectedYear, monthIndex, new Date())) {
+                if (isFutureYearMonth(selectedYear, mIdx, new Date())) {
                     showNotification('Current & future months are disabled (available after month ends).', 'warning');
                     return;
                 }
 
-                const key = getWaterMonthKey(selectedYear, monthIndex);
-                const monthLabel = `${months[monthIndex]} ${selectedYear}`;
+                const key = getWaterMonthKey(selectedYear, mIdx);
+                const monthLabel = `${months[mIdx]} ${selectedYear}`;
 
                 const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
                 const messages = [];
@@ -5767,7 +5834,7 @@
 
                     const rate = Number(tenantData?.waterRate);
                     const effectiveRate = Number.isFinite(rate) ? rate : DEFAULT_WATER_RATE;
-                    const result = computeWaterForMonth(tenantData, selectedYear, monthIndex, effectiveRate);
+                    const result = computeWaterForMonth(tenantData, selectedYear, mIdx, effectiveRate);
                     if (!Number.isFinite(result?.amount) || !Number.isFinite(result?.units)) { skippedMissingReadings++; continue; }
                     if (Number(result?.units) < 0) { skippedNegativeUnits++; continue; }
 
@@ -5820,7 +5887,7 @@
                     showNotification(`Opened ${opened} WhatsApp Web tab(s).`, opened === messages.length ? 'success' : 'warning');
                 }
             } catch (e) {
-                console.error('sendWaterBillsWhatsAppWeb failed', e);
+                console.error('sendWaterBillsWhatsAppWebForMonth failed', e);
                 showNotification('Error: ' + (e?.message || String(e)), 'error');
             }
         };
