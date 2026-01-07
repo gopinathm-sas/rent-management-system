@@ -5772,36 +5772,32 @@
             const url = `https://web.whatsapp.com/send?phone=${encodeURIComponent(to)}&text=${encodeURIComponent(body)}&type=phone_number&app_absent=0`;
 
             // Reuse a single WhatsApp Web tab/window (avoid opening new tabs every click).
-            const WHATSAPP_WEB_WINDOW_NAME = 'whatsapp_web_tab';
-            let win = (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed)
-                ? window.__whatsappWebWindow
-                : null;
-
-            // Prefer opening/navigating via window.open(url, name): browsers will reuse the named tab if it exists.
-            try {
-                win = window.open(url, WHATSAPP_WEB_WINDOW_NAME);
-            } catch (e) {
-                // If popups are blocked, this can fail.
-            }
-
-            if (win) {
-                try { win.focus(); } catch (e) {}
-                window.__whatsappWebWindow = win;
-                return true;
-            }
-
-            // Last-ditch fallback: if we still have a reference, try navigating it.
-            if (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed) {
+            // Note: some browsers clear window.name on cross-site navigation, so we rely on the stored window reference.
+            const existing = window.__whatsappWebWindow;
+            if (existing && !existing.closed) {
                 try {
-                    window.__whatsappWebWindow.location.href = url;
-                    window.__whatsappWebWindow.focus();
+                    existing.location.href = url;
+                    existing.focus();
                     return true;
-                } catch (e) {}
+                } catch (e) {
+                    // If we can't navigate/focus, we'll fallback to opening a new tab.
+                }
             }
+
+            let win = null;
+            try {
+                // Open a new tab and keep the reference for reuse.
+                win = window.open(url, '_blank');
+            } catch (e) {
+                win = null;
+            }
+
             if (!win) {
                 showNotification('Pop-up blocked. Allow pop-ups to open WhatsApp Web.', 'warning');
                 return false;
             }
+            try { win.focus(); } catch (e) {}
+            window.__whatsappWebWindow = win;
             return true;
         }
 
