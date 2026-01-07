@@ -5773,29 +5773,30 @@
 
             // Reuse a single WhatsApp Web tab/window (avoid opening new tabs every click).
             const WHATSAPP_WEB_WINDOW_NAME = 'whatsapp_web_tab';
-            let win = null;
-            try {
-                win = (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed)
-                    ? window.__whatsappWebWindow
-                    : window.open('', WHATSAPP_WEB_WINDOW_NAME);
-            } catch (e) {
-                win = null;
-            }
+            let win = (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed)
+                ? window.__whatsappWebWindow
+                : null;
 
-            if (!win) {
-                // Fallback: try opening directly (may be blocked by pop-up settings).
-                try { win = window.open(url, WHATSAPP_WEB_WINDOW_NAME); } catch (e) { win = null; }
+            // Prefer opening/navigating via window.open(url, name): browsers will reuse the named tab if it exists.
+            try {
+                win = window.open(url, WHATSAPP_WEB_WINDOW_NAME);
+            } catch (e) {
+                // If popups are blocked, this can fail.
             }
 
             if (win) {
+                try { win.focus(); } catch (e) {}
+                window.__whatsappWebWindow = win;
+                return true;
+            }
+
+            // Last-ditch fallback: if we still have a reference, try navigating it.
+            if (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed) {
                 try {
-                    win.location.href = url;
-                    win.focus();
-                    window.__whatsappWebWindow = win;
+                    window.__whatsappWebWindow.location.href = url;
+                    window.__whatsappWebWindow.focus();
                     return true;
-                } catch (e) {
-                    console.warn('Failed to navigate WhatsApp Web tab', e);
-                }
+                } catch (e) {}
             }
             if (!win) {
                 showNotification('Pop-up blocked. Allow pop-ups to open WhatsApp Web.', 'warning');
