@@ -3,36 +3,40 @@
 This repo is a **single-file SPA**: UI + logic live in `index.html` (Tailwind CDN + Firebase JS modules). Make **small, surgical edits**; avoid framework refactors unless asked.
 
 ## Big picture
-- Entry point: `index.html` contains all JS in one `<script type="module">`.
-- Backend: Firebase Auth + Firestore only.
-- Auth gate: `onAuthStateChanged` checks `authorizedUsers/{email}`; unauthorized users are signed out.
+- Entry point: `index.html` contains all app JS in one `<script type="module">`.
+- Backend: Firebase Auth + Firestore.
+- Auth gate (`onAuthStateChanged` in `index.html`): mode is stored in `sessionStorage.loginMode` and checked against allowlists:
+  - user mode: `authorizedUsers/{email}`
+  - admin mode: `adminUsers/{email}` (admin sessions can only use the Admin section)
 
-## Firestore collections & fields
-- `properties`: tenant records (note: legacy duplicates exist).
-  - Matching: room cards use `findTenantForRoom()` which tolerates multiple docs and picks the “best” via `pickBestRoomRecord()` (occupied first, then newest by `updatedAt/createdAt`).
-  - Common fields: `roomNo`, `roomId`, `tenant`, `contact`, `rent`, `deposit`, `relocate`, `status`, `payStatus`, `paymentHistory`, `updatedAt`, `updatedBy`, `createdAt`, `createdBy`.
-  - Flags: `noAnnualRevision` disables annual rent revision tracking for that tenant.
-- `rooms`: optional dashboard-row metadata keyed by `roomId` (loaded to populate inputs).
-- `authorizedUsers`: docs keyed by email (existence = access allowed).
+## Data model (Firestore)
+- `properties`: tenant/room records (legacy duplicates exist).
+  - Room matching must tolerate duplicates: `findTenantForRoom()` + `pickBestRoomRecord()` prefers occupied, then newest by `updatedAt/createdAt`.
+  - Important fields: `roomNo`, `roomId`, `tenant`, `contact`, `rent`, `deposit`, `waterRate`, `relocate`, `status`, `payStatus`, `paymentHistory`, `paymentTotals`, `waterReadings`.
+  - Vacating archives a snapshot into `archivedTenant` and clears the live fields; restore uses `findRestoreCandidateForRoomId()`.
+- `expenses`: itemized expenses; live subscription via `subscribeExpenses()`.
+- `adminSettings/main`: admin-only config; currently `adminEmail`.
+- `rooms`: legacy dashboard-row data loaded by `loadDashboardDataFromFirestore()`; failures are caught so the app still runs.
 
-## Core invariants
-- Rooms are fixed by `IMMUTABLE_ROOMS_DATA` (12 rooms). Do not add/remove rooms unless explicitly requested.
-- Keep dashboard rendering resilient: `initDataListener()` wraps optional renders in `try/catch` so core views still refresh.
+Security rules live in `firestore.rules` (default-deny; staff reads/writes `properties` + `expenses`; admin manages allowlists + settings).
 
-## Key UX/data flows
-- Login: `loginWithGoogle()` → Auth state → authorization check → `initDataListener()`.
-- Real-time updates: `onSnapshot(query(collection(db, "properties"), orderBy("createdAt", "desc")))` repopulates `allPropertiesData` then refreshes metrics/cards/tables.
-- Tenant save: `addTenantForm` updates an existing `properties` doc when possible to avoid duplicates; otherwise `addDoc`.
-- Rent revision: `renderRentRevisionDueCard()` uses `getRentRevisionDates()` and skips tenants with `noAnnualRevision`.
+## Core invariants & business rules
+- Rooms are fixed by `IMMUTABLE_ROOMS_DATA` (12 rooms: 01, 02, 04–13). Don’t add/remove rooms unless explicitly requested.
+- Water: default rate `0.25`, discounted `0.20` for rooms 11–13; units multiplier `10`; service charge `₹60`.
+- Rent revision: `getRentRevisionDates()` is yearly unless `noAnnualRevision`.
+- Post-paid locking: `isFutureYearMonth()` treats current + future months as locked; UI includes `runLockedMonthsCleanup()` for one-time cleanup.
 
-## Admin/destructive scripts
-- `delete_collections.js`: backs up + deletes Firestore collections using `firebase-admin` + service account JSON (see `DELETE_README.md`).
-- `clear-data.js`: browser-console helper to delete `properties` docs.
+## Eviction + automation
+- UI gates eviction controls behind `evictionConfirmed`; eviction dates are stored as `YYYY-MM-DD` strings.
+- Auto-vacate is **client-side**: `autoVacateEvictedTenants()` runs in `index.html` while the app is open (no server-side scheduler).
 
-## Local commands (what actually exists)
-- Install deps for scripts: `npm install`
-- Run delete tool: `node delete_collections.js --key /path/to/serviceAccount.json --dry-run properties rooms`
+## Editing conventions
+- Keep `window.*` exports stable (UI uses inline `onclick`).
+- Prefer null-safe DOM access; optional sections are intentionally wrapped in `try/catch` so dashboards keep refreshing.
+- When changing tenant fields, update both live save/update logic and archive/restore logic.
+- Unless explicitly requested, avoid editing `functions/` (Cloud Functions are not part of the current deployment plan).
 
-## Conventions when editing
-- Prefer null-safe DOM access (`getElementById` checks) and keep `window.*` exports stable (UI uses inline `onclick`).
-- When adding new tenant-affecting fields, update both: save/update payloads and any “Vacant” archival path.
+## Dev/ops utilities
+- Hosting config: `firebase.json` (SPA rewrite to `/index.html`; dev-only files/scripts are ignored from hosting).
+- Destructive scripts: `delete_collections.js` (backup + delete; see `DELETE_README.md`), `clear-data.js` (browser console helper).
+- Tests: `tests/keyboard-focus-a11y.test.js` is Jest-style but not wired in `package.json`; `SECURITY.md` documents running it via `npx jest`.

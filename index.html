@@ -1368,6 +1368,7 @@
             const evictionDate = parseDateValue(tenantData?.evictionDate);
             const evictionNoticeDate = parseDateValue(tenantData?.evictionNoticeDate);
             const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
+            const showEvictionControls = Boolean(isOccupied && evictionConfirmed);
             const archivedTenant = tenantData?.archivedTenant || null;
             const restoreCandidate = findRestoreCandidateForRoomId(roomData.roomId);
             const canRestoreArchivedTenant = !isOccupied && !!restoreCandidate;
@@ -1483,6 +1484,17 @@
                                         <p class="text-sm text-gray-600 font-semibold">Next Revision</p>
                                         <p class="text-lg font-bold ${(!noAnnualRevision && daysTo !== null && daysTo !== undefined && daysTo <= 0) ? 'text-red-700' : 'text-gray-800'}">${noAnnualRevision ? 'Disabled' : (nextDue ? formatDateForDisplay(nextDue) : 'N/A')} <span class="text-xs font-semibold ml-2">(${revisionStatus})</span></p>
                                     </div>
+                                    <div class="col-span-2">
+                                        <label class="inline-flex items-start gap-3 cursor-pointer">
+                                            <input id="evictionConfirmed_${roomData.roomId}" type="checkbox" class="mt-1" ${evictionConfirmed ? 'checked' : ''} ${isOccupied ? '' : 'disabled'} onchange="window.updateEvictionConfirmed('${roomData.roomId}', this.checked)" />
+                                            <span>
+                                                <span class="text-sm font-semibold text-gray-800">Tenant confirmed eviction</span>
+                                                <span class="block text-xs text-gray-500">Enable eviction notice/date and deposit settlement controls.</span>
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    ${showEvictionControls ? `
                                     <div>
                                         <p class="text-sm text-gray-600 font-semibold">Eviction Date</p>
                                         <p class="text-lg font-bold text-gray-800">${evictionDate ? formatDateForDisplay(evictionDate) : 'N/A'}</p>
@@ -1493,30 +1505,22 @@
                                     </div>
                                     <div class="col-span-2">
                                         <div class="flex flex-wrap gap-3">
-                                            <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.setEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button onclick="window.setEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm bg-purple-600 hover:bg-purple-700 text-white">
                                                 Set Eviction Date
                                             </button>
-                                            <button ${(isOccupied && evictionConfirmed && evictionDate) ? '' : 'disabled'} onclick="window.clearEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed && evictionDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${evictionDate ? '' : 'disabled'} onclick="window.clearEvictionDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${evictionDate ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Clear Eviction Date
                                             </button>
-                                            <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.setEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button onclick="window.setEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-700 text-white">
                                                 Set Notice Date
                                             </button>
-                                            <button ${(isOccupied && evictionConfirmed && evictionNoticeDate) ? '' : 'disabled'} onclick="window.clearEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed && evictionNoticeDate) ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                            <button ${evictionNoticeDate ? '' : 'disabled'} onclick="window.clearEvictionNoticeDate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${evictionNoticeDate ? 'bg-gray-200 hover:bg-gray-300 text-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
                                                 Clear Notice Date
                                             </button>
                                         </div>
-                                        <p class="text-xs text-gray-500 mt-2">Tick <span class="font-semibold">Tenant confirmed eviction</span> to enable eviction/notice dates. When the eviction date is reached, the room auto-moves to Vacant (with archive).</p>
+                                        <p class="text-xs text-gray-500 mt-2">When the eviction date is reached, the room auto-moves to Vacant (with archive).</p>
                                     </div>
-                                    <div class="col-span-2">
-                                        <label class="inline-flex items-start gap-3 cursor-pointer">
-                                            <input id="evictionConfirmed_${roomData.roomId}" type="checkbox" class="mt-1" ${evictionConfirmed ? 'checked' : ''} ${isOccupied ? '' : 'disabled'} onchange="window.updateEvictionConfirmed('${roomData.roomId}', this.checked)" />
-                                            <span>
-                                                <span class="text-sm font-semibold text-gray-800">Tenant confirmed eviction</span>
-                                                <span class="block text-xs text-gray-500">Enable eviction notice/date and deposit settlement controls.</span>
-                                            </span>
-                                        </label>
-                                    </div>
+                                    ` : ''}
                                     <div class="col-span-2">
                                         <label class="inline-flex items-start gap-3 cursor-pointer">
                                             <input id="noAnnualRevision_${roomData.roomId}" type="checkbox" class="mt-1" ${noAnnualRevision ? 'checked' : ''} ${isOccupied ? '' : 'disabled'} onchange="window.updateNoAnnualRevision('${roomData.roomId}', this.checked)" />
@@ -1529,6 +1533,7 @@
                                 </div>
                             </div>
 
+                            ${showEvictionControls ? `
                             <!-- Eviction Settlement Section -->
                             <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-6">
                                 <h3 class="text-xl font-bold text-red-900 mb-2">🚪 Eviction Settlement (From Deposit)</h3>
@@ -1537,11 +1542,12 @@
                                 ${settlementPreview.html}
 
                                 <div class="mt-4 flex flex-wrap gap-3">
-                                    <button ${(isOccupied && evictionConfirmed) ? '' : 'disabled'} onclick="window.finalizeEvictionSettlementAndVacate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm ${(isOccupied && evictionConfirmed) ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}">
+                                    <button onclick="window.finalizeEvictionSettlementAndVacate('${roomData.roomId}')" class="px-4 py-2 rounded-lg font-semibold text-sm bg-red-600 hover:bg-red-700 text-white">
                                         Finalize Settlement & Mark Vacant
                                     </button>
                                 </div>
                             </div>
+                            ` : ''}
                             
                             <!-- Action Buttons -->
                             <div class="flex gap-3 pt-4 border-t">
