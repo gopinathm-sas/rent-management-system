@@ -5643,8 +5643,7 @@
                             }
 
                             const amount = Math.round(units * effectiveRate);
-                            const roomNoText = tenantRecord?.roomNo ? String(tenantRecord.roomNo) : String(roomId);
-                            const msg = `Room ${roomNoText}, Water Bill ${monthLabel}: Units ${units}, Amount ₹${amount}`;
+                            const msg = `Water Bill - ${monthLabel}\nNo of Ltrs - ${units}\nAmnt.        - ₹${amount}`;
 
                             openWhatsAppWebChat(contactRaw, msg);
                         },
