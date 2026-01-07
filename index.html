@@ -5784,45 +5784,21 @@
                 }
             }
 
-            // WhatsApp Web uses cross-origin isolation that can sever window references.
-            // To avoid opening a new tab every time, copy the link/message so the user can use their already-open WhatsApp tab.
-            (async () => {
-                let copied = false;
-                try {
-                    if (navigator?.clipboard?.writeText) {
-                        await navigator.clipboard.writeText(url);
-                        copied = true;
-                    }
-                } catch (e) {
-                    copied = false;
-                }
+            let win = null;
+            try {
+                // Open a new tab and keep the reference for reuse.
+                win = window.open(url, '_blank');
+            } catch (e) {
+                win = null;
+            }
 
-                if (!copied) {
-                    // Fallback: try legacy copy via a temporary textarea
-                    try {
-                        const ta = document.createElement('textarea');
-                        ta.value = url;
-                        ta.setAttribute('readonly', '');
-                        ta.style.position = 'fixed';
-                        ta.style.left = '-9999px';
-                        document.body.appendChild(ta);
-                        ta.focus();
-                        ta.select();
-                        copied = document.execCommand('copy');
-                        document.body.removeChild(ta);
-                    } catch (e) {
-                        copied = false;
-                    }
-                }
-
-                if (copied) {
-                    showNotification('WhatsApp link copied. Paste it in your WhatsApp Web tab address bar.', 'success');
-                } else {
-                    showNotification('Could not open WhatsApp without new tabs. Copy failed — please allow clipboard access or pop-ups.', 'warning');
-                }
-            })();
-
-            return false;
+            if (!win) {
+                showNotification('Pop-up blocked. Allow pop-ups to open WhatsApp Web.', 'warning');
+                return false;
+            }
+            try { win.focus(); } catch (e) {}
+            window.__whatsappWebWindow = win;
+            return true;
         }
 
         // Import readings from pasted Excel/CSV
