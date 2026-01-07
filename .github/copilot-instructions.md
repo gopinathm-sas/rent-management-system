@@ -36,6 +36,9 @@ Security rules live in `firestore.rules` (default-deny; staff reads/writes `prop
 - When changing tenant fields, update both live save/update logic and archive/restore logic.
 - Unless explicitly requested, avoid editing `functions/` (Cloud Functions are not part of the current deployment plan).
 
+## Git workflow (important)
+- If a change affects the web app (especially `index.html`), **always** run `git commit` + `git push` and explicitly confirm in your response that you pushed.
+
 ## Dev/ops utilities
 - Hosting config: `firebase.json` (SPA rewrite to `/index.html`; dev-only files/scripts are ignored from hosting).
 - Destructive scripts: `delete_collections.js` (backup + delete; see `DELETE_README.md`), `clear-data.js` (browser console helper).
