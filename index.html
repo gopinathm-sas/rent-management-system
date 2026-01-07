@@ -5770,7 +5770,33 @@
             }
 
             const url = `https://web.whatsapp.com/send?phone=${encodeURIComponent(to)}&text=${encodeURIComponent(body)}&type=phone_number&app_absent=0`;
-            const win = window.open(url, '_blank', 'noopener,noreferrer');
+
+            // Reuse a single WhatsApp Web tab/window (avoid opening new tabs every click).
+            const WHATSAPP_WEB_WINDOW_NAME = 'whatsapp_web_tab';
+            let win = null;
+            try {
+                win = (window.__whatsappWebWindow && !window.__whatsappWebWindow.closed)
+                    ? window.__whatsappWebWindow
+                    : window.open('', WHATSAPP_WEB_WINDOW_NAME);
+            } catch (e) {
+                win = null;
+            }
+
+            if (!win) {
+                // Fallback: try opening directly (may be blocked by pop-up settings).
+                try { win = window.open(url, WHATSAPP_WEB_WINDOW_NAME); } catch (e) { win = null; }
+            }
+
+            if (win) {
+                try {
+                    win.location.href = url;
+                    win.focus();
+                    window.__whatsappWebWindow = win;
+                    return true;
+                } catch (e) {
+                    console.warn('Failed to navigate WhatsApp Web tab', e);
+                }
+            }
             if (!win) {
                 showNotification('Pop-up blocked. Allow pop-ups to open WhatsApp Web.', 'warning');
                 return false;
