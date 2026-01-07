@@ -55,14 +55,21 @@ function initFirebaseAdmin() {
   });
 }
 
-async function assertIsAdminUser(email) {
+async function assertIsAllowlistedUser(email) {
   const db = admin.firestore();
-  const snap = await db.collection('adminUsers').doc(String(email || '').trim()).get();
-  if (!snap.exists) {
-    const err = new Error('Forbidden');
-    err.statusCode = 403;
-    throw err;
-  }
+  const docId = String(email || '').trim();
+
+  const [adminSnap, userSnap] = await Promise.all([
+    db.collection('adminUsers').doc(docId).get(),
+    db.collection('authorizedUsers').doc(docId).get(),
+  ]);
+
+  if (adminSnap.exists) return { role: 'admin' };
+  if (userSnap.exists) return { role: 'user' };
+
+  const err = new Error('Forbidden');
+  err.statusCode = 403;
+  throw err;
 }
 
 async function sendWhatsAppText({ token, phoneNumberId, toDigits, body, apiVersion }) {
@@ -135,7 +142,7 @@ module.exports = async (req, res) => {
       return json(res, 401, { error: 'Token has no email; cannot authorize' });
     }
 
-    await assertIsAdminUser(email);
+    const allowlist = await assertIsAllowlistedUser(email);
 
     let body = await readJsonBody(req);
     if (typeof body === 'string') {
@@ -196,7 +203,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    return json(res, 200, { ok: true, sentBy: email, results });
+    return json(res, 200, { ok: true, sentBy: email, role: allowlist.role, results });
   } catch (e) {
     const status = e?.statusCode && Number.isFinite(Number(e.statusCode)) ? Number(e.statusCode) : 500;
     return json(res, status, { error: e?.message || String(e) });
