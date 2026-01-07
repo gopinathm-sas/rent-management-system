@@ -417,8 +417,8 @@
                         <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">
                             Reset Water Rate Defaults
                         </button>
-                        <button type="button" onclick="sendWaterBillsWhatsApp()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">
-                            Send Water Bills (WhatsApp)
+                        <button type="button" onclick="sendWaterBillsWhatsAppWeb()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">
+                            Send via WhatsApp Web
                         </button>
                         <button type="button" onclick="openWaterImportModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
                             Import Readings
@@ -5700,7 +5700,7 @@
             return digits;
         }
 
-        window.sendWaterBillsWhatsApp = async () => {
+        window.sendWaterBillsWhatsAppWeb = async () => {
             try {
                 if (!currentUser) {
                     showNotification('Please login first.', 'warning');
@@ -5713,7 +5713,7 @@
                     : new Date().getFullYear();
 
                 const monthInput = await window.uiPrompt({
-                    title: 'Send Water Bills (WhatsApp)',
+                    title: 'Send via WhatsApp Web',
                     subtitle: `Choose a month for ${selectedYear} (1 = Jan, 12 = Dec)` ,
                     label: 'Month number',
                     placeholder: '1-12',
@@ -5791,41 +5791,36 @@
                 }
 
                 const ok = await window.uiConfirm({
-                    title: 'Confirm WhatsApp send',
-                    message: `Month: ${monthLabel}\n\nWill attempt to send: ${messages.length}\n\nSkipped — Vacant: ${skippedVacant}, Rent Only: ${skippedRentOnly}, No contact: ${skippedNoContact}, Invalid contact: ${skippedBadContact}, Missing readings: ${skippedMissingReadings}, Negative units: ${skippedNegativeUnits}`,
-                    confirmText: 'Send',
+                    title: 'Open WhatsApp Web tabs?',
+                    message: `Month: ${monthLabel}\n\nThis will open ${messages.length} WhatsApp Web tab(s) with pre-filled messages. You will manually press Send in WhatsApp.\n\nSkipped — Vacant: ${skippedVacant}, Rent Only: ${skippedRentOnly}, No contact: ${skippedNoContact}, Invalid contact: ${skippedBadContact}, Missing readings: ${skippedMissingReadings}, Negative units: ${skippedNegativeUnits}`,
+                    confirmText: 'Open Tabs',
                     cancelText: 'Cancel',
                     danger: false
                 });
                 if (!ok) return;
 
-                const idToken = await currentUser.getIdToken();
-                const resp = await fetch('/api/whatsapp/send-water-bills', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${idToken}`
-                    },
-                    body: JSON.stringify({ messages })
-                });
+                let opened = 0;
+                for (const msg of messages) {
+                    const toDigits = normalizeWhatsAppToDigits(msg?.to);
+                    const body = String(msg?.body || '').trim();
+                    if (!toDigits || !body) continue;
 
-                let data = null;
-                try { data = await resp.json(); } catch (e) {}
-
-                if (!resp.ok) {
-                    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `Request failed (${resp.status})`;
-                    showNotification(`WhatsApp send failed: ${msg}`, 'error');
-                    console.error('WhatsApp send failed', data);
-                    return;
+                    const url = `https://web.whatsapp.com/send?phone=${encodeURIComponent(toDigits)}&text=${encodeURIComponent(body)}&type=phone_number&app_absent=0`;
+                    try {
+                        const win = window.open(url, '_blank', 'noopener,noreferrer');
+                        if (win) opened++;
+                    } catch (e) {
+                        console.warn('Failed to open WhatsApp Web tab', e);
+                    }
                 }
 
-                const results = Array.isArray(data?.results) ? data.results : [];
-                const okCount = results.filter(r => r && r.ok).length;
-                const failCount = results.length - okCount;
-                showNotification(`WhatsApp: sent ${okCount}, failed ${failCount}`, failCount ? 'warning' : 'success');
-                console.log('WhatsApp send results', data);
+                if (opened === 0) {
+                    showNotification('No WhatsApp tabs opened. Your browser may be blocking pop-ups.', 'warning');
+                } else {
+                    showNotification(`Opened ${opened} WhatsApp Web tab(s).`, opened === messages.length ? 'success' : 'warning');
+                }
             } catch (e) {
-                console.error('sendWaterBillsWhatsApp failed', e);
+                console.error('sendWaterBillsWhatsAppWeb failed', e);
                 showNotification('Error: ' + (e?.message || String(e)), 'error');
             }
         };
