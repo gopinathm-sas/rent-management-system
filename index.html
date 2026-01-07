@@ -417,6 +417,9 @@
                         <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">
                             Reset Water Rate Defaults
                         </button>
+                        <button type="button" onclick="sendWaterBillsWhatsApp()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">
+                            Send Water Bills (WhatsApp)
+                        </button>
                         <button type="button" onclick="openWaterImportModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
                             Import Readings
                         </button>
@@ -5680,6 +5683,151 @@
 
             showNotification(`✓ Water rates reset. Updated: ${updated}, Skipped: ${skipped}, Failed: ${failed}`, failed ? 'warning' : 'success');
             try { window.renderWaterBillTable(); } catch {}
+        };
+
+        function normalizeWhatsAppToDigits(contactRaw) {
+            const raw = String(contactRaw || '').trim();
+            if (!raw) return null;
+
+            let digits = raw.replace(/\D+/g, '');
+            if (!digits) return null;
+
+            // Heuristic defaults for India numbers if stored without country code.
+            if (digits.length === 10) digits = `91${digits}`;
+            else if (digits.length === 11 && digits.startsWith('0')) digits = `91${digits.slice(1)}`;
+
+            if (digits.length < 10) return null;
+            return digits;
+        }
+
+        window.sendWaterBillsWhatsApp = async () => {
+            try {
+                if (!currentUser) {
+                    showNotification('Please login first.', 'warning');
+                    return;
+                }
+
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const selectedYear = (typeof currentWaterBillYear === 'number' && Number.isFinite(currentWaterBillYear))
+                    ? currentWaterBillYear
+                    : new Date().getFullYear();
+
+                const monthInput = await window.uiPrompt({
+                    title: 'Send Water Bills (WhatsApp)',
+                    subtitle: `Choose a month for ${selectedYear} (1 = Jan, 12 = Dec)` ,
+                    label: 'Month number',
+                    placeholder: '1-12',
+                    value: '',
+                    inputType: 'number',
+                    inputMode: 'numeric',
+                    okText: 'Next',
+                    cancelText: 'Cancel'
+                });
+                if (monthInput === null) return;
+
+                const monthNum = Number(String(monthInput).trim());
+                if (!Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) {
+                    showNotification('Invalid month. Enter a number from 1 to 12.', 'warning');
+                    return;
+                }
+                const monthIndex = monthNum - 1;
+
+                if (isFutureYearMonth(selectedYear, monthIndex, new Date())) {
+                    showNotification('Current & future months are disabled (available after month ends).', 'warning');
+                    return;
+                }
+
+                const key = getWaterMonthKey(selectedYear, monthIndex);
+                const monthLabel = `${months[monthIndex]} ${selectedYear}`;
+
+                const roomNos = Object.keys(IMMUTABLE_ROOMS_DATA).sort((a, b) => parseInt(a) - parseInt(b));
+                const messages = [];
+
+                let skippedVacant = 0;
+                let skippedRentOnly = 0;
+                let skippedNoContact = 0;
+                let skippedBadContact = 0;
+                let skippedMissingReadings = 0;
+                let skippedNegativeUnits = 0;
+
+                for (const roomNo of roomNos) {
+                    const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+                    const tenantData = findTenantForRoom(roomData);
+                    const occupied = isOccupiedRecord(tenantData);
+                    if (!occupied) { skippedVacant++; continue; }
+
+                    const status = String((tenantData?.paymentHistory || {})?.[key] || 'None');
+                    if (status === 'Rent Only') { skippedRentOnly++; continue; }
+
+                    const contactRaw = tenantData?.contact;
+                    if (!contactRaw || String(contactRaw).trim() === '') { skippedNoContact++; continue; }
+
+                    const toDigits = normalizeWhatsAppToDigits(contactRaw);
+                    if (!toDigits) { skippedBadContact++; continue; }
+
+                    const rate = Number(tenantData?.waterRate);
+                    const effectiveRate = Number.isFinite(rate) ? rate : DEFAULT_WATER_RATE;
+                    const result = computeWaterForMonth(tenantData, selectedYear, monthIndex, effectiveRate);
+                    if (!Number.isFinite(result?.amount) || !Number.isFinite(result?.units)) { skippedMissingReadings++; continue; }
+                    if (Number(result?.units) < 0) { skippedNegativeUnits++; continue; }
+
+                    const units = result.units;
+                    const amount = Math.round(Number(result.amount));
+                    const body = `Room ${roomData.roomNo}, Water Bill ${monthLabel}: Units ${units}, Amount ₹${amount}`;
+                    messages.push({
+                        to: toDigits,
+                        body,
+                        roomNo: roomData.roomNo,
+                        roomId: roomData.roomId,
+                        month: monthLabel,
+                        units,
+                        amount
+                    });
+                }
+
+                if (messages.length === 0) {
+                    showNotification('No eligible tenants to send for this month.', 'warning');
+                    return;
+                }
+
+                const ok = await window.uiConfirm({
+                    title: 'Confirm WhatsApp send',
+                    message: `Month: ${monthLabel}\n\nWill attempt to send: ${messages.length}\n\nSkipped — Vacant: ${skippedVacant}, Rent Only: ${skippedRentOnly}, No contact: ${skippedNoContact}, Invalid contact: ${skippedBadContact}, Missing readings: ${skippedMissingReadings}, Negative units: ${skippedNegativeUnits}`,
+                    confirmText: 'Send',
+                    cancelText: 'Cancel',
+                    danger: false
+                });
+                if (!ok) return;
+
+                const idToken = await currentUser.getIdToken();
+                const resp = await fetch('/api/whatsapp/send-water-bills', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({ messages })
+                });
+
+                let data = null;
+                try { data = await resp.json(); } catch (e) {}
+
+                if (!resp.ok) {
+                    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `Request failed (${resp.status})`;
+                    showNotification(`WhatsApp send failed: ${msg}`, 'error');
+                    console.error('WhatsApp send failed', data);
+                    return;
+                }
+
+                const results = Array.isArray(data?.results) ? data.results : [];
+                const okCount = results.filter(r => r && r.ok).length;
+                const failCount = results.length - okCount;
+                showNotification(`WhatsApp: sent ${okCount}, failed ${failCount}`, failCount ? 'warning' : 'success');
+                console.log('WhatsApp send results', data);
+            } catch (e) {
+                console.error('sendWaterBillsWhatsApp failed', e);
+                showNotification('Error: ' + (e?.message || String(e)), 'error');
+            }
         };
 
         // Import readings from pasted Excel/CSV
