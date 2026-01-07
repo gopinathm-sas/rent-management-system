@@ -515,6 +515,7 @@
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[12rem]">Category</th>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[14rem]">Note</th>
                                     <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[8rem]">Amount</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100 min-w-[7rem]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="expensesBody"></tbody>
@@ -3668,11 +3669,12 @@
                 });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-400">No expenses for this year.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400">No expenses for this year.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = filtered.map(e => {
+                const encodedId = encodeURIComponent(String(e?.id || ''));
                 const monthKey = String(e?.monthKey || '');
                 const dateStr = String(e?.date || '');
                 const category = String(e?.category || '');
@@ -3685,9 +3687,45 @@
                         <td class="border px-4 py-3 text-sm font-semibold bg-white">${escapeHtml(category)}</td>
                         <td class="border px-4 py-3 text-sm bg-white">${escapeHtml(note)}</td>
                         <td class="border px-4 py-3 text-right font-semibold bg-white">₹${amount.toLocaleString('en-IN')}</td>
+                        <td class="border px-2 py-2 text-center bg-white">
+                            <button type="button" onclick="window.deleteExpense('${encodedId}')" class="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold" title="Delete expense">
+                                Delete
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
+        };
+
+        window.deleteExpense = async (encodedId) => {
+            try {
+                const expenseId = decodeURIComponent(String(encodedId || ''));
+                if (!expenseId) {
+                    showNotification('Invalid expense id', 'error');
+                    return;
+                }
+
+                const exp = (Array.isArray(allExpensesData) ? allExpensesData : []).find(x => String(x?.id || '') === expenseId);
+                const monthKey = String(exp?.monthKey || '');
+                const dateStr = String(exp?.date || '');
+                const category = String(exp?.category || '');
+                const amount = Number(exp?.amount) || 0;
+
+                const ok = await window.uiConfirm({
+                    title: 'Delete expense?',
+                    message: `This will permanently delete this entry:\n\n${monthKey} • ${dateStr}\n${category}\n₹${amount.toLocaleString('en-IN')}`,
+                    confirmText: 'Delete',
+                    cancelText: 'Cancel',
+                    danger: true
+                });
+                if (!ok) return;
+
+                await deleteDoc(doc(db, 'expenses', expenseId));
+                showNotification('✓ Expense deleted', 'success');
+            } catch (e) {
+                console.error('deleteExpense failed', e);
+                showNotification('Failed to delete expense: ' + (e?.message || String(e)), 'error');
+            }
         };
 
         // DASHBOARD: PENDING THIS MONTH (compact list)
