@@ -6,6 +6,10 @@
     <title>Rent Management System</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter font (modern UI typography) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -89,9 +93,83 @@
         #dashboard-table button { font-size: 0.7rem !important; padding: 0.25rem 0.4rem !important; }
         #dashboard-table td { padding: 0.4rem !important; }
         #dashboard-table th { padding: 0.4rem !important; font-size: 0.65rem !important; }
+
+        /* Typography + softer palette */
+        body {
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        }
+
+        /* Glassmorphism surfaces */
+        .glass-nav {
+            background: linear-gradient(90deg, rgba(67, 56, 202, 0.72), rgba(37, 99, 235, 0.60));
+            backdrop-filter: blur(14px) saturate(1.4);
+            -webkit-backdrop-filter: blur(14px) saturate(1.4);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .modal-backdrop {
+            background: rgba(15, 23, 42, 0.45) !important;
+            backdrop-filter: blur(10px) saturate(1.2);
+            -webkit-backdrop-filter: blur(10px) saturate(1.2);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.86) !important;
+            backdrop-filter: blur(14px) saturate(1.1);
+            -webkit-backdrop-filter: blur(14px) saturate(1.1);
+            border: 1px solid rgba(148, 163, 184, 0.35) !important;
+        }
+
+        /* Modal micro-interactions */
+        @media (prefers-reduced-motion: no-preference) {
+            .modal-backdrop {
+                animation: modalFadeIn 140ms ease-out;
+            }
+            .modal-panel {
+                animation: modalPopIn 160ms ease-out;
+            }
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes modalPopIn {
+            from { transform: translateY(8px) scale(0.98); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Refined tables (less grid clutter, more spacing) */
+        .table-modern {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .table-modern .border {
+            border-width: 0 !important;
+        }
+        .table-modern thead th {
+            background: rgba(226, 232, 240, 0.75) !important; /* slate-200-ish */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .table-modern tbody tr {
+            box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.30);
+        }
+        .table-modern tbody tr:last-child {
+            box-shadow: none;
+        }
+        .table-modern thead th:first-child { border-top-left-radius: 14px; }
+        .table-modern thead th:last-child { border-top-right-radius: 14px; }
+
+        /* Subtle hover lift for cards (opt-in) */
+        .hover-lift {
+            transition: transform 160ms ease, box-shadow 160ms ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+        }
     </style>
 </head>
-<body class="bg-gradient-to-b from-slate-50 via-gray-50 to-gray-100 font-sans text-gray-800">
+<body class="bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 font-sans text-slate-800">
 
     <!-- LOGIN SCREEN -->
     <div id="login-screen" class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
@@ -118,7 +196,7 @@
     <div id="app-content" class="hidden-section">
         
         <!-- Navigation -->
-        <nav class="bg-blue-600/95 text-white shadow-lg sticky top-0 z-40 backdrop-blur-md">
+        <nav class="glass-nav text-white shadow-lg sticky top-0 z-40 backdrop-blur-md">
             <div class="container mx-auto px-4 py-3 flex justify-between items-center">
                 <div class="flex items-center space-x-2">
                     <i class="fa-solid fa-building-user text-2xl"></i>
@@ -176,7 +254,7 @@
 
                 <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                     <div class="w-full overflow-x-auto">
-                        <table class="text-sm w-full border-collapse">
+                        <table class="table-modern text-sm w-full border-collapse">
                             <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                 <tr>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
@@ -205,7 +283,7 @@
                 <!-- Occupancy Metrics - Maximized -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8 mb-10 sm:mb-12 md:mb-16">
                     <!-- Card 1: Occupied Rooms -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-blue-500 hover:shadow-2xl transition transform hover:scale-105">
+                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-blue-500 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Occupied Rooms</p>
@@ -217,7 +295,7 @@
                     </div>
                     
                     <!-- Card 2: Vacant Rooms -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-gray-400 hover:shadow-2xl transition transform hover:scale-105">
+                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-gray-400 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Vacant Rooms</p>
@@ -229,7 +307,7 @@
                     </div>
                     
                     <!-- Card 3: Total Rent Received (Previous Month) -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-green-500 hover:shadow-2xl transition transform hover:scale-105">
+                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-green-500 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Rent Received</p>
@@ -240,7 +318,7 @@
                     </div>
                     
                     <!-- Card 4: Pending Rent (Previous Month) -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-orange-500 hover:shadow-2xl transition transform hover:scale-105">
+                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-orange-500 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
                                 <p class="text-gray-500 text-base font-semibold mb-3">Pending Rent</p>
@@ -264,7 +342,7 @@
                 </div>
 
                 <!-- Pending last Month (Quick List) -->
-                <div id="pendingThisMonthCard" class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 mb-12">
+                <div id="pendingThisMonthCard" class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-l-8 border-orange-500 mb-12 hover-lift">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                         <h3 class="text-xl md:text-2xl font-bold text-gray-800">Pending last month</h3>
                         <span id="pending-this-month-count" class="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-semibold bg-orange-50 text-orange-800 border border-orange-200">0</span>
@@ -298,7 +376,7 @@
                 <!-- Rent Details Table -->
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="w-full overflow-x-auto">
-                        <table id="rentDetailsTable" class="text-sm w-full border-collapse">
+                        <table id="rentDetailsTable" class="table-modern text-sm w-full border-collapse">
                             <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                 <tr>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
@@ -356,7 +434,7 @@
 
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="w-full overflow-x-auto">
-                            <table id="rentWaterTable" class="text-sm w-full border-collapse">
+                            <table id="rentWaterTable" class="table-modern text-sm w-full border-collapse">
                                 <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                     <tr>
                                         <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
@@ -413,7 +491,7 @@
 
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="w-full overflow-x-auto">
-                        <table id="waterBillTable" class="text-sm w-full border-collapse">
+                        <table id="waterBillTable" class="table-modern text-sm w-full border-collapse">
                             <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                 <tr>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
@@ -507,7 +585,7 @@
 
                 <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                     <div class="w-full overflow-x-auto">
-                        <table class="text-sm w-full border-collapse">
+                        <table class="table-modern text-sm w-full border-collapse">
                             <thead class="bg-blue-100 text-gray-700 sticky top-0">
                                 <tr>
                                     <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
@@ -652,8 +730,8 @@
     </div>
 
     <!-- WATER READINGS IMPORT MODAL -->
-    <div id="waterImportModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="water-import-title" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100">
+    <div id="waterImportModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="water-import-title" class="modal-backdrop fixed inset-0 hidden items-center justify-center z-50 p-4">
+        <div class="modal-panel glass-panel rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
             <div class="px-6 py-4 border-b flex items-center justify-between">
                 <div>
                     <h3 id="water-import-title" class="text-xl font-bold text-gray-800">Import Water Readings</h3>
@@ -691,8 +769,8 @@
     </div>
 
     <!-- TENANT DETAILS MODAL -->
-    <div id="tenantDetailsModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="tenant-modal-title" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50" tabindex="-1">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-8 transform transition-all scale-100 m-4 overflow-y-auto max-h-screen">
+    <div id="tenantDetailsModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="tenant-modal-title" class="modal-backdrop fixed inset-0 hidden flex items-center justify-center z-50" tabindex="-1">
+        <div class="modal-panel glass-panel rounded-lg shadow-xl w-full max-w-2xl p-8 transform transition-all scale-100 m-4 overflow-y-auto max-h-screen">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <h3 id="tenant-modal-title" class="text-2xl font-bold text-gray-800">Tenant Details</h3>
                 <button onclick="closeTenantDetailsModal()" class="text-gray-500 hover:text-red-500 text-2xl" aria-label="Close modal">&times;</button>
@@ -705,8 +783,8 @@
     </div>
 
     <!-- ADD TENANT MODAL -->
-    <div id="addTenantModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="add-tenant-modal-title" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50" tabindex="-1">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-8 transform transition-all scale-100 m-4 overflow-y-auto max-h-screen">
+    <div id="addTenantModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="add-tenant-modal-title" class="modal-backdrop fixed inset-0 hidden flex items-center justify-center z-50" tabindex="-1">
+        <div class="modal-panel glass-panel rounded-lg shadow-xl w-full max-w-2xl p-8 transform transition-all scale-100 m-4 overflow-y-auto max-h-screen">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <h3 id="add-tenant-modal-title" class="text-2xl font-bold text-gray-800">Add New Tenant</h3>
                 <button onclick="closeAddTenantModal()" class="text-gray-500 hover:text-red-500 text-2xl" aria-label="Close modal">&times;</button>
@@ -801,8 +879,8 @@
     </div>
 
     <!-- Add Room Modal -->
-    <div id="propertyModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-title" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50" tabindex="-1">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 transform transition-all scale-100 m-4">
+    <div id="propertyModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-title" class="modal-backdrop fixed inset-0 hidden flex items-center justify-center z-50" tabindex="-1">
+        <div class="modal-panel glass-panel rounded-lg shadow-xl w-full max-w-md p-6 transform transition-all scale-100 m-4">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 id="modal-title" class="text-xl font-semibold text-gray-800">Add New Room</h3>
                 <button onclick="toggleModal('propertyModal')" class="text-gray-500 hover:text-red-500 text-xl" aria-label="Close modal">&times;</button>
@@ -850,8 +928,8 @@
     </div>
 
     <!-- RENT HISTORY MODAL (New Feature) -->
-    <div id="historyModal" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 relative">
+    <div id="historyModal" class="modal-backdrop fixed inset-0 hidden flex items-center justify-center z-50">
+        <div class="modal-panel glass-panel rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 relative">
             <button onclick="closeHistoryModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">&times;</button>
             
             <h3 class="text-xl font-bold text-gray-800 mb-1" id="history-title">Rent Ledger</h3>
@@ -1383,7 +1461,7 @@
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
 
                 return `
-                    <div class="${bgColor} rounded-xl shadow-lg border-l-8 ${borderColor} p-5 cursor-pointer hover:shadow-2xl transition" onclick="window.openRoomDetailModal('${roomNo}')">
+                    <div class="${bgColor} rounded-xl shadow-lg border-l-8 ${borderColor} p-5 cursor-pointer hover-lift" onclick="window.openRoomDetailModal('${roomNo}')">
                         <div class="flex justify-between items-start mb-3">
                             <div>
                                 <h4 class="text-xl font-bold text-gray-800 leading-tight">Room ${roomData.roomNo}</h4>
@@ -1479,9 +1557,9 @@
             const settlementPreview = computeEvictionSettlementPreview(tenantData, evictionNoticeDate, evictionDate);
 
             const modalHTML = `
-                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" id="roomDetailBackdrop" onclick="if(event.target.id === 'roomDetailBackdrop') window.closeRoomDetailModal()">
-                    <div class="bg-white rounded-2xl shadow-2xl border-l-8 ${borderColor} max-w-2xl w-full max-h-screen overflow-y-auto transform transition-all">
-                        <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                <div class="modal-backdrop p-4" id="roomDetailBackdrop" onclick="if(event.target.id === 'roomDetailBackdrop') window.closeRoomDetailModal()">
+                    <div class="glass-panel modal-panel rounded-2xl border-l-8 ${borderColor} max-w-2xl w-full max-h-screen overflow-y-auto">
+                        <div class="sticky top-0 bg-white/70 backdrop-blur border-b border-white/30 p-6 flex justify-between items-center">
                             <div>
                                 <h2 class="text-4xl font-bold text-gray-800">Room ${roomData.roomNo}</h2>
                                 <p class="text-gray-600 mt-2">ID: <span class="font-mono font-bold text-blue-600 text-lg">${roomData.roomId}</span></p>
@@ -2277,7 +2355,7 @@
                         <div class="mt-4 bg-white rounded-lg border overflow-hidden">
                             <div class="px-4 py-2 bg-red-100 text-red-900 font-bold text-sm">Month-wise deduction</div>
                             <div class="w-full overflow-x-auto">
-                                <table class="w-full text-sm border-collapse">
+                                <table class="table-modern w-full text-sm border-collapse">
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="border px-3 py-2 text-left">Month</th>
