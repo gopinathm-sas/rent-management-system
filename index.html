@@ -1390,6 +1390,9 @@
             if (code === 'auth/operation-not-allowed') {
                 return 'Firebase sign-in method is disabled. In Firebase Console → Authentication → Sign-in method: enable Email/Password and turn on Email link (passwordless). Then try again.';
             }
+            if (code === 'auth/quota-exceeded') {
+                return 'Daily quota exceeded for email-link sign-in on this Firebase project. Please try again later (quota resets daily), or ask the admin to use a different upload method / increase quota.';
+            }
             return formatAuthError(err);
         }
 
