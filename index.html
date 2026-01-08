@@ -1108,9 +1108,11 @@
         // IMPORTANT: In iOS WKWebView, Firebase Auth can hang during its default persistence probing.
         // Use a single explicit persistence to avoid probing and keep sessions across app restarts.
         let auth;
+        let authUsesIndexedDbPersistence = false;
         try {
             if (isCapacitorRuntime()) {
                 auth = initializeAuth(app, { persistence: indexedDBLocalPersistence });
+                authUsesIndexedDbPersistence = true;
             } else {
                 auth = getAuth(app);
             }
@@ -1119,6 +1121,7 @@
             try {
                 if (isCapacitorRuntime()) {
                     auth = initializeAuth(app, { persistence: inMemoryPersistence });
+                    authUsesIndexedDbPersistence = false;
                 } else {
                     auth = getAuth(app);
                 }
@@ -4962,6 +4965,22 @@
             }, 2500);
         }
 
+        function iosAuthBootWatchdog() {
+            // iOS-only: if auth never resolves, keep the overlay but surface a retry/unlock.
+            if (tenantUploadMode) return;
+            if (!isIOSCapacitor()) return;
+            setTimeout(() => {
+                if (authStateResolvedOnce) return;
+                try {
+                    setAuthBootUi({
+                        text: 'Still loading…',
+                        showUnlock: true,
+                        errorText: 'If this keeps happening, force close and reopen the app.'
+                    });
+                } catch { /* ignore */ }
+            }, 6000);
+        }
+
         function isIOSCapacitor() {
             return isCapacitorRuntime() && window.Capacitor?.getPlatform?.() === 'ios';
         }
@@ -5133,6 +5152,7 @@
         }
 
         try { webAuthBootFailsafe(); } catch (e) { /* ignore */ }
+        try { iosAuthBootWatchdog(); } catch (e) { /* ignore */ }
 
         // Auth State Listener - Check Authorization
         onAuthStateChanged(auth, async (user) => {
@@ -5186,7 +5206,8 @@
                 console.log("✓ User signed out");
 
                 // Keep the boot overlay up while attempting any iOS native session restore.
-                if (!nativeSessionRestoreAttempted && isCapacitorRuntime()) {
+                // If indexedDB persistence is enabled, native restore is unnecessary and can cause loops.
+                if (!nativeSessionRestoreAttempted && isCapacitorRuntime() && !authUsesIndexedDbPersistence) {
                     nativeSessionRestoreAttempted = true;
                     try {
                         setAuthBootUi({ text: 'Restoring session…', showUnlock: false, errorText: null });
