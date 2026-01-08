@@ -221,13 +221,9 @@
             <h1 class="text-3xl font-bold mb-2 text-gray-800">Munirathnam Illam</h1>
             <p class="text-gray-500 mb-8">Secure Rent Management System</p>
             
-            <button onclick="loginWithGoogle('user')" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
+            <button onclick="loginWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-3" alt="Google">
                 Sign in with Google
-            </button>
-            <button onclick="loginWithGoogle('admin')" class="w-full mt-3 bg-gray-900 border border-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-black transition flex items-center justify-center shadow-sm">
-                <i class="fa-solid fa-shield-halved mr-3"></i>
-                Admin Portal Login
             </button>
             <p id="login-error" role="alert" aria-live="assertive" class="text-red-500 text-sm mt-4 hidden text-left bg-red-50 p-3 rounded border border-red-200"></p>
         </div>
@@ -299,10 +295,6 @@
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
                         <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link hover:text-blue-200 transition cursor-pointer">Water Bill</a>
                         <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link hover:text-blue-200 transition cursor-pointer">Expenses</a>
-                    </div>
-
-                    <div data-admin-only="1" style="display:none" class="hidden sm:flex items-center gap-2 text-sm font-semibold overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
-                        <a href="#" data-section="admin" onclick="showSection('admin')" class="nav-link hover:text-blue-200 transition cursor-pointer">Admin</a>
                     </div>
                     
                     <div class="flex items-center sm:border-l sm:border-blue-400 sm:pl-4 sm:ml-2">
@@ -693,61 +685,56 @@
                         </table>
                     </div>
                 </div>
-            </section>
 
-            <!-- Admin Section (Admin Portal only) -->
-            <section id="admin" class="section-tab mb-16">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Admin</h2>
-                </div>
+                <div data-admin-only="1" style="display:none" class="mt-10 space-y-6">
+                    <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
+                        <p class="text-sm text-gray-600 mb-2">Admin settings</p>
+                        <p class="text-xs text-orange-700 mb-4">Note: Email automation is paused while running on Firebase Spark (no server-side Functions).</p>
 
-                <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
-                    <p class="text-sm text-gray-600 mb-2">Admin-only settings. Regular users cannot view this.</p>
-                    <p class="text-xs text-orange-700 mb-4">Note: Email automation is paused while running on Firebase Spark (no server-side Functions).</p>
-
-                    <label class="block text-gray-700 font-semibold mb-2">Admin Email (saved for future)</label>
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <input id="adminEmailInput" type="email" placeholder="admin@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <button type="button" onclick="saveAdminEmail()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Save</button>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl mt-6">
-                    <p class="text-sm text-gray-600 mb-2">Tenant document upload link (secure)</p>
-                    <p class="text-xs text-gray-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
-                            <input id="tenantUploadInviteEmail" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <label class="block text-gray-700 font-semibold mb-2">Admin Email (saved for future)</label>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input id="adminEmailInput" type="email" placeholder="admin@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <button type="button" onclick="saveAdminEmail()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Save</button>
                         </div>
-                        <div>
-                            <label class="block text-gray-700 font-semibold mb-2">Room</label>
-                            <select id="tenantUploadInviteRoom" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">-- Choose a room --</option>
-                                <option value="01">Room 01 (G01)</option>
-                                <option value="02">Room 02 (G02)</option>
-                                <option value="04">Room 04 (102)</option>
-                                <option value="05">Room 05 (201)</option>
-                                <option value="06">Room 06 (202)</option>
-                                <option value="07">Room 07 (203)</option>
-                                <option value="08">Room 08 (301)</option>
-                                <option value="09">Room 09 (302)</option>
-                                <option value="10">Room 10 (303)</option>
-                                <option value="11">Room 11 (401)</option>
-                                <option value="12">Room 12 (402)</option>
-                                <option value="13">Room 13 (403)</option>
-                            </select>
-                        </div>
+                        <p class="text-xs text-gray-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
                     </div>
 
-                    <div class="flex flex-col sm:flex-row gap-3 mt-4">
-                        <button type="button" onclick="window.generateTenantUploadLink()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Generate link</button>
-                        <input id="tenantUploadInviteLink" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-700" placeholder="Generated link will appear here" />
-                        <button type="button" onclick="window.copyTenantUploadLink()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-semibold">Copy</button>
+                    <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
+                        <p class="text-sm text-gray-600 mb-2">Tenant document upload link (secure)</p>
+                        <p class="text-xs text-gray-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
+                                <input id="tenantUploadInviteEmail" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Room</label>
+                                <select id="tenantUploadInviteRoom" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">-- Choose a room --</option>
+                                    <option value="01">Room 01 (G01)</option>
+                                    <option value="02">Room 02 (G02)</option>
+                                    <option value="04">Room 04 (102)</option>
+                                    <option value="05">Room 05 (201)</option>
+                                    <option value="06">Room 06 (202)</option>
+                                    <option value="07">Room 07 (203)</option>
+                                    <option value="08">Room 08 (301)</option>
+                                    <option value="09">Room 09 (302)</option>
+                                    <option value="10">Room 10 (303)</option>
+                                    <option value="11">Room 11 (401)</option>
+                                    <option value="12">Room 12 (402)</option>
+                                    <option value="13">Room 13 (403)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 mt-4">
+                            <button type="button" onclick="window.generateTenantUploadLink()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Generate link</button>
+                            <input id="tenantUploadInviteLink" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-700" placeholder="Generated link will appear here" />
+                            <button type="button" onclick="window.copyTenantUploadLink()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-semibold">Copy</button>
+                        </div>
+                        <p id="tenantUploadInviteMsg" class="hidden text-xs mt-3"></p>
                     </div>
-                    <p id="tenantUploadInviteMsg" class="hidden text-xs mt-3"></p>
                 </div>
             </section>
 
@@ -849,14 +836,7 @@
             </div>
         </div>
 
-        <div data-admin-only="1" style="display:none" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
-            <div class="max-w-screen-sm mx-auto px-3 py-2">
-                <button type="button" data-section="admin" onclick="showSection('admin')" class="mobile-nav-btn w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-gray-700">
-                    <i class="fa-solid fa-shield-halved text-blue-600"></i>
-                    <span>Admin</span>
-                </button>
-            </div>
-        </div>
+        <!-- Admin-only items live inside existing sections; no separate Admin tab -->
     </div>
 
     <!-- WATER READINGS IMPORT MODAL -->
@@ -1111,62 +1091,6 @@
         import { getAuth, initializeAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged, indexedDBLocalPersistence, inMemoryPersistence, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
-        // CONFIG
-        const firebaseConfig = {
-            apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
-            authDomain: "munirathnam-illam.firebaseapp.com",
-            projectId: "munirathnam-illam",
-            storageBucket: "munirathnam-illam.firebasestorage.app",
-            messagingSenderId: "852272424128",
-            appId: "1:852272424128:web:e5400d3d2f512d7e477925",
-            measurementId: "G-7NF6X62CKV"
-        };
-
-        // Initialize Firebase (variables at module scope so functions can access them)
-        const app = initializeApp(firebaseConfig);
-
-        // IMPORTANT: In iOS WKWebView, Firebase Auth can hang during its default persistence probing.
-        // Use a single explicit persistence to avoid probing and keep sessions across app restarts.
-        let auth;
-        try {
-            if (isCapacitorRuntime()) {
-                auth = initializeAuth(app, { persistence: indexedDBLocalPersistence });
-            } else {
-                auth = getAuth(app);
-            }
-        } catch (e) {
-            console.warn('⚠️ Firebase Auth init fallback to getAuth:', formatAuthError(e));
-            try {
-                if (isCapacitorRuntime()) {
-                    auth = initializeAuth(app, { persistence: inMemoryPersistence });
-                } else {
-                    auth = getAuth(app);
-                }
-            } catch {
-                auth = getAuth(app);
-            }
-        }
-
-        const db = getFirestore(app);
-        const storage = getStorage(app);
-        const provider = new GoogleAuthProvider();
-        console.log("✓ Firebase initialized successfully");
-
-        // --- Tenant upload (link-based) mode ---
-        const TENANT_UPLOAD_EMAIL_STORAGE_KEY = 'tenantUploadSignInEmail';
-        let tenantUploadMode = false;
-        let tenantUploadInviteId = null;
-        let tenantUploadInviteData = null;
-
-        function getQueryParam(name) {
-            try {
-                const u = new URL(window.location.href);
-                return u.searchParams.get(name);
-            } catch {
-                return null;
-            }
-        }
 
         function getTenantUploadInviteIdFromUrl() {
             const raw = getQueryParam('tenantUpload');
@@ -1709,24 +1633,10 @@
 
         let isAdminSession = false;
 
-        function setLoginMode(mode) {
-            const next = (mode === 'admin') ? 'admin' : 'user';
-            try { sessionStorage.setItem('loginMode', next); } catch (e) {}
-            return next;
-        }
-
-        function getLoginMode() {
-            try {
-                const v = sessionStorage.getItem('loginMode');
-                return v === 'admin' ? 'admin' : 'user';
-            } catch {
-                return 'user';
-            }
-        }
-
         function applySessionNavMode() {
+            // Admin should see all regular sections + admin-only cards.
             document.querySelectorAll('[data-user-only]').forEach(el => {
-                el.style.display = isAdminSession ? 'none' : '';
+                el.style.display = '';
             });
             document.querySelectorAll('[data-admin-only]').forEach(el => {
                 el.style.display = isAdminSession ? '' : 'none';
@@ -4575,8 +4485,7 @@
         };
 
         // AUTH FUNCTIONS - Expose to window
-        window.loginWithGoogle = async (mode = 'user') => {
-            const nextMode = setLoginMode(mode);
+        window.loginWithGoogle = async () => {
             const errorMsg = document.getElementById('login-error');
             if (errorMsg) errorMsg.classList.add('hidden');
 
@@ -4634,14 +4543,12 @@
                     console.log("✓ Login successful:", result.user.email);
                     try { await handleSignedInUser(result.user); } catch (e) { console.warn('⚠️ handleSignedInUser failed (web path):', e); }
                 }
-                // For user sessions, kick UI refresh quickly (admin portal skips app data)
-                if (getLoginMode() !== 'admin') {
-                    setTimeout(() => {
-                        window.generateRoomCards();
-                        window.updateOccupancyMetrics();
-                        try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
-                    }, 100);
-                }
+                // Kick UI refresh quickly after login
+                setTimeout(() => {
+                    window.generateRoomCards();
+                    window.updateOccupancyMetrics();
+                    try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
+                }, 100);
             } catch (error) {
                 try {
                     console.error("❌ Login failed:", error);
@@ -4683,20 +4590,20 @@
 
             console.log('✓ handleSignedInUser starting for:', user.email);
 
-            // Check authorization against Firestore authorizedUsers/adminUsers collections
-            const mode = getLoginMode();
-            const authCol = (mode === 'admin') ? 'adminUsers' : 'authorizedUsers';
-            const authRef = doc(db, authCol, user.email);
+            // Check authorization against Firestore lists.
+            // Admins get full access (including admin-only cards) without a separate portal.
+            const email = String(user.email || '').trim();
+            const adminRef = doc(db, 'adminUsers', email);
+            const staffRef = doc(db, 'authorizedUsers', email);
 
             try {
-                const authSnapshot = await getDoc(authRef);
+                const adminSnapshot = await getDoc(adminRef);
+                const staffSnapshot = adminSnapshot.exists() ? null : await getDoc(staffRef);
 
-                if (!authSnapshot.exists()) {
-                    console.error('❌ Unauthorized user:', user.email, 'mode=', mode);
+                if (!adminSnapshot.exists() && !(staffSnapshot && staffSnapshot.exists())) {
+                    console.error('❌ Unauthorized user:', email);
                     await signOutEverywhere();
-                    const msg = (mode === 'admin')
-                        ? `❌ ADMIN ACCESS DENIED\n\nYour email (${user.email}) is not an admin.\n\nPlease contact the administrator.`
-                        : `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                    const msg = `❌ ACCESS DENIED\n\nYour email (${email}) is not authorized.\n\nPlease contact the administrator for access.`;
                     const el = document.getElementById('login-error');
                     if (el) {
                         el.innerText = msg;
@@ -4705,12 +4612,12 @@
                     return;
                 }
 
-                isAdminSession = (mode === 'admin');
+                isAdminSession = adminSnapshot.exists();
                 applySessionNavMode();
 
                 // User is authorized - proceed with login
                 currentUser = user;
-                console.log('✓ User authorized:', user.email, 'mode=', mode);
+                console.log('✓ User authorized:', user.email, 'isAdmin=', isAdminSession);
                 const nameEl = document.getElementById('user-name');
                 if (nameEl) nameEl.innerText = user.displayName || 'User';
                 const photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://'))
@@ -4734,14 +4641,15 @@
                     console.warn('⚠️ Year label init failed:', e);
                 }
 
-                if (!isAdminSession) {
-                    initDataListener();
-                    subscribeExpenses();
-                    try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
-                    try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
-                } else {
+                // Load app data for both staff and admins
+                initDataListener();
+                subscribeExpenses();
+                try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
+                try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
+
+                // Admin-only settings UI (embedded on normal page)
+                if (isAdminSession) {
                     try { await loadAdminSettings(); } catch (e) { console.warn('⚠️ loadAdminSettings failed:', e); }
-                    try { window.showSection('admin'); } catch (e) { console.warn("⚠️ showSection('admin') failed:", e); }
                 }
             } catch (err) {
                 console.error('Authorization check error:', err);
@@ -4919,10 +4827,8 @@
             }
 
             try { window.showSection('dashboard'); } catch (e) { console.warn("⚠️ showSection('dashboard') failed:", e); }
-            if (getLoginMode() !== 'admin') {
-                window.generateRoomCards();
-                try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
-            }
+            window.generateRoomCards();
+            try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
 
             // Expenses form submit
             const expenseForm = document.getElementById('expenseForm');
@@ -4940,21 +4846,12 @@
             console.log("✓ logout clicked");
             if (unsubscribe) unsubscribe();
             if (expensesUnsubscribe) expensesUnsubscribe();
-            try { sessionStorage.removeItem('loginMode'); } catch (e) {}
             await signOutEverywhere();
             window.location.reload();
         };
 
         // SECTION NAVIGATION
         window.showSection = (sectionName) => {
-            if (isAdminSession && sectionName !== 'admin') {
-                showNotification('Admin Portal: only Admin section is available', 'warning');
-                sectionName = 'admin';
-            }
-            if (!isAdminSession && sectionName === 'admin') {
-                showNotification('Admin access required', 'warning');
-                sectionName = 'dashboard';
-            }
             // Hide all sections
             document.querySelectorAll('.section-tab').forEach(section => {
                 section.classList.remove('active');
