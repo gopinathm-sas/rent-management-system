@@ -65,6 +65,15 @@ npm run ios           # Full iOS workflow (copy + sync + open Xcode)
 - A11y tests: `npm install --save-dev jest jsdom && npx jest tests/keyboard-focus-a11y.test.js` (see `SECURITY.md`).
 - Note: `package.json` has no wired test script; run directly with `npx jest`.
 
+## Default Git workflow (commit + push)
+- When changes are complete and there are no blockers, **commit and push by default**.
+- Use this safe sequence:
+  - `git status --porcelain=v1` (confirm intended files only)
+  - `git add -A`
+  - `git commit -m "<concise message>"`
+  - `git push origin <current-branch>`
+- If the user explicitly says not to commit/push, or asks to batch multiple changes into one commit, follow the user’s instruction.
+
 **Destructive scripts:**
 - `delete_collections.js`: Backs up + deletes Firestore collections. Requires `GOOGLE_APPLICATION_CREDENTIALS` env var. See `DELETE_README.md`.
   - Example: `node delete_collections.js --dry-run properties rooms`
