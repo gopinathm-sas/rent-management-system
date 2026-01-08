@@ -1,0 +1,68 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email;
+    }
+
+    function userEmailLower() {
+      return userEmail() != null ? userEmail().toLowerCase() : null;
+    }
+
+    function isAuthorizedUser() {
+      return isSignedIn() && firestore.get(/databases/(default)/documents/authorizedUsers/$(userEmail())).exists();
+    }
+
+    function isAdminUser() {
+      return isSignedIn() && firestore.get(/databases/(default)/documents/adminUsers/$(userEmail())).exists();
+    }
+
+    function isStaff() {
+      return isAuthorizedUser() || isAdminUser();
+    }
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Tenant documents (staff-only)
+    match /tenant-documents/{roomId}/{propertyDocId}/{fileName} {
+      allow read: if isStaff();
+      allow write: if isStaff()
+        && request.resource.size < 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*')
+        );
+    }
+
+    // Tenant upload link (Option 2) - invite-scoped path
+    match /tenant-upload-invites/{inviteId}/{fileName} {
+      function inviteDoc() {
+        return firestore.get(/databases/(default)/documents/tenantUploadInvites/$(inviteId));
+      }
+      function isInviteValid() {
+        return isSignedIn()
+          && inviteDoc().exists()
+          && inviteDoc().data.status == 'active'
+          && inviteDoc().data.emailLower == userEmailLower()
+          && (inviteDoc().data.expiresAt == null || inviteDoc().data.expiresAt > request.time);
+      }
+
+      allow read: if isStaff() || isInviteValid();
+      allow write: if isInviteValid()
+        && request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*')
+        );
+    }
+  }
+}

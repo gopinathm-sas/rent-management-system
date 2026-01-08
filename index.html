@@ -198,8 +198,22 @@
 </head>
 <body class="bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 font-sans text-slate-800">
 
+    <!-- AUTH BOOT (prevents login flash on iOS while auth restores) -->
+    <div id="auth-boot" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[60]">
+        <div class="flex items-center gap-3 text-gray-700">
+            <i class="fa-solid fa-circle-notch fa-spin text-blue-600 text-xl"></i>
+            <span id="auth-boot-text" class="text-sm font-semibold">Loading…</span>
+        </div>
+
+        <button id="auth-boot-unlock-btn" class="hidden mt-6 bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
+            <i class="fa-solid fa-face-smile mr-2"></i>
+            Unlock with Face ID
+        </button>
+        <p id="auth-boot-error" role="alert" aria-live="assertive" class="hidden text-red-500 text-sm mt-4 text-center bg-red-50 p-3 rounded border border-red-200 max-w-sm"></p>
+    </div>
+
     <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
+    <div id="login-screen" class="hidden-section fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
         <div class="text-center bg-white p-10 rounded-2xl shadow-2xl max-w-md w-full mx-4">
             <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <i class="fa-solid fa-building-user text-4xl text-blue-600"></i>
@@ -216,6 +230,54 @@
                 Admin Portal Login
             </button>
             <p id="login-error" role="alert" aria-live="assertive" class="text-red-500 text-sm mt-4 hidden text-left bg-red-50 p-3 rounded border border-red-200"></p>
+        </div>
+    </div>
+
+    <!-- TENANT UPLOAD SCREEN (link-based, authenticated) -->
+    <div id="tenant-upload-screen" class="hidden fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50 p-4">
+        <div class="text-center bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full">
+            <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5">
+                <i class="fa-solid fa-file-arrow-up text-3xl text-blue-600"></i>
+            </div>
+            <h1 class="text-2xl font-bold mb-1 text-gray-800">Upload Tenant Documents</h1>
+            <p class="text-gray-500 mb-6">Secure upload link</p>
+
+            <div id="tenant-upload-step" class="text-left space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Your Email</label>
+                    <input id="tenant-upload-email" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-xs text-gray-500 mt-2">We’ll send a sign-in link to this email. Open it on the same device to continue.</p>
+                </div>
+                <button id="tenant-upload-send-link" type="button" class="w-full bg-gray-900 border border-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-black transition flex items-center justify-center">
+                    <i class="fa-solid fa-envelope mr-3"></i>
+                    Send sign-in link
+                </button>
+                <p id="tenant-upload-error" role="alert" aria-live="assertive" class="hidden text-red-600 text-sm bg-red-50 p-3 rounded border border-red-200"></p>
+            </div>
+
+            <div id="tenant-upload-authenticated" class="hidden text-left space-y-4">
+                <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                    <p class="text-sm text-gray-700"><span class="font-semibold">Signed in as:</span> <span id="tenant-upload-user"></span></p>
+                    <p class="text-xs text-gray-500 mt-1" id="tenant-upload-invite-meta"></p>
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Select documents</label>
+                    <input id="tenant-upload-files" type="file" multiple accept="application/pdf,image/*" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-2">Accepted: PDF, images. Max 10MB per file.</p>
+                    <ul id="tenant-upload-files-list" class="mt-3 text-xs text-gray-700 list-disc pl-5"></ul>
+                </div>
+
+                <button id="tenant-upload-submit" type="button" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center">
+                    <i class="fa-solid fa-cloud-arrow-up mr-3"></i>
+                    Upload documents
+                </button>
+                <button id="tenant-upload-signout" type="button" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center">
+                    <i class="fa-solid fa-right-from-bracket mr-3"></i>
+                    Sign out
+                </button>
+                <p id="tenant-upload-success" class="hidden text-green-700 text-sm bg-green-50 p-3 rounded border border-green-200"></p>
+            </div>
         </div>
     </div>
 
@@ -247,6 +309,9 @@
                         <button type="button" onclick="toggleDesktopView()" class="hidden sm:inline-flex items-center justify-center text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10" title="Toggle Desktop View">
                             <i class="fa-solid fa-desktop"></i>
                         </button>
+                        <button id="app-lock-toggle" type="button" class="hidden items-center justify-center text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="App Lock" aria-label="App Lock" aria-pressed="true">
+                            <i id="app-lock-toggle-icon" class="fa-solid fa-lock"></i>
+                        </button>
                         <img id="user-photo" src="" alt="User" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white ml-2 sm:ml-0">
                         <span id="user-name" class="text-sm font-semibold ml-2 hidden sm:block">User</span>
                         <button onclick="logout()" class="text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="Sign Out" aria-label="Sign Out">
@@ -273,9 +338,7 @@
                         <button type="button" onclick="changeDashboardYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
                             <i class="fa-solid fa-chevron-right"></i>
                         </button>
-                        <button id="cleanupLockedMonthsBtn" data-cleanup-btn="1" type="button" onclick="runLockedMonthsCleanup()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700" title="Clears any saved Paid/Pending/Rent Only totals in current & future months (post-paid lock)">
-                            One-time cleanup
-                        </button>
+                        
                     </div>
                 </div>
 
@@ -302,9 +365,7 @@
             <section id="room-details" class="section-tab mb-16">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
                     <h2 class="text-2xl sm:text-3xl font-bold text-gray-700">Room Details</h2>
-                    <button data-cleanup-btn="1" type="button" onclick="runLockedMonthsCleanup()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700" title="One-time: clears any saved Paid/Pending/Rent Only totals in current & future months (post-paid lock)">
-                        One-time cleanup
-                    </button>
+                    
                 </div>
 
                 <!-- Occupancy Metrics - Maximized -->
@@ -651,6 +712,43 @@
                     </div>
                     <p class="text-xs text-gray-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
                 </div>
+
+                <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl mt-6">
+                    <p class="text-sm text-gray-600 mb-2">Tenant document upload link (secure)</p>
+                    <p class="text-xs text-gray-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
+                            <input id="tenantUploadInviteEmail" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-2">Room</label>
+                            <select id="tenantUploadInviteRoom" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">-- Choose a room --</option>
+                                <option value="01">Room 01 (G01)</option>
+                                <option value="02">Room 02 (G02)</option>
+                                <option value="04">Room 04 (102)</option>
+                                <option value="05">Room 05 (201)</option>
+                                <option value="06">Room 06 (202)</option>
+                                <option value="07">Room 07 (203)</option>
+                                <option value="08">Room 08 (301)</option>
+                                <option value="09">Room 09 (302)</option>
+                                <option value="10">Room 10 (303)</option>
+                                <option value="11">Room 11 (401)</option>
+                                <option value="12">Room 12 (402)</option>
+                                <option value="13">Room 13 (403)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3 mt-4">
+                        <button type="button" onclick="window.generateTenantUploadLink()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Generate link</button>
+                        <input id="tenantUploadInviteLink" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-700" placeholder="Generated link will appear here" />
+                        <button type="button" onclick="window.copyTenantUploadLink()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-semibold">Copy</button>
+                    </div>
+                    <p id="tenantUploadInviteMsg" class="hidden text-xs mt-3"></p>
+                </div>
             </section>
 
             <!-- Rooms Section -->
@@ -900,6 +998,25 @@
                         <p class="text-xs text-gray-500 mt-1">Set when rent is revised; used for next 1-year trigger.</p>
                     </div>
                 </div>
+
+                <!-- Tenant Documents (Initial entry only) -->
+                <div id="tenantDocumentsSection" class="hidden bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-800">Tenant Documents</h4>
+                            <p class="text-xs text-gray-600 mt-1">Upload tenant documents only during initial tenant entry for this room.</p>
+                        </div>
+                        <span class="text-xs text-gray-500">Optional</span>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="block text-gray-700 font-semibold mb-2 text-sm">Select files</label>
+                        <input id="tenantDocumentsInput" type="file" multiple accept="application/pdf,image/*" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-2">Accepted: PDF, images. Max 10MB per file.</p>
+                    </div>
+
+                    <ul id="tenantDocumentsSelectedList" class="mt-3 text-xs text-gray-700 list-disc pl-5"></ul>
+                </div>
                 <div class="flex justify-end gap-3 mt-6 border-t pt-4">
                     <button type="button" onclick="closeAddTenantModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
                     <button type="submit" id="saveTenantBtn" disabled class="px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold cursor-not-allowed">
@@ -991,8 +1108,9 @@
     <script type="module">
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, initializeAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, initializeAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged, indexedDBLocalPersistence, inMemoryPersistence, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getStorage, ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -1009,22 +1127,236 @@
         const app = initializeApp(firebaseConfig);
 
         // IMPORTANT: In iOS WKWebView, Firebase Auth can hang during its default persistence probing.
-        // Initialize Auth with in-memory persistence up front to avoid storage deadlocks.
+        // Use a single explicit persistence to avoid probing and keep sessions across app restarts.
         let auth;
         try {
             if (isCapacitorRuntime()) {
-                auth = initializeAuth(app, { persistence: inMemoryPersistence });
+                auth = initializeAuth(app, { persistence: indexedDBLocalPersistence });
             } else {
                 auth = getAuth(app);
             }
         } catch (e) {
             console.warn('⚠️ Firebase Auth init fallback to getAuth:', formatAuthError(e));
-            auth = getAuth(app);
+            try {
+                if (isCapacitorRuntime()) {
+                    auth = initializeAuth(app, { persistence: inMemoryPersistence });
+                } else {
+                    auth = getAuth(app);
+                }
+            } catch {
+                auth = getAuth(app);
+            }
         }
 
         const db = getFirestore(app);
+        const storage = getStorage(app);
         const provider = new GoogleAuthProvider();
         console.log("✓ Firebase initialized successfully");
+
+        // --- Tenant upload (link-based) mode ---
+        const TENANT_UPLOAD_EMAIL_STORAGE_KEY = 'tenantUploadSignInEmail';
+        let tenantUploadMode = false;
+        let tenantUploadInviteId = null;
+        let tenantUploadInviteData = null;
+
+        function getQueryParam(name) {
+            try {
+                const u = new URL(window.location.href);
+                return u.searchParams.get(name);
+            } catch {
+                return null;
+            }
+        }
+
+        function getTenantUploadInviteIdFromUrl() {
+            const raw = getQueryParam('tenantUpload');
+            const v = String(raw || '').trim();
+            return v ? v : null;
+        }
+
+        function getTenantUploadPublicOrigin() {
+            try {
+                if (typeof isCapacitorRuntime === 'function' && isCapacitorRuntime()) {
+                    // Shareable public URL (Firebase Hosting)
+                    return `https://${firebaseConfig.projectId}.web.app`;
+                }
+            } catch { /* ignore */ }
+            return window.location.origin;
+        }
+
+        function getTenantUploadBaseUrl(inviteId) {
+            const origin = getTenantUploadPublicOrigin();
+            const base = origin + window.location.pathname;
+            const u = new URL(base);
+            u.searchParams.set('tenantUpload', String(inviteId || ''));
+            return u.toString();
+        }
+
+        function showTenantUploadError(message) {
+            const el = document.getElementById('tenant-upload-error');
+            if (!el) return;
+            el.textContent = String(message || 'Unknown error');
+            el.classList.remove('hidden');
+        }
+
+        function clearTenantUploadError() {
+            const el = document.getElementById('tenant-upload-error');
+            if (!el) return;
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+
+        function showTenantUploadSuccess(message) {
+            const el = document.getElementById('tenant-upload-success');
+            if (!el) return;
+            el.textContent = String(message || '✓ Uploaded');
+            el.classList.remove('hidden');
+        }
+
+        function clearTenantUploadSuccess() {
+            const el = document.getElementById('tenant-upload-success');
+            if (!el) return;
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+
+        function setTenantUploadUiAuthenticated(isAuthed) {
+            const stepEl = document.getElementById('tenant-upload-step');
+            const authEl = document.getElementById('tenant-upload-authenticated');
+            if (stepEl) stepEl.classList.toggle('hidden', !!isAuthed);
+            if (authEl) authEl.classList.toggle('hidden', !isAuthed);
+        }
+
+        function sanitizeTenantUploadFileName(name) {
+            const raw = String(name || 'file').trim();
+            const cleaned = raw.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
+            return cleaned || 'file';
+        }
+
+        function randomToken(len = 8) {
+            try {
+                const buf = new Uint8Array(len);
+                crypto.getRandomValues(buf);
+                return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+            } catch {
+                return String(Math.random()).slice(2);
+            }
+        }
+
+        function enterTenantUploadMode(inviteId) {
+            tenantUploadMode = true;
+            tenantUploadInviteId = String(inviteId || '').trim();
+
+            const loginScreenEl = document.getElementById('login-screen');
+            const appContentEl = document.getElementById('app-content');
+            const tenantScreenEl = document.getElementById('tenant-upload-screen');
+
+            if (loginScreenEl) loginScreenEl.classList.add('hidden-section');
+            if (appContentEl) appContentEl.classList.add('hidden-section');
+            if (tenantScreenEl) tenantScreenEl.classList.remove('hidden');
+        }
+
+        async function loadTenantUploadInvite(inviteId) {
+            const id = String(inviteId || '').trim();
+            if (!id) throw new Error('Invalid invite');
+            const snap = await getDoc(doc(db, 'tenantUploadInvites', id));
+            if (!snap.exists()) throw new Error('Invite not found');
+            const data = snap.data() || {};
+            const emailLower = String(data.emailLower || '').trim().toLowerCase();
+            const roomId = String(data.roomId || '').trim();
+            const expiresAt = data.expiresAt || null;
+            if (!emailLower) throw new Error('Invite is missing tenant email');
+            if (!roomId) throw new Error('Invite is missing room');
+            if (expiresAt && typeof expiresAt.toMillis === 'function') {
+                const ms = expiresAt.toMillis();
+                if (Number.isFinite(ms) && ms < Date.now()) throw new Error('Invite has expired');
+            }
+            return { id, ...data, emailLower, roomId };
+        }
+
+        async function ensureTenantEmailLinkSignInIfPresent() {
+            if (!tenantUploadMode || !tenantUploadInviteId) return;
+            if (!isSignInWithEmailLink(auth, window.location.href)) return;
+
+            const storedEmail = (() => {
+                try { return localStorage.getItem(TENANT_UPLOAD_EMAIL_STORAGE_KEY); } catch { return null; }
+            })();
+            const email = String(storedEmail || '').trim();
+            if (!email) {
+                showTenantUploadError('This sign-in link must be opened on the same device where you requested it. Please enter your email and request a new link.');
+                return;
+            }
+            clearTenantUploadError();
+
+            try {
+                await signInWithEmailLink(auth, email, window.location.href);
+                // Clean URL (remove oobCode etc), keep tenantUpload param
+                try {
+                    window.history.replaceState({}, document.title, getTenantUploadBaseUrl(tenantUploadInviteId));
+                } catch { /* ignore */ }
+            } catch (e) {
+                console.warn('⚠️ signInWithEmailLink failed:', e);
+                showTenantUploadError(e?.message || 'Sign-in failed. Please request a new link.');
+            }
+        }
+
+        async function handleTenantUploadAuthState(user) {
+            const tenantScreenEl = document.getElementById('tenant-upload-screen');
+            if (tenantScreenEl) tenantScreenEl.classList.remove('hidden');
+
+            if (!tenantUploadInviteId) {
+                setTenantUploadUiAuthenticated(false);
+                showTenantUploadError('Missing invite ID in link.');
+                return;
+            }
+
+            try {
+                tenantUploadInviteData = await loadTenantUploadInvite(tenantUploadInviteId);
+            } catch (e) {
+                setTenantUploadUiAuthenticated(false);
+                showTenantUploadError(e?.message || 'Invalid invite');
+                try { await signOut(auth); } catch { /* ignore */ }
+                return;
+            }
+
+            const metaEl = document.getElementById('tenant-upload-invite-meta');
+            if (metaEl) {
+                metaEl.textContent = `Room: ${tenantUploadInviteData.roomId}`;
+            }
+
+            if (!user) {
+                setTenantUploadUiAuthenticated(false);
+                return;
+            }
+
+            const emailLower = String(user.email || '').trim().toLowerCase();
+            if (!emailLower) {
+                setTenantUploadUiAuthenticated(false);
+                showTenantUploadError('Signed-in account has no email. Please use an email account.');
+                try { await signOut(auth); } catch { /* ignore */ }
+                return;
+            }
+
+            if (emailLower !== tenantUploadInviteData.emailLower) {
+                setTenantUploadUiAuthenticated(false);
+                showTenantUploadError(`This link is for ${tenantUploadInviteData.emailLower}. You are signed in as ${emailLower}. Please sign out and use the correct email.`);
+                try { await signOut(auth); } catch { /* ignore */ }
+                return;
+            }
+
+            clearTenantUploadError();
+            setTenantUploadUiAuthenticated(true);
+            const userEl = document.getElementById('tenant-upload-user');
+            if (userEl) userEl.textContent = emailLower;
+        }
+
+        // Detect tenant upload mode early
+        try {
+            const inviteId = getTenantUploadInviteIdFromUrl();
+            if (inviteId) enterTenantUploadMode(inviteId);
+        } catch (e) {
+            console.warn('⚠️ tenantUpload mode init failed:', e);
+        }
 
         // (Diagnostics removed after iOS login stabilized)
 
@@ -1102,6 +1434,43 @@
         const FirebaseAuthentication = getFirebaseAuthenticationPlugin();
 
         let loginInProgress = false;
+
+        let nativeSessionRestoreAttempted = false;
+
+        async function signOutEverywhere() {
+            try { await signOut(auth); } catch {}
+            try {
+                if (isCapacitorRuntime()) {
+                    const plugin = getFirebaseAuthenticationPlugin();
+                    if (plugin && typeof plugin.signOut === 'function') {
+                        await plugin.signOut();
+                    }
+                }
+            } catch {}
+        }
+
+        async function tryRestoreSessionFromNative() {
+            if (!isCapacitorRuntime()) return false;
+            const plugin = getFirebaseAuthenticationPlugin();
+            if (!plugin || typeof plugin.getCurrentUser !== 'function' || typeof plugin.getIdToken !== 'function') return false;
+
+            try {
+                const current = await plugin.getCurrentUser();
+                const nativeUser = current?.user;
+                if (!nativeUser || !nativeUser.uid) return false;
+
+                const tokenResult = await plugin.getIdToken({ forceRefresh: false });
+                const idToken = tokenResult?.token || '';
+                if (!idToken) return false;
+
+                const credential = GoogleAuthProvider.credential(idToken);
+                await signInWithCredential(auth, credential);
+                return true;
+            } catch (e) {
+                console.warn('⚠️ Native session restore failed:', formatAuthError(e));
+                return false;
+            }
+        }
 
         // VIEWPORT / DESKTOP VIEW TOGGLE (for mobile browsers)
         function applyDesktopViewportMode() {
@@ -1935,6 +2304,7 @@
                             evictionDate: tenantRecord?.evictionDate ?? null,
                             evictionNoticeDate: tenantRecord?.evictionNoticeDate ?? null,
                             evictionSettlement: tenantRecord?.evictionSettlement ?? null,
+                            tenantDocuments: tenantRecord?.tenantDocuments ?? [],
                             paymentHistory: tenantRecord?.paymentHistory ?? {},
                             paymentTotals: tenantRecord?.paymentTotals ?? {},
                             waterReadings: tenantRecord?.waterReadings ?? {},
@@ -1957,6 +2327,9 @@
                     updatePayload.evictionDate = null;
                     updatePayload.evictionNoticeDate = null;
                     updatePayload.evictionSettlement = null;
+                    updatePayload.tenantDocuments = [];
+                    updatePayload.tenantDocumentsAddedAt = null;
+                    updatePayload.tenantDocumentsAddedBy = null;
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
                     updatePayload.paymentTotals = {};
@@ -2069,6 +2442,7 @@
                     evictionDate: tenantRecord?.evictionDate ?? null,
                     evictionNoticeDate: tenantRecord?.evictionNoticeDate ?? null,
                     evictionSettlement: tenantRecord?.evictionSettlement ?? null,
+                    tenantDocuments: tenantRecord?.tenantDocuments ?? [],
                     paymentHistory: tenantRecord?.paymentHistory ?? {},
                     paymentTotals: tenantRecord?.paymentTotals ?? {},
                     waterReadings: tenantRecord?.waterReadings ?? {},
@@ -2093,6 +2467,9 @@
                     evictionDate: null,
                     evictionNoticeDate: null,
                     evictionSettlement: null,
+                    tenantDocuments: [],
+                    tenantDocumentsAddedAt: null,
+                    tenantDocumentsAddedBy: null,
                     payStatus: null,
                     paymentHistory: {},
                     paymentTotals: {},
@@ -2936,6 +3313,7 @@
                     evictionDate: tenantRecord?.evictionDate ?? null,
                     evictionNoticeDate: tenantRecord?.evictionNoticeDate ?? null,
                     evictionSettlement,
+                    tenantDocuments: tenantRecord?.tenantDocuments ?? [],
                     paymentHistory: tenantRecord?.paymentHistory ?? {},
                     paymentTotals: tenantRecord?.paymentTotals ?? {},
                     waterReadings: tenantRecord?.waterReadings ?? {},
@@ -2960,6 +3338,9 @@
                     evictionDate: null,
                     evictionNoticeDate: null,
                     evictionSettlement: null,
+                    tenantDocuments: [],
+                    tenantDocumentsAddedAt: null,
+                    tenantDocumentsAddedBy: null,
                     payStatus: null,
                     paymentHistory: {},
                     paymentTotals: {},
@@ -3113,6 +3494,7 @@
                         evictionDate: tenantRecord?.evictionDate ?? null,
                         evictionNoticeDate: tenantRecord?.evictionNoticeDate ?? null,
                         evictionSettlement: autoEvictionSettlement ?? (tenantRecord?.evictionSettlement ?? null),
+                        tenantDocuments: tenantRecord?.tenantDocuments ?? [],
                         paymentHistory: tenantRecord?.paymentHistory ?? {},
                         paymentTotals: tenantRecord?.paymentTotals ?? {},
                         waterReadings: tenantRecord?.waterReadings ?? {},
@@ -3136,6 +3518,9 @@
                         noAnnualRevision: false,
                         evictionDate: null,
                         evictionNoticeDate: null,
+                        tenantDocuments: [],
+                        tenantDocumentsAddedAt: null,
+                        tenantDocumentsAddedBy: null,
                         evictionSettlement: null,
                         payStatus: null,
                         paymentHistory: {},
@@ -3807,6 +4192,7 @@
                     if (!parsed) continue;
                     if (!isFutureYearMonth(parsed.year, parsed.monthIndex, now)) continue;
                     payload[`paymentTotals.${key}`] = null;
+                    tenantDocuments: archivedTenant?.tenantDocuments ?? [],
                     fieldsCleared++;
                 }
 
@@ -4307,7 +4693,7 @@
 
                 if (!authSnapshot.exists()) {
                     console.error('❌ Unauthorized user:', user.email, 'mode=', mode);
-                    await signOut(auth);
+                    await signOutEverywhere();
                     const msg = (mode === 'admin')
                         ? `❌ ADMIN ACCESS DENIED\n\nYour email (${user.email}) is not an admin.\n\nPlease contact the administrator.`
                         : `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
@@ -4359,7 +4745,7 @@
                 }
             } catch (err) {
                 console.error('Authorization check error:', err);
-                await signOut(auth);
+                await signOutEverywhere();
                 const el = document.getElementById('login-error');
                 if (el) {
                     el.innerText = `⚠️ System Error\n\n${err?.message || 'Unknown error'}\n\nPlease try again.`;
@@ -4373,6 +4759,165 @@
         // Initialize room cards on page load
         document.addEventListener('DOMContentLoaded', () => {
             console.log("✓ Page loaded, initializing room cards");
+            if (tenantUploadMode) {
+                // Tenant upload screen wiring
+                const sendBtn = document.getElementById('tenant-upload-send-link');
+                const emailInput = document.getElementById('tenant-upload-email');
+                const filesInput = document.getElementById('tenant-upload-files');
+                const filesList = document.getElementById('tenant-upload-files-list');
+                const submitBtn = document.getElementById('tenant-upload-submit');
+                const signOutBtn = document.getElementById('tenant-upload-signout');
+
+                if (filesInput && filesList) {
+                    filesInput.addEventListener('change', () => {
+                        filesList.innerHTML = '';
+                        const files = Array.from(filesInput.files || []);
+                        for (const f of files) {
+                            const li = document.createElement('li');
+                            li.textContent = `${f.name} (${Math.round((f.size || 0) / 1024)} KB)`;
+                            filesList.appendChild(li);
+                        }
+                    });
+                }
+
+                if (sendBtn) {
+                    sendBtn.addEventListener('click', async () => {
+                        clearTenantUploadError();
+                        clearTenantUploadSuccess();
+                        const email = String(emailInput?.value || '').trim().toLowerCase();
+                        if (!email || !email.includes('@')) {
+                            showTenantUploadError('Please enter a valid email.');
+                            return;
+                        }
+                        try {
+                            tenantUploadInviteData = await loadTenantUploadInvite(tenantUploadInviteId);
+                        } catch (e) {
+                            showTenantUploadError(e?.message || 'Invalid invite');
+                            return;
+                        }
+                        if (email !== tenantUploadInviteData.emailLower) {
+                            showTenantUploadError(`This link is for ${tenantUploadInviteData.emailLower}. Please enter that email.`);
+                            return;
+                        }
+
+                        try {
+                            try { localStorage.setItem(TENANT_UPLOAD_EMAIL_STORAGE_KEY, email); } catch { /* ignore */ }
+                            const actionCodeSettings = {
+                                url: getTenantUploadBaseUrl(tenantUploadInviteId),
+                                handleCodeInApp: true
+                            };
+                            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+                            showTenantUploadSuccess('✓ Sign-in link sent. Please open it from your email on this device.');
+                        } catch (e) {
+                            console.warn('⚠️ sendSignInLinkToEmail failed:', e);
+                            showTenantUploadError(e?.message || 'Failed to send sign-in link.');
+                        }
+                    });
+                }
+
+                if (submitBtn) {
+                    submitBtn.addEventListener('click', async () => {
+                        clearTenantUploadError();
+                        clearTenantUploadSuccess();
+
+                        const user = auth.currentUser;
+                        if (!user) {
+                            showTenantUploadError('Please sign in first.');
+                            return;
+                        }
+                        if (!tenantUploadInviteId) {
+                            showTenantUploadError('Missing invite.');
+                            return;
+                        }
+                        try {
+                            tenantUploadInviteData = await loadTenantUploadInvite(tenantUploadInviteId);
+                        } catch (e) {
+                            showTenantUploadError(e?.message || 'Invalid invite');
+                            return;
+                        }
+                        const emailLower = String(user.email || '').trim().toLowerCase();
+                        if (emailLower !== tenantUploadInviteData.emailLower) {
+                            showTenantUploadError('Signed-in email does not match invite.');
+                            return;
+                        }
+
+                        const files = Array.from(filesInput?.files || []);
+                        if (files.length === 0) {
+                            showTenantUploadError('Please select at least one file.');
+                            return;
+                        }
+
+                        const uploaded = [];
+                        for (const file of files) {
+                            const size = Number(file?.size || 0);
+                            if (size <= 0) continue;
+                            if (size > 10 * 1024 * 1024) {
+                                showTenantUploadError(`File too large (max 10MB): ${file.name}`);
+                                return;
+                            }
+                            const ct = String(file?.type || '');
+                            const okType = ct === 'application/pdf' || ct.startsWith('image/');
+                            if (!okType) {
+                                showTenantUploadError(`Invalid file type: ${file.name}`);
+                                return;
+                            }
+                        }
+
+                        submitBtn.disabled = true;
+                        submitBtn.classList.add('opacity-60');
+
+                        try {
+                            for (const file of files) {
+                                const safeName = sanitizeTenantUploadFileName(file.name);
+                                const path = `tenant-upload-invites/${tenantUploadInviteId}/${Date.now()}_${randomToken(6)}_${safeName}`;
+                                const ref = storageRef(storage, path);
+                                const res = await uploadBytes(ref, file, {
+                                    contentType: file.type || undefined
+                                });
+                                uploaded.push({
+                                    name: safeName,
+                                    originalName: file.name,
+                                    contentType: file.type || null,
+                                    size: file.size || null,
+                                    storagePath: res?.metadata?.fullPath || path
+                                });
+                            }
+
+                            await addDoc(collection(db, 'tenantUploadSubmissions'), {
+                                inviteId: tenantUploadInviteId,
+                                roomId: tenantUploadInviteData.roomId,
+                                emailLower,
+                                createdAt: serverTimestamp(),
+                                files: uploaded
+                            });
+                            showTenantUploadSuccess('✓ Documents uploaded successfully. You can close this page.');
+                            try { filesInput.value = ''; } catch { /* ignore */ }
+                            if (filesList) filesList.innerHTML = '';
+                        } catch (e) {
+                            console.warn('⚠️ tenant upload failed:', e);
+                            showTenantUploadError(e?.message || 'Upload failed. Please try again.');
+                        } finally {
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('opacity-60');
+                        }
+                    });
+                }
+
+                if (signOutBtn) {
+                    signOutBtn.addEventListener('click', async () => {
+                        clearTenantUploadError();
+                        clearTenantUploadSuccess();
+                        try { await signOut(auth); } catch { /* ignore */ }
+                        setTenantUploadUiAuthenticated(false);
+                    });
+                }
+
+                // Complete email-link sign-in if the URL contains the sign-in code
+                void ensureTenantEmailLinkSignInIfPresent();
+                // Do not initialize normal app UI
+                return;
+            }
+
             try { window.showSection('dashboard'); } catch (e) { console.warn("⚠️ showSection('dashboard') failed:", e); }
             if (getLoginMode() !== 'admin') {
                 window.generateRoomCards();
@@ -4396,7 +4941,7 @@
             if (unsubscribe) unsubscribe();
             if (expensesUnsubscribe) expensesUnsubscribe();
             try { sessionStorage.removeItem('loginMode'); } catch (e) {}
-            await signOut(auth);
+            await signOutEverywhere();
             window.location.reload();
         };
 
@@ -4432,8 +4977,227 @@
             console.log("✓ Showing section:", sectionName);
         };
 
+        // --- APP LOCK (Face ID on iOS) ---
+        // Minimal gating: keep auth-boot overlay on top until biometric unlock succeeds.
+        // This protects both the login screen and app content.
+        const APP_LOCK_ENABLED_STORAGE_KEY = 'appLockEnabled';
+        let appLockEnabled = (() => {
+            try {
+                const raw = localStorage.getItem(APP_LOCK_ENABLED_STORAGE_KEY);
+                if (raw === null) return true;
+                return raw === 'true';
+            } catch (e) {
+                return true;
+            }
+        })();
+        let appLockUnlocked = false;
+        let appLockInProgress = false;
+        let lastAuthUserForUi = null;
+        let authStateResolvedOnce = false;
+
+        function isIOSCapacitor() {
+            return isCapacitorRuntime() && window.Capacitor?.getPlatform?.() === 'ios';
+        }
+
+        function setAuthBootUi({ text, showUnlock, errorText }) {
+            const textEl = document.getElementById('auth-boot-text');
+            const btnEl = document.getElementById('auth-boot-unlock-btn');
+            const errEl = document.getElementById('auth-boot-error');
+            const bootEl = document.getElementById('auth-boot');
+
+            if (bootEl) bootEl.classList.remove('hidden');
+            if (textEl && typeof text === 'string') textEl.textContent = text;
+            if (btnEl) btnEl.classList.toggle('hidden', !showUnlock);
+            if (errEl) {
+                if (errorText) {
+                    errEl.textContent = errorText;
+                    errEl.classList.remove('hidden');
+                } else {
+                    errEl.textContent = '';
+                    errEl.classList.add('hidden');
+                }
+            }
+        }
+
+        function updateAppLockToggleUi() {
+            const btnEl = document.getElementById('app-lock-toggle');
+            const iconEl = document.getElementById('app-lock-toggle-icon');
+            if (!btnEl || !iconEl) return;
+
+            btnEl.setAttribute('aria-pressed', appLockEnabled ? 'true' : 'false');
+            btnEl.title = appLockEnabled ? 'App Lock: On' : 'App Lock: Off';
+            btnEl.setAttribute('aria-label', appLockEnabled ? 'App Lock On' : 'App Lock Off');
+
+            iconEl.classList.toggle('fa-lock', appLockEnabled);
+            iconEl.classList.toggle('fa-lock-open', !appLockEnabled);
+        }
+
+        function setAppLockEnabled(nextEnabled) {
+            appLockEnabled = !!nextEnabled;
+            try { localStorage.setItem(APP_LOCK_ENABLED_STORAGE_KEY, String(appLockEnabled)); } catch (e) {}
+
+            if (!appLockEnabled) {
+                // Immediately unlock + remove overlay.
+                appLockUnlocked = true;
+                const bootEl = document.getElementById('auth-boot');
+                if (bootEl) bootEl.classList.add('hidden');
+            } else {
+                // Re-lock and prompt on next check.
+                appLockUnlocked = false;
+                void ensureAppUnlocked('Unlock Rent Manager');
+            }
+
+            updateAppLockToggleUi();
+        }
+
+        function applyUiAfterUnlock() {
+            const authBootEl = document.getElementById('auth-boot');
+            const loginScreenEl = document.getElementById('login-screen');
+            const appContentEl = document.getElementById('app-content');
+
+            // Don’t reveal login/app based on a guess. Wait for the first auth callback.
+            if (!authStateResolvedOnce) return;
+
+            if (!appLockEnabled || appLockUnlocked) {
+                // Show the correct surface based on the most recent auth state.
+                if (lastAuthUserForUi) {
+                    if (authBootEl && appContentEl && !appContentEl.classList.contains('hidden-section')) {
+                        authBootEl.classList.add('hidden');
+                    }
+                } else {
+                    if (loginScreenEl) loginScreenEl.classList.remove('hidden-section');
+                    if (appContentEl) appContentEl.classList.add('hidden-section');
+                    if (authBootEl) authBootEl.classList.add('hidden');
+                }
+            }
+        }
+
+        async function ensureAppUnlocked(reason = 'Unlock Rent Manager') {
+            if (!appLockEnabled) {
+                appLockUnlocked = true;
+                applyUiAfterUnlock();
+                return true;
+            }
+            if (!isIOSCapacitor()) {
+                appLockUnlocked = true;
+                applyUiAfterUnlock();
+                return true;
+            }
+
+            const nativeBiometric = window.Capacitor?.Plugins?.NativeBiometric;
+            if (!nativeBiometric) {
+                // If the plugin isn't available, don't block access.
+                appLockUnlocked = true;
+                applyUiAfterUnlock();
+                return true;
+            }
+
+            if (appLockInProgress) return appLockUnlocked;
+            appLockInProgress = true;
+
+            try {
+                setAuthBootUi({ text: 'Unlock required', showUnlock: false, errorText: null });
+                const availability = await nativeBiometric.isAvailable();
+                if (!availability?.isAvailable) {
+                    // No biometrics on the device; don't block.
+                    appLockUnlocked = true;
+                    applyUiAfterUnlock();
+                    return true;
+                }
+
+                setAuthBootUi({ text: 'Unlock with Face ID', showUnlock: false, errorText: null });
+                await nativeBiometric.verifyIdentity({
+                    reason,
+                    title: 'Unlock',
+                    subtitle: '',
+                    description: ''
+                });
+                appLockUnlocked = true;
+                applyUiAfterUnlock();
+                return true;
+            } catch (e) {
+                appLockUnlocked = false;
+                const msg = e?.message || 'Face ID failed or was cancelled.';
+                setAuthBootUi({ text: 'Unlock required', showUnlock: true, errorText: msg });
+                return false;
+            } finally {
+                appLockInProgress = false;
+            }
+        }
+
+        // Wire the unlock button (retry) + app-lock toggle
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnEl = document.getElementById('auth-boot-unlock-btn');
+            if (btnEl) {
+                btnEl.addEventListener('click', async () => {
+                    await ensureAppUnlocked('Unlock Rent Manager');
+                });
+            }
+
+            const toggleEl = document.getElementById('app-lock-toggle');
+            if (toggleEl) {
+                toggleEl.addEventListener('click', () => {
+                    setAppLockEnabled(!appLockEnabled);
+                });
+            }
+
+            // Show the toggle only on iOS Capacitor with NativeBiometric available.
+            if (toggleEl && isIOSCapacitor() && window.Capacitor?.Plugins?.NativeBiometric) {
+                toggleEl.classList.remove('hidden');
+            }
+            updateAppLockToggleUi();
+        });
+
+        // Lock when app goes to background (visibility), then require unlock on return.
+        document.addEventListener('visibilitychange', () => {
+            if (!appLockEnabled || !isIOSCapacitor()) return;
+            if (document.hidden) {
+                appLockUnlocked = false;
+            } else {
+                void ensureAppUnlocked('Unlock Rent Manager');
+            }
+        });
+
+        // Kick off initial unlock as early as possible
+        try {
+            void ensureAppUnlocked('Unlock Rent Manager');
+        } catch (e) {
+            // No-op
+        }
+
         // Auth State Listener - Check Authorization
         onAuthStateChanged(auth, async (user) => {
+            const authBootEl = document.getElementById('auth-boot');
+            const loginScreenEl = document.getElementById('login-screen');
+            const appContentEl = document.getElementById('app-content');
+            const hideAuthBoot = () => {
+                if (authBootEl) authBootEl.classList.add('hidden');
+            };
+
+            authStateResolvedOnce = true;
+
+            // Keep the latest auth state so the app-lock flow can apply UI once unlocked.
+            lastAuthUserForUi = user || null;
+
+            // If app-lock is enabled and still locked, keep auth-boot visible.
+            if (appLockEnabled && isCapacitorRuntime() && window.Capacitor?.getPlatform?.() === 'ios' && !appLockUnlocked) {
+                if (authBootEl) authBootEl.classList.remove('hidden');
+            }
+
+            // Tenant upload flow bypasses staff/admin allowlists.
+            if (tenantUploadMode) {
+                try {
+                    await handleTenantUploadAuthState(user);
+                } catch (e) {
+                    console.warn('⚠️ handleTenantUploadAuthState failed:', e);
+                    showTenantUploadError(e?.message || 'Unable to initialize tenant upload.');
+                } finally {
+                    // Keep auth-boot behavior unchanged; tenant screen is separate.
+                    if (!appLockEnabled || appLockUnlocked) hideAuthBoot();
+                }
+                return;
+            }
+
             if (user) {
                 console.log("✓ User signed in:", user.email);
 
@@ -4441,17 +5205,131 @@
                     await handleSignedInUser(user);
                 } catch (e) {
                     console.warn('⚠️ handleSignedInUser failed (listener):', e);
+                } finally {
+                    // Only hide the boot overlay once the app UI is actually visible.
+                    // If handleSignedInUser signs the user out (unauthorized), a subsequent
+                    // signed-out callback will reveal the login screen and hide the overlay.
+                    if (appContentEl && !appContentEl.classList.contains('hidden-section') && (!appLockEnabled || appLockUnlocked)) {
+                        hideAuthBoot();
+                    }
                 }
             } else {
                 console.log("✓ User signed out");
+
+                // Keep the boot overlay up while attempting any iOS native session restore.
+                if (!nativeSessionRestoreAttempted && isCapacitorRuntime()) {
+                    nativeSessionRestoreAttempted = true;
+                    const restored = await tryRestoreSessionFromNative();
+                    if (restored) return;
+                }
+
                 isAdminSession = false;
                 applySessionNavMode();
                 if (unsubscribe) { try { unsubscribe(); } catch {} unsubscribe = null; }
                 if (expensesUnsubscribe) { try { expensesUnsubscribe(); } catch {} expensesUnsubscribe = null; }
-                document.getElementById('login-screen').classList.remove('hidden-section');
-                document.getElementById('app-content').classList.add('hidden-section');
+                if (loginScreenEl) {
+                    if (!appLockEnabled || appLockUnlocked) loginScreenEl.classList.remove('hidden-section');
+                    else loginScreenEl.classList.add('hidden-section');
+                }
+                if (appContentEl) appContentEl.classList.add('hidden-section');
+                if (!appLockEnabled || appLockUnlocked) hideAuthBoot();
             }
         });
+
+        // --- Admin: generate tenant upload link ---
+        window.generateTenantUploadLink = async () => {
+            const msgEl = document.getElementById('tenantUploadInviteMsg');
+            const linkEl = document.getElementById('tenantUploadInviteLink');
+            const emailEl = document.getElementById('tenantUploadInviteEmail');
+            const roomEl = document.getElementById('tenantUploadInviteRoom');
+
+            const setMsg = (text, kind) => {
+                if (!msgEl) return;
+                msgEl.textContent = String(text || '');
+                msgEl.classList.remove('hidden', 'text-red-600', 'text-green-700', 'text-gray-600');
+                if (kind === 'error') msgEl.classList.add('text-red-600');
+                else if (kind === 'success') msgEl.classList.add('text-green-700');
+                else msgEl.classList.add('text-gray-600');
+            };
+
+            if (!currentUser || !isAdminSession) {
+                setMsg('Admin login required.', 'error');
+                return;
+            }
+
+            const emailLower = String(emailEl?.value || '').trim().toLowerCase();
+            const roomId = String(roomEl?.value || '').trim();
+            if (!emailLower || !emailLower.includes('@')) {
+                setMsg('Enter a valid tenant email.', 'error');
+                return;
+            }
+            if (!roomId) {
+                setMsg('Choose a room.', 'error');
+                return;
+            }
+
+            try {
+                setMsg('Generating link…', 'info');
+                const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                const inviteRef = await addDoc(collection(db, 'tenantUploadInvites'), {
+                    emailLower,
+                    roomId,
+                    status: 'active',
+                    createdAt: serverTimestamp(),
+                    createdByEmail: String(currentUser.email || '').toLowerCase() || null,
+                    createdByUid: currentUser.uid || null,
+                    expiresAt
+                });
+
+                const url = getTenantUploadBaseUrl(inviteRef.id);
+                if (linkEl) linkEl.value = url;
+                setMsg('✓ Link generated', 'success');
+            } catch (e) {
+                console.warn('⚠️ generateTenantUploadLink failed:', e);
+                setMsg(e?.message || 'Failed to generate link.', 'error');
+            }
+        };
+
+        window.copyTenantUploadLink = async () => {
+            const linkEl = document.getElementById('tenantUploadInviteLink');
+            const msgEl = document.getElementById('tenantUploadInviteMsg');
+            const url = String(linkEl?.value || '').trim();
+            if (!url) {
+                if (msgEl) {
+                    msgEl.textContent = 'Generate a link first.';
+                    msgEl.classList.remove('hidden');
+                    msgEl.classList.add('text-red-600');
+                }
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(url);
+                if (msgEl) {
+                    msgEl.textContent = '✓ Copied';
+                    msgEl.classList.remove('hidden');
+                    msgEl.classList.remove('text-red-600');
+                    msgEl.classList.add('text-green-700');
+                }
+            } catch {
+                try {
+                    linkEl?.select?.();
+                    document.execCommand('copy');
+                    if (msgEl) {
+                        msgEl.textContent = '✓ Copied';
+                        msgEl.classList.remove('hidden');
+                        msgEl.classList.remove('text-red-600');
+                        msgEl.classList.add('text-green-700');
+                    }
+                } catch {
+                    if (msgEl) {
+                        msgEl.textContent = 'Copy failed. Please copy manually.';
+                        msgEl.classList.remove('hidden');
+                        msgEl.classList.add('text-red-600');
+                    }
+                }
+            }
+        };
 
         // DATA LISTENER
         function initDataListener() {
@@ -4936,6 +5814,112 @@
             document.getElementById('tenantInputGroup').classList.toggle('hidden', !show);
         };
 
+        // TENANT DOCUMENT UPLOAD (Initial entry only)
+        const TENANT_DOCS_MAX_FILE_BYTES = 10 * 1024 * 1024;
+        const TENANT_DOCS_MAX_FILES = 8;
+        const TENANT_DOCS_ALLOWED_MIME_TYPES = new Set([
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif'
+        ]);
+
+        function sanitizeFileName(name) {
+            return String(name || 'file')
+                .replace(/\s+/g, '-')
+                .replace(/[^a-zA-Z0-9._-]/g, '')
+                .slice(0, 120) || 'file';
+        }
+
+        function getSelectedTenantDocuments() {
+            const input = document.getElementById('tenantDocumentsInput');
+            const list = input?.files ? Array.from(input.files) : [];
+            return list;
+        }
+
+        function renderSelectedTenantDocumentsList(files) {
+            const listEl = document.getElementById('tenantDocumentsSelectedList');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+            if (!files || !files.length) return;
+            files.slice(0, TENANT_DOCS_MAX_FILES).forEach(f => {
+                const li = document.createElement('li');
+                const sizeMb = (Number(f.size || 0) / (1024 * 1024)).toFixed(2);
+                li.textContent = `${f.name} (${sizeMb} MB)`;
+                listEl.appendChild(li);
+            });
+        }
+
+        function shouldShowTenantDocumentsUploadForRoom(roomNo) {
+            const roomData = IMMUTABLE_ROOMS_DATA?.[roomNo];
+            if (!roomData) return false;
+            const existing = findTenantForRoom(roomData);
+            return !isOccupiedRecord(existing);
+        }
+
+        function updateTenantDocumentsSectionVisibility() {
+            const sectionEl = document.getElementById('tenantDocumentsSection');
+            const inputEl = document.getElementById('tenantDocumentsInput');
+            const roomNo = String(document.getElementById('roomSelector')?.value || '').trim();
+
+            if (!sectionEl || !inputEl) return;
+
+            const show = roomNo && shouldShowTenantDocumentsUploadForRoom(roomNo);
+            sectionEl.classList.toggle('hidden', !show);
+            inputEl.value = '';
+            renderSelectedTenantDocumentsList([]);
+        }
+
+        async function uploadTenantDocumentsToStorage({ roomId, propertyDocId, tenantName, files }) {
+            const safeRoomId = String(roomId || '').trim();
+            const safeDocId = String(propertyDocId || '').trim();
+            if (!safeRoomId || !safeDocId) throw new Error('Missing roomId/docId for upload');
+
+            const docs = (files || []).slice(0, TENANT_DOCS_MAX_FILES);
+            const now = Date.now();
+
+            const out = [];
+            for (let i = 0; i < docs.length; i++) {
+                const file = docs[i];
+                if (!file) continue;
+
+                const size = Number(file.size || 0);
+                if (!Number.isFinite(size) || size <= 0) throw new Error(`Invalid file: ${file?.name || 'unknown'}`);
+                if (size > TENANT_DOCS_MAX_FILE_BYTES) throw new Error(`File too large: ${file.name} (max 10MB)`);
+
+                const type = String(file.type || '').trim();
+                if (type && !TENANT_DOCS_ALLOWED_MIME_TYPES.has(type)) {
+                    throw new Error(`Unsupported file type: ${file.name}`);
+                }
+
+                const safeName = sanitizeFileName(file.name);
+                const path = `tenant-documents/${safeRoomId}/${safeDocId}/${now}-${i + 1}-${safeName}`;
+                const refObj = storageRef(storage, path);
+
+                showNotification(`Uploading documents… (${i + 1}/${docs.length})`, 'info');
+                await uploadBytes(refObj, file, {
+                    contentType: type || undefined,
+                    customMetadata: {
+                        roomId: safeRoomId,
+                        propertyDocId: safeDocId,
+                        tenantName: String(tenantName || '').slice(0, 80)
+                    }
+                });
+
+                out.push({
+                    name: file.name,
+                    storagePath: path,
+                    contentType: type || null,
+                    size,
+                    uploadedAtClient: new Date().toISOString()
+                });
+            }
+
+            return out;
+        }
+
         // ADD TENANT MODAL FUNCTIONS
         window.openAddTenantModal = (roomId = null) => {
             document.getElementById('addTenantModal').classList.remove('hidden');
@@ -4946,11 +5930,12 @@
             const saveBtnEl = document.getElementById('saveTenantBtn');
 
             if (titleEl) titleEl.textContent = roomId ? 'Edit Tenant' : 'Add New Tenant';
-            if (saveBtnEl) {
-                saveBtnEl.innerHTML = `<i class="fa-solid fa-save mr-2"></i>${roomId ? 'Update Tenant' : 'Save Tenant'}`;
-            }
+            if (saveBtnEl) saveBtnEl.innerHTML = `<i class="fa-solid fa-save mr-2"></i>${roomId ? 'Update Tenant' : 'Save Tenant'}`;
 
             if (waterRateEl) waterRateEl.value = String(DEFAULT_WATER_RATE);
+
+            // Reset docs UI every time the modal opens
+            try { updateTenantDocumentsSectionVisibility(); } catch (e) { console.warn('⚠️ updateTenantDocumentsSectionVisibility failed:', e); }
             
             // If roomId is provided, pre-select the room
             if (roomId) {
@@ -4961,6 +5946,10 @@
 
                     const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                     const existing = roomData ? findTenantForRoom(roomData) : null;
+
+                    const isEditingOccupied = !!(existing && isOccupiedRecord(existing));
+                    if (titleEl) titleEl.textContent = isEditingOccupied ? 'Edit Tenant' : 'Add New Tenant';
+                    if (saveBtnEl) saveBtnEl.innerHTML = `<i class="fa-solid fa-save mr-2"></i>${isEditingOccupied ? 'Update Tenant' : 'Save Tenant'}`;
 
                     // Prefill all tenant fields so Edit Tenant doesn't require retyping everything
                     if (existing) {
@@ -4993,6 +5982,9 @@
 
                     // Enable save button if form is already valid
                     try { window.validateAddTenantForm(); } catch (e) { console.warn('⚠️ validateAddTenantForm failed:', e); }
+
+                    // Show docs only for initial tenant entry (vacant -> occupied)
+                    try { updateTenantDocumentsSectionVisibility(); } catch (e) { console.warn('⚠️ updateTenantDocumentsSectionVisibility failed:', e); }
                 }
             }
         };
@@ -5070,6 +6062,8 @@
                 let lastRentRevisionAt = String(lastRentRevisionAtInput).trim() ? String(lastRentRevisionAtInput).trim() : null;
 
                 const existingForRoom = findTenantForRoom({ roomNo, roomId });
+                const isInitialTenantEntry = !isOccupiedRecord(existingForRoom);
+                const selectedDocs = getSelectedTenantDocuments();
 
                 // Check tenant count (unique rooms only). Allow edits even when full.
                 let occupiedRoomsCount = 0;
@@ -5093,9 +6087,19 @@
                 }
 
                 try {
+                    const saveBtn = document.getElementById('saveTenantBtn');
+                    const prevBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+                    if (saveBtn) {
+                        saveBtn.disabled = true;
+                        saveBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                        saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Saving…`;
+                    }
+
                     // Save to Firestore
                     // IMPORTANT: Prefer updating an existing room record to avoid duplicates
                     // (duplicates cause cards to sometimes match an older/vacant doc after re-login).
+                    let propertyDocId = null;
                     if (existingForRoom?.id) {
                         // If rent changed and user didn't explicitly set a revision date,
                         // auto-set last revision to today.
@@ -5136,9 +6140,10 @@
                         if (!existingForRoom?.createdBy) updatePayload.createdBy = currentUser.uid;
 
                         await updateDoc(doc(db, "properties", existingForRoom.id), updatePayload);
+                        propertyDocId = existingForRoom.id;
                         console.log("✓ Tenant updated successfully in Firestore");
                     } else {
-                        await addDoc(collection(db, "properties"), {
+                        const createdRef = await addDoc(collection(db, "properties"), {
                             name: roomNo,
                             roomId: roomId,
                             roomNo: roomNo,
@@ -5160,7 +6165,30 @@
                             createdBy: currentUser.uid,
                             paymentHistory: {}
                         });
+                        propertyDocId = createdRef.id;
                         console.log("✓ Tenant added successfully to Firestore");
+                    }
+
+                    // Upload documents only for initial tenant entry time (Vacant -> Occupied)
+                    if (isInitialTenantEntry && selectedDocs.length) {
+                        if (selectedDocs.length > TENANT_DOCS_MAX_FILES) {
+                            throw new Error(`Too many files selected (max ${TENANT_DOCS_MAX_FILES})`);
+                        }
+
+                        const uploaded = await uploadTenantDocumentsToStorage({
+                            roomId,
+                            propertyDocId,
+                            tenantName,
+                            files: selectedDocs
+                        });
+
+                        await updateDoc(doc(db, 'properties', propertyDocId), {
+                            tenantDocuments: uploaded,
+                            tenantDocumentsAddedAt: serverTimestamp(),
+                            tenantDocumentsAddedBy: currentUser.uid,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser.uid
+                        });
                     }
                     
                     // Reset form
@@ -5180,9 +6208,20 @@
                         window.updateOccupancyMetrics();
                         try { window.renderRentRevisionDueCard(); } catch (e) { console.warn("⚠️ renderRentRevisionDueCard failed:", e); }
                     }, 1500);
+
+                    if (saveBtn) {
+                        saveBtn.innerHTML = prevBtnHtml || `<i class="fa-solid fa-save mr-2"></i>Save Tenant`;
+                        try { window.validateAddTenantForm(); } catch {}
+                    }
                 } catch (err) {
                     console.error("❌ Add tenant failed", err);
                     showNotification("Error: " + err.message, "error");
+
+                    const saveBtn = document.getElementById('saveTenantBtn');
+                    if (saveBtn) {
+                        saveBtn.innerHTML = `<i class="fa-solid fa-save mr-2"></i>Save Tenant`;
+                        try { window.validateAddTenantForm(); } catch {}
+                    }
                 }
             });
 
@@ -5194,12 +6233,22 @@
             const tenantDeposit = document.getElementById('tenantDeposit');
             const relocateDate = document.getElementById('tenantRelocateDate');
             
-            if (roomSelector) roomSelector.addEventListener('change', window.validateAddTenantForm);
+            if (roomSelector) roomSelector.addEventListener('change', () => {
+                window.validateAddTenantForm();
+                try { updateTenantDocumentsSectionVisibility(); } catch (e) { console.warn('⚠️ updateTenantDocumentsSectionVisibility failed:', e); }
+            });
             if (tenantName) tenantName.addEventListener('input', window.validateAddTenantForm);
             if (tenantContact) tenantContact.addEventListener('input', window.validateAddTenantForm);
             if (tenantRent) tenantRent.addEventListener('input', window.validateAddTenantForm);
             if (tenantDeposit) tenantDeposit.addEventListener('input', window.validateAddTenantForm);
             if (relocateDate) relocateDate.addEventListener('change', window.validateAddTenantForm);
+
+            const docsInput = document.getElementById('tenantDocumentsInput');
+            if (docsInput) {
+                docsInput.addEventListener('change', () => {
+                    try { renderSelectedTenantDocumentsList(getSelectedTenantDocuments()); } catch (e) { console.warn('⚠️ renderSelectedTenantDocumentsList failed:', e); }
+                });
+            }
         }
 
         // ADD PROPERTY

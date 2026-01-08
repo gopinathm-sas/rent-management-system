@@ -10,6 +10,10 @@ service cloud.firestore {
       return request.auth.token.email;
     }
 
+    function userEmailLower() {
+      return userEmail() != null ? userEmail().toLowerCase() : null;
+    }
+
     function isAuthorizedUser() {
       return isSignedIn() && exists(/databases/$(database)/documents/authorizedUsers/$(userEmail()));
     }
@@ -52,6 +56,40 @@ service cloud.firestore {
 
     match /expenses/{expenseId} {
       allow read, write: if isStaff();
+    }
+
+    // Tenant upload link (Option 2)
+    match /tenantUploadInvites/{inviteId} {
+      // Admin creates/manages invites
+      allow create, update, delete: if isAdminUser();
+      // Admin can read; tenant can read only their own invite
+      allow read: if isAdminUser() || (isSignedIn() && resource.data.emailLower == userEmailLower());
+    }
+
+    match /tenantUploadSubmissions/{submissionId} {
+      function inviteDoc(inviteId) {
+        return get(/databases/$(database)/documents/tenantUploadInvites/$(inviteId));
+      }
+      function isInviteValid(inviteId) {
+        return inviteId != null
+          && inviteDoc(inviteId).exists()
+          && inviteDoc(inviteId).data.status == 'active'
+          && inviteDoc(inviteId).data.emailLower == userEmailLower()
+          && (inviteDoc(inviteId).data.expiresAt == null || inviteDoc(inviteId).data.expiresAt > request.time);
+      }
+
+      allow create: if isSignedIn()
+        && request.resource.data.emailLower == userEmailLower()
+        && request.resource.data.inviteId is string
+        && request.resource.data.roomId is string
+        && request.resource.data.files is list
+        && isInviteValid(request.resource.data.inviteId)
+        && request.resource.data.roomId == inviteDoc(request.resource.data.inviteId).data.roomId;
+
+      allow read: if isAdminUser() || (isSignedIn() && resource.data.emailLower == userEmailLower());
+
+      // Prevent edits/deletes from tenants; admin can manage if needed.
+      allow update, delete: if isAdminUser();
     }
   }
 }
