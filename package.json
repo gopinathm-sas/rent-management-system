@@ -7,7 +7,10 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "copy:web": "node scripts/copy-web-assets.js",
+    "cap:sync": "npm run copy:web && npx cap sync",
+    "ios": "npm run copy:web && npx cap sync ios && npx cap open ios"
   },
   "repository": {
     "type": "git",
@@ -22,6 +25,10 @@
   },
   "homepage": "https://github.com/gopinathm-sas/rent-management-system#readme",
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.0.1",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
     "firebase-admin": "^13.6.0"
   }
 }

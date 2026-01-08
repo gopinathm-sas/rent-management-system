@@ -4,3 +4,9 @@ functions/node_modules/
 .firebase/
 functions/.firebase/
 *.log
+
+# Capacitor
+ios/
+android/
+www/
+.capacitor/

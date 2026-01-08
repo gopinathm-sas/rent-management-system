@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Rent Management System</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -107,6 +107,33 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.18);
         }
 
+        /* iOS safe-area + mobile polish */
+        @supports (padding: env(safe-area-inset-top)) {
+            .nav-inner {
+                padding-top: calc(env(safe-area-inset-top) + 0.75rem) !important;
+            }
+            .mobile-bottom-nav {
+                padding-bottom: env(safe-area-inset-bottom) !important;
+            }
+            .app-main {
+                padding-bottom: calc(7rem + env(safe-area-inset-bottom)) !important;
+            }
+        }
+
+        .mobile-nav-btn {
+            border: 1px solid transparent;
+            background: transparent;
+        }
+        .mobile-nav-btn.nav-active {
+            background: rgba(37, 99, 235, 0.10);
+            border-color: rgba(37, 99, 235, 0.28);
+        }
+
+        .quick-nav-btn.nav-active {
+            background: rgba(37, 99, 235, 0.08);
+            border-color: rgba(37, 99, 235, 0.25);
+        }
+
         .modal-backdrop {
             background: rgba(15, 23, 42, 0.45) !important;
             backdrop-filter: blur(10px) saturate(1.2);
@@ -197,14 +224,14 @@
         
         <!-- Navigation -->
         <nav class="glass-nav text-white shadow-lg sticky top-0 z-40 backdrop-blur-md">
-            <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                    <i class="fa-solid fa-building-user text-2xl"></i>
-                    <span class="text-xl font-bold hidden md:inline">Munirathnam Illam</span>
+            <div class="nav-inner container mx-auto px-4 py-3 flex justify-between items-center gap-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i class="fa-solid fa-building-user text-xl sm:text-2xl"></i>
+                    <span class="text-base sm:text-xl font-bold truncate">Munirathnam Illam</span>
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <div data-user-only="1" class="flex items-center gap-2 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
+                    <div data-user-only="1" class="hidden sm:flex items-center gap-2 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
                         <a href="#" data-section="room-details" onclick="showSection('room-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Room Details</a>
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
@@ -212,17 +239,17 @@
                         <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link hover:text-blue-200 transition cursor-pointer">Expenses</a>
                     </div>
 
-                    <div data-admin-only="1" style="display:none" class="flex items-center gap-2 text-sm font-semibold overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
+                    <div data-admin-only="1" style="display:none" class="hidden sm:flex items-center gap-2 text-sm font-semibold overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
                         <a href="#" data-section="admin" onclick="showSection('admin')" class="nav-link hover:text-blue-200 transition cursor-pointer">Admin</a>
                     </div>
                     
-                    <div class="flex items-center border-l border-blue-400 pl-4 ml-2">
-                        <button type="button" onclick="toggleDesktopView()" class="mr-2 text-blue-100 hover:text-white" title="Toggle Desktop View">
+                    <div class="flex items-center sm:border-l sm:border-blue-400 sm:pl-4 sm:ml-2">
+                        <button type="button" onclick="toggleDesktopView()" class="hidden sm:inline-flex items-center justify-center text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10" title="Toggle Desktop View">
                             <i class="fa-solid fa-desktop"></i>
                         </button>
-                        <img id="user-photo" src="" alt="User" class="w-8 h-8 rounded-full border-2 border-white mr-2">
-                        <span id="user-name" class="text-sm font-semibold mr-4 hidden sm:block">User</span>
-                        <button onclick="logout()" class="text-blue-100 hover:text-white" title="Sign Out">
+                        <img id="user-photo" src="" alt="User" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white ml-2 sm:ml-0">
+                        <span id="user-name" class="text-sm font-semibold ml-2 hidden sm:block">User</span>
+                        <button onclick="logout()" class="text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="Sign Out" aria-label="Sign Out">
                             <i class="fa-solid fa-right-from-bracket"></i>
                         </button>
                     </div>
@@ -231,7 +258,7 @@
         </nav>
 
         <!-- Main Content -->
-        <main class="container mx-auto px-4 py-8 pb-28 sm:pb-8">
+        <main class="app-main container mx-auto px-4 py-6 sm:py-8 pb-28 sm:pb-8">
             
             <!-- Dashboard (Financial Summary) -->
             <section id="dashboard" class="section-tab active mb-16">
@@ -676,23 +703,23 @@
 
         <!-- Floating Quick Nav (desktop/tablet) -->
         <div data-user-only="1" class="quick-nav-desktop fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
-            <button type="button" onclick="showSection('dashboard')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
+            <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
                 <i class="fa-solid fa-chart-line text-blue-600"></i>
                 <span class="hidden md:inline">Dashboard</span>
             </button>
-            <button type="button" onclick="showSection('room-details')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Room Details">
+            <button type="button" data-section="room-details" onclick="showSection('room-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Room Details">
                 <i class="fa-solid fa-house text-blue-600"></i>
                 <span class="hidden md:inline">Rooms</span>
             </button>
-            <button type="button" onclick="showSection('rent-details')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Rent Details">
+            <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Rent Details">
                 <i class="fa-solid fa-receipt text-purple-600"></i>
                 <span class="hidden md:inline">Rent</span>
             </button>
-            <button type="button" onclick="showSection('water-bill')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Water Bill">
+            <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Water Bill">
                 <i class="fa-solid fa-droplet text-blue-600"></i>
                 <span class="hidden md:inline">Water</span>
             </button>
-            <button type="button" onclick="showSection('expenses')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Expenses">
+            <button type="button" data-section="expenses" onclick="showSection('expenses')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Expenses">
                 <i class="fa-solid fa-wallet text-red-600"></i>
                 <span class="hidden md:inline">Expenses</span>
             </button>
@@ -701,32 +728,32 @@
         <!-- Bottom Nav (mobile) -->
         <div data-user-only="1" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
             <div class="max-w-screen-sm mx-auto px-3 py-2 grid grid-cols-5 gap-2">
-                <button type="button" onclick="showSection('dashboard')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-chart-line text-blue-600 text-base"></i>
                     <span class="mt-1">Dash</span>
                 </button>
-                <button type="button" onclick="showSection('room-details')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                <button type="button" data-section="room-details" onclick="showSection('room-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-house text-blue-600 text-base"></i>
                     <span class="mt-1">Rooms</span>
                 </button>
-                <button type="button" onclick="showSection('rent-details')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-receipt text-purple-600 text-base"></i>
                     <span class="mt-1">Rent</span>
                 </button>
-                <button type="button" onclick="showSection('water-bill')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-droplet text-blue-600 text-base"></i>
                     <span class="mt-1">Water</span>
                 </button>
-                <button type="button" onclick="showSection('expenses')" class="flex flex-col items-center justify-center py-2 rounded-xl border border-gray-200 bg-white shadow-sm text-[11px] font-semibold text-gray-700">
+                <button type="button" data-section="expenses" onclick="showSection('expenses')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
                     <i class="fa-solid fa-wallet text-red-600 text-base"></i>
                     <span class="mt-1">Cost</span>
                 </button>
             </div>
         </div>
 
-        <div data-admin-only="1" style="display:none" class="fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
+        <div data-admin-only="1" style="display:none" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
             <div class="max-w-screen-sm mx-auto px-3 py-2">
-                <button type="button" onclick="showSection('admin')" class="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 bg-white shadow-sm text-sm font-semibold text-gray-700">
+                <button type="button" data-section="admin" onclick="showSection('admin')" class="mobile-nav-btn w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-gray-700">
                     <i class="fa-solid fa-shield-halved text-blue-600"></i>
                     <span>Admin</span>
                 </button>
@@ -964,7 +991,7 @@
     <script type="module">
         // Imports MUST be at top level
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, initializeAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIG
@@ -980,23 +1007,114 @@
 
         // Initialize Firebase (variables at module scope so functions can access them)
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+
+        // IMPORTANT: In iOS WKWebView, Firebase Auth can hang during its default persistence probing.
+        // Initialize Auth with in-memory persistence up front to avoid storage deadlocks.
+        let auth;
+        try {
+            if (isCapacitorRuntime()) {
+                auth = initializeAuth(app, { persistence: inMemoryPersistence });
+            } else {
+                auth = getAuth(app);
+            }
+        } catch (e) {
+            console.warn('⚠️ Firebase Auth init fallback to getAuth:', formatAuthError(e));
+            auth = getAuth(app);
+        }
+
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
         console.log("✓ Firebase initialized successfully");
+
+        // (Diagnostics removed after iOS login stabilized)
+
+        function formatAuthError(err) {
+            try {
+                if (!err) return 'Unknown error';
+                if (typeof err === 'string') return err;
+                const code = err.code || err.errorCode || null;
+                const message = (err.message !== undefined && err.message !== null)
+                    ? err.message
+                    : (err.localizedDescription !== undefined && err.localizedDescription !== null)
+                        ? err.localizedDescription
+                        : (err.errorMessage !== undefined && err.errorMessage !== null)
+                            ? err.errorMessage
+                            : (err.description !== undefined && err.description !== null)
+                                ? err.description
+                                : null;
+
+                const parts = [];
+                if (code) parts.push(String(code));
+                if (message !== null && message !== undefined) {
+                    const msgStr = String(message);
+                    parts.push(msgStr.length > 0 ? msgStr : '(empty message)');
+                }
+                if (message === null || message === undefined) {
+                    try {
+                        parts.push(JSON.stringify(err));
+                    } catch {
+                        parts.push(String(err));
+                    }
+                }
+
+                // Capacitor native errors often have non-enumerable properties; surface them.
+                try {
+                    const names = Object.getOwnPropertyNames(err);
+                    const picked = {};
+                    names.slice(0, 25).forEach(k => { picked[k] = err[k]; });
+                    parts.push(`details=${JSON.stringify(picked)}`);
+                } catch {}
+
+                return parts.filter(Boolean).join(' | ');
+            } catch {
+                return 'Unknown error';
+            }
+        }
+
+        function isCapacitorRuntime() {
+            try {
+                const proto = String(window.location?.protocol || '').toLowerCase();
+                if (proto === 'capacitor:' || proto === 'ionic:') return true;
+            } catch {}
+            return Boolean(window.Capacitor && typeof window.Capacitor.registerPlugin === 'function');
+        }
+
+        function getFirebaseAuthenticationPlugin() {
+            if (!isCapacitorRuntime() || !window.Capacitor) return null;
+            // In Capacitor native apps, installed plugins are exposed on `Capacitor.Plugins`.
+            const fromPlugins = window.Capacitor.Plugins && window.Capacitor.Plugins.FirebaseAuthentication
+                ? window.Capacitor.Plugins.FirebaseAuthentication
+                : null;
+            if (fromPlugins) return fromPlugins;
+
+            // Fallback: create a proxy via registerPlugin (may still work even if not listed).
+            if (typeof window.Capacitor.registerPlugin === 'function') {
+                try {
+                    return window.Capacitor.registerPlugin('FirebaseAuthentication');
+                } catch {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        const FirebaseAuthentication = getFirebaseAuthenticationPlugin();
+
+        let loginInProgress = false;
 
         // VIEWPORT / DESKTOP VIEW TOGGLE (for mobile browsers)
         function applyDesktopViewportMode() {
             const meta = document.querySelector('meta[name="viewport"]');
             if (!meta) return;
-            meta.setAttribute('content', 'width=1100');
+            meta.setAttribute('content', 'width=1100, viewport-fit=cover');
             document.body.classList.add('force-desktop');
         }
 
         function applyMobileViewportMode() {
             const meta = document.querySelector('meta[name="viewport"]');
             if (!meta) return;
-            meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+            meta.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover');
             document.body.classList.remove('force-desktop');
         }
 
@@ -4073,12 +4191,63 @@
         // AUTH FUNCTIONS - Expose to window
         window.loginWithGoogle = async (mode = 'user') => {
             const nextMode = setLoginMode(mode);
-            console.log("✓ loginWithGoogle clicked (mode):", nextMode);
             const errorMsg = document.getElementById('login-error');
             if (errorMsg) errorMsg.classList.add('hidden');
+
+            if (loginInProgress) {
+                console.warn('⚠️ Login already in progress; ignoring duplicate click.');
+                return;
+            }
+            loginInProgress = true;
             try {
-                const result = await signInWithPopup(auth, provider);
-                console.log("✓ Sign-in successful:", result.user.email);
+                const isNative = isCapacitorRuntime();
+
+                // On iOS (Capacitor WebView), signInWithPopup is unreliable.
+                // Use native Google sign-in via Capacitor Firebase Authentication plugin.
+                if (isNative) {
+                    const plugin = getFirebaseAuthenticationPlugin();
+                    if (!plugin || typeof plugin.signInWithGoogle !== 'function') {
+                        let available = '';
+                        try {
+                            available = Object.keys(window.Capacitor?.Plugins || {}).slice(0, 30).join(', ');
+                        } catch {}
+                        throw new Error('Capacitor runtime detected but FirebaseAuthentication plugin is not available. Ensure the iOS target links the plugin and that the app loads capacitor://localhost. Available plugins: ' + (available || '(unknown)'));
+                    }
+                    const startedAt = Date.now();
+                    const warnTimer = setTimeout(() => {
+                        console.warn('⚠️ Native signInWithGoogle is taking longer than expected (still waiting)...');
+                    }, 15000);
+
+                    let nativeResult;
+                    try {
+                        nativeResult = await plugin.signInWithGoogle();
+                    } finally {
+                        clearTimeout(warnTimer);
+                        console.log('✓ Native signInWithGoogle finished in', (Date.now() - startedAt), 'ms');
+                    }
+                    console.log('✓ Native signInWithGoogle result keys:', nativeResult ? Object.keys(nativeResult) : null);
+
+                    const idToken = nativeResult?.credential?.idToken || nativeResult?.idToken || null;
+                    const accessToken = nativeResult?.credential?.accessToken || nativeResult?.accessToken || null;
+                    if (!idToken && !accessToken) {
+                        throw new Error('Native Google sign-in did not return an idToken/accessToken. Check iOS Firebase setup (GoogleService-Info.plist) and plugin installation.');
+                    }
+
+                    const credential = GoogleAuthProvider.credential(idToken, accessToken);
+                    const webStartedAt = Date.now();
+                    const webWarnTimer = setTimeout(() => {
+                        console.warn('⚠️ Firebase web signInWithCredential is taking longer than expected (still waiting)...');
+                    }, 20000);
+                    const result = await signInWithCredential(auth, credential);
+                    clearTimeout(webWarnTimer);
+                    console.log("✓ Login successful:", result.user.email, `(${Date.now() - webStartedAt} ms)`);
+                    // Run the same authorization + UI transition immediately.
+                    try { await handleSignedInUser(result.user); } catch (e) { console.warn('⚠️ handleSignedInUser failed (native path):', e); }
+                } else {
+                    const result = await signInWithPopup(auth, provider);
+                    console.log("✓ Login successful:", result.user.email);
+                    try { await handleSignedInUser(result.user); } catch (e) { console.warn('⚠️ handleSignedInUser failed (web path):', e); }
+                }
                 // For user sessions, kick UI refresh quickly (admin portal skips app data)
                 if (getLoginMode() !== 'admin') {
                     setTimeout(() => {
@@ -4088,8 +4257,19 @@
                     }, 100);
                 }
             } catch (error) {
-                console.error("❌ Login failed:", error);
-                let message = "Login failed: " + error.message;
+                try {
+                    console.error("❌ Login failed:", error);
+                    if (error && typeof error === 'object') {
+                        console.error('❌ Login failed (own props):', Object.getOwnPropertyNames(error));
+                    }
+                } catch {}
+
+                const formatted = formatAuthError(error);
+                try { console.error('❌ Login failed (formatted):', formatted); } catch {}
+                let message = "Login failed: " + formatted;
+                if (error.code === 'auth/cancelled-popup-request') {
+                    message = 'Login failed: popup was cancelled or blocked. If you are running inside the iOS app, this should use native sign-in; confirm the URL starts with capacitor://localhost and that capacitor.js is loaded. If you are on the web, try again (avoid double-clicking) or use a browser that allows popups.';
+                }
                 if (error.code === 'auth/unauthorized-domain') {
                     const domain = window.location.hostname;
                     message = `⚠️ Domain Unauthorized: "${domain}"\n\nAdd to Firebase:\n1. Console → Authentication\n2. Settings → Authorized Domains\n3. Add: ${domain}`;
@@ -4098,8 +4278,97 @@
                     errorMsg.innerText = message;
                     errorMsg.classList.remove('hidden');
                 }
+            } finally {
+                loginInProgress = false;
             }
         };
+
+        let authGateInProgress = false;
+        let lastAuthGateUid = null;
+
+        async function handleSignedInUser(user) {
+            if (!user) return;
+            // Prevent duplicate concurrent runs (e.g., onAuthStateChanged + manual invoke)
+            if (authGateInProgress && lastAuthGateUid === user.uid) {
+                return;
+            }
+            authGateInProgress = true;
+            lastAuthGateUid = user.uid;
+
+            console.log('✓ handleSignedInUser starting for:', user.email);
+
+            // Check authorization against Firestore authorizedUsers/adminUsers collections
+            const mode = getLoginMode();
+            const authCol = (mode === 'admin') ? 'adminUsers' : 'authorizedUsers';
+            const authRef = doc(db, authCol, user.email);
+
+            try {
+                const authSnapshot = await getDoc(authRef);
+
+                if (!authSnapshot.exists()) {
+                    console.error('❌ Unauthorized user:', user.email, 'mode=', mode);
+                    await signOut(auth);
+                    const msg = (mode === 'admin')
+                        ? `❌ ADMIN ACCESS DENIED\n\nYour email (${user.email}) is not an admin.\n\nPlease contact the administrator.`
+                        : `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                    const el = document.getElementById('login-error');
+                    if (el) {
+                        el.innerText = msg;
+                        el.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                isAdminSession = (mode === 'admin');
+                applySessionNavMode();
+
+                // User is authorized - proceed with login
+                currentUser = user;
+                console.log('✓ User authorized:', user.email, 'mode=', mode);
+                const nameEl = document.getElementById('user-name');
+                if (nameEl) nameEl.innerText = user.displayName || 'User';
+                const photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://'))
+                    ? user.photoURL
+                    : 'https://via.placeholder.com/150';
+                const photoEl = document.getElementById('user-photo');
+                if (photoEl) photoEl.src = photoURL;
+
+                const loginScreenEl = document.getElementById('login-screen');
+                const appContentEl = document.getElementById('app-content');
+                if (loginScreenEl) loginScreenEl.classList.add('hidden-section');
+                if (appContentEl) appContentEl.classList.remove('hidden-section');
+
+                const loginErrEl = document.getElementById('login-error');
+                if (loginErrEl) loginErrEl.classList.add('hidden');
+
+                // Initialize year labels
+                try {
+                    setSelectedYear(getSelectedYear());
+                } catch (e) {
+                    console.warn('⚠️ Year label init failed:', e);
+                }
+
+                if (!isAdminSession) {
+                    initDataListener();
+                    subscribeExpenses();
+                    try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
+                    try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
+                } else {
+                    try { await loadAdminSettings(); } catch (e) { console.warn('⚠️ loadAdminSettings failed:', e); }
+                    try { window.showSection('admin'); } catch (e) { console.warn("⚠️ showSection('admin') failed:", e); }
+                }
+            } catch (err) {
+                console.error('Authorization check error:', err);
+                await signOut(auth);
+                const el = document.getElementById('login-error');
+                if (el) {
+                    el.innerText = `⚠️ System Error\n\n${err?.message || 'Unknown error'}\n\nPlease try again.`;
+                    el.classList.remove('hidden');
+                }
+            } finally {
+                authGateInProgress = false;
+            }
+        }
         
         // Initialize room cards on page load
         document.addEventListener('DOMContentLoaded', () => {
@@ -4167,61 +4436,11 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 console.log("✓ User signed in:", user.email);
-                
-                // Check authorization against Firestore authorizedUsers/adminUsers collections
+
                 try {
-                    const mode = getLoginMode();
-                    const authCol = (mode === 'admin') ? 'adminUsers' : 'authorizedUsers';
-                    const authRef = doc(db, authCol, user.email);
-                    const authSnapshot = await getDoc(authRef);
-
-                    if (!authSnapshot.exists()) {
-                        console.error("❌ Unauthorized user:", user.email, 'mode=', mode);
-                        await signOut(auth);
-                        const msg = (mode === 'admin')
-                            ? `❌ ADMIN ACCESS DENIED\n\nYour email (${user.email}) is not an admin.\n\nPlease contact the administrator.`
-                            : `❌ ACCESS DENIED\n\nYour email (${user.email}) is not authorized.\n\nPlease contact the administrator for access.`;
-                        document.getElementById('login-error').innerText = msg;
-                        document.getElementById('login-error').classList.remove('hidden');
-                        return;
-                    }
-
-                    isAdminSession = (mode === 'admin');
-                    applySessionNavMode();
-
-                    // User is authorized - proceed with login
-                    currentUser = user;
-                    console.log("✓ User authorized:", user.email, 'mode=', mode);
-                    document.getElementById('user-name').innerText = user.displayName || 'User';
-                    let photoURL = user.photoURL && (user.photoURL.startsWith('http://') || user.photoURL.startsWith('https://')) ? user.photoURL : 'https://via.placeholder.com/150';
-                    document.getElementById('user-photo').src = photoURL;
-                    document.getElementById('login-screen').classList.add('hidden-section');
-                    document.getElementById('app-content').classList.remove('hidden-section');
-                    document.getElementById('login-error').classList.add('hidden');
-
-                    // Initialize year labels
-                    try {
-                        setSelectedYear(getSelectedYear());
-                    } catch (e) {
-                        console.warn('⚠️ Year label init failed:', e);
-                    }
-
-                    if (!isAdminSession) {
-                        initDataListener();
-                        subscribeExpenses();
-
-                        // Initial renders (safe if data not loaded yet)
-                        try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
-                        try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
-                    } else {
-                        try { await loadAdminSettings(); } catch (e) { console.warn('⚠️ loadAdminSettings failed:', e); }
-                        try { window.showSection('admin'); } catch (e) { console.warn("⚠️ showSection('admin') failed:", e); }
-                    }
-                } catch (err) {
-                    console.error("Authorization check error:", err);
-                    await signOut(auth);
-                    document.getElementById('login-error').innerText = `⚠️ System Error\n\n${err.message}\n\nPlease try again.`;
-                    document.getElementById('login-error').classList.remove('hidden');
+                    await handleSignedInUser(user);
+                } catch (e) {
+                    console.warn('⚠️ handleSignedInUser failed (listener):', e);
                 }
             } else {
                 console.log("✓ User signed out");

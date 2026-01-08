@@ -1,0 +1,19 @@
+{
+  "appId": "com.munirathnamillam.rentmanagement",
+  "appName": "Rent Manager",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    }
+  },
+  "server": {
+    "iosScheme": "capacitor",
+    "hostname": "localhost",
+    "allowNavigation": [
+      "munirathnam-illam.firebaseapp.com"
+    ]
+  }
+}
