@@ -1092,10 +1092,61 @@
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
+        // CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
+            authDomain: "munirathnam-illam.firebaseapp.com",
+            projectId: "munirathnam-illam",
+            storageBucket: "munirathnam-illam.firebasestorage.app",
+            messagingSenderId: "852272424128",
+            appId: "1:852272424128:web:e5400d3d2f512d7e477925"
+        };
+
+        // Initialize Firebase (variables at module scope so functions can access them)
+        const app = initializeApp(firebaseConfig);
+
+        // IMPORTANT: In iOS WKWebView, Firebase Auth can hang during its default persistence probing.
+        // Use a single explicit persistence to avoid probing and keep sessions across app restarts.
+        let auth;
+        try {
+            if (isCapacitorRuntime()) {
+                auth = initializeAuth(app, { persistence: indexedDBLocalPersistence });
+            } else {
+                auth = getAuth(app);
+            }
+        } catch (e) {
+            console.warn('⚠️ Firebase Auth init fallback to getAuth:', formatAuthError(e));
+            try {
+                if (isCapacitorRuntime()) {
+                    auth = initializeAuth(app, { persistence: inMemoryPersistence });
+                } else {
+                    auth = getAuth(app);
+                }
+            } catch {
+                auth = getAuth(app);
+            }
+        }
+
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const provider = new GoogleAuthProvider();
+        console.log("✓ Firebase initialized successfully");
+
+        // --- Tenant upload (link-based) mode ---
+        const TENANT_UPLOAD_EMAIL_STORAGE_KEY = 'tenantUploadSignInEmail';
+        let tenantUploadMode = false;
+        let tenantUploadInviteId = null;
+        let tenantUploadInviteData = null;
+
         function getTenantUploadInviteIdFromUrl() {
-            const raw = getQueryParam('tenantUpload');
-            const v = String(raw || '').trim();
-            return v ? v : null;
+            try {
+                const u = new URL(window.location.href);
+                const raw = u.searchParams.get('tenantUpload');
+                const v = String(raw || '').trim();
+                return v ? v : null;
+            } catch {
+                return null;
+            }
         }
 
         function getTenantUploadPublicOrigin() {
