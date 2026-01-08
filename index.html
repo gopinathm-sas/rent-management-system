@@ -1396,6 +1396,10 @@
             }
         }
 
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
         // VIEWPORT / DESKTOP VIEW TOGGLE (for mobile browsers)
         function applyDesktopViewportMode() {
             const meta = document.querySelector('meta[name="viewport"]');
@@ -4892,6 +4896,21 @@
         let lastAuthUserForUi = null;
         let authStateResolvedOnce = false;
 
+        function webAuthBootFailsafe() {
+            // Web-only: if auth never resolves (SDK blocked/error), don't keep the boot overlay forever.
+            if (tenantUploadMode) return;
+            if (isCapacitorRuntime()) return;
+            setTimeout(() => {
+                if (authStateResolvedOnce) return;
+                const authBootEl = document.getElementById('auth-boot');
+                const loginScreenEl = document.getElementById('login-screen');
+                const appContentEl = document.getElementById('app-content');
+                if (authBootEl) authBootEl.classList.add('hidden');
+                if (loginScreenEl) loginScreenEl.classList.remove('hidden-section');
+                if (appContentEl) appContentEl.classList.add('hidden-section');
+            }, 2500);
+        }
+
         function isIOSCapacitor() {
             return isCapacitorRuntime() && window.Capacitor?.getPlatform?.() === 'ios';
         }
@@ -5062,6 +5081,8 @@
             // No-op
         }
 
+        try { webAuthBootFailsafe(); } catch (e) { /* ignore */ }
+
         // Auth State Listener - Check Authorization
         onAuthStateChanged(auth, async (user) => {
             const authBootEl = document.getElementById('auth-boot');
@@ -5116,7 +5137,14 @@
                 // Keep the boot overlay up while attempting any iOS native session restore.
                 if (!nativeSessionRestoreAttempted && isCapacitorRuntime()) {
                     nativeSessionRestoreAttempted = true;
-                    const restored = await tryRestoreSessionFromNative();
+                    try {
+                        setAuthBootUi({ text: 'Restoring session…', showUnlock: false, errorText: null });
+                    } catch {}
+
+                    const restored = await Promise.race([
+                        tryRestoreSessionFromNative(),
+                        delay(4500).then(() => false)
+                    ]);
                     if (restored) return;
                 }
 
