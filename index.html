@@ -4654,18 +4654,31 @@
 
             // Check authorization against Firestore lists.
             // Admins get full access (including admin-only cards) without a separate portal.
-            const email = String(user.email || '').trim();
-            const adminRef = doc(db, 'adminUsers', email);
-            const staffRef = doc(db, 'authorizedUsers', email);
+            const emailRaw = String(user.email || '').trim();
+            const email = emailRaw.toLowerCase();
 
             try {
-                const adminSnapshot = await getDoc(adminRef);
-                const staffSnapshot = adminSnapshot.exists() ? null : await getDoc(staffRef);
+                // Doc IDs may be stored lowercased; Firebase user.email may not be.
+                // Try both (lowercased first) for resilience.
+                let adminSnapshot = await getDoc(doc(db, 'adminUsers', email));
+                if (!adminSnapshot.exists() && emailRaw && emailRaw !== email) {
+                    const adminSnapshotRaw = await getDoc(doc(db, 'adminUsers', emailRaw));
+                    if (adminSnapshotRaw.exists()) adminSnapshot = adminSnapshotRaw;
+                }
+
+                let staffSnapshot = null;
+                if (!adminSnapshot.exists()) {
+                    staffSnapshot = await getDoc(doc(db, 'authorizedUsers', email));
+                    if ((!staffSnapshot || !staffSnapshot.exists()) && emailRaw && emailRaw !== email) {
+                        const staffSnapshotRaw = await getDoc(doc(db, 'authorizedUsers', emailRaw));
+                        if (staffSnapshotRaw.exists()) staffSnapshot = staffSnapshotRaw;
+                    }
+                }
 
                 if (!adminSnapshot.exists() && !(staffSnapshot && staffSnapshot.exists())) {
                     console.error('❌ Unauthorized user:', email);
                     await signOutEverywhere();
-                    const msg = `❌ ACCESS DENIED\n\nYour email (${email}) is not authorized.\n\nPlease contact the administrator for access.`;
+                    const msg = `❌ ACCESS DENIED\n\nYour email (${emailRaw || email}) is not authorized.\n\nPlease contact the administrator for access.`;
                     const el = document.getElementById('login-error');
                     if (el) {
                         el.innerText = msg;
