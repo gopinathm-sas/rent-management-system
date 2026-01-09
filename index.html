@@ -153,13 +153,13 @@
             -webkit-backdrop-filter: blur(8px);
         }
         .table-modern tbody tr {
-            box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.30);
+            box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.06);
         }
         .table-modern tbody tr:last-child {
             box-shadow: none;
         }
-        .table-modern thead th:first-child { border-top-left-radius: 14px; }
-        .table-modern thead th:last-child { border-top-right-radius: 14px; }
+        .table-modern thead th:first-child { border-top-left-radius: 22px; }
+        .table-modern thead th:last-child { border-top-right-radius: 22px; }
 
         /* Subtle hover lift for cards (opt-in) */
         .hover-lift {
@@ -181,7 +181,7 @@
         }
     </style>
 </head>
-<body class="bg-emerald-50 font-sans text-slate-800 antialiased">
+<body class="bg-gradient-to-br from-emerald-50 via-emerald-50/70 to-stone-50 font-sans text-slate-800 antialiased">
 
     <!-- SOFT BACKDROP (global, subtle) -->
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -370,27 +370,28 @@
                     <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Dashboard</h2>
                     <div class="flex flex-wrap items-center gap-2 text-sm text-slate-700">
                         <span class="font-semibold">Year</span>
-                        <button type="button" onclick="changeDashboardYear(-1)" class="inline-flex items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 transition" aria-label="Previous year">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
-                        <span id="dashboard-year" class="min-w-[4rem] text-center font-extrabold text-emerald-800">----</span>
-                        <button type="button" onclick="changeDashboardYear(1)" class="inline-flex items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 transition" aria-label="Next year">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
-                        
+                        <div class="inline-flex items-center gap-1 rounded-full bg-stone-50/90 border border-black/5 shadow-sm shadow-black/5 px-2 py-1.5">
+                            <button type="button" onclick="changeDashboardYear(-1)" class="inline-flex items-center justify-center size-9 rounded-full bg-transparent hover:bg-stone-100/70 text-slate-600 transition" aria-label="Previous year">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span id="dashboard-year" class="min-w-[4rem] text-center font-extrabold text-emerald-800">----</span>
+                            <button type="button" onclick="changeDashboardYear(1)" class="inline-flex items-center justify-center size-9 rounded-full bg-transparent hover:bg-stone-100/70 text-slate-600 transition" aria-label="Next year">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                     <div class="w-full overflow-x-auto">
-                        <table class="table-modern text-sm w-full border-collapse">
+                        <table class="table-modern text-sm w-full">
                             <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[8rem]">Month</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Rent Collected</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Expenses</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Water Charges</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Pending Rent</th>
+                                    <th class="px-5 py-4 text-left font-semibold bg-emerald-100/60 min-w-[8rem]">Month</th>
+                                    <th class="px-5 py-4 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Rent Collected</th>
+                                    <th class="px-5 py-4 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Expenses</th>
+                                    <th class="px-5 py-4 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Water Charges</th>
+                                    <th class="px-5 py-4 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Pending Rent</th>
                                 </tr>
                             </thead>
                             <tbody id="dashboardBody"></tbody>
@@ -4351,16 +4352,18 @@
                 const waterText = r.locked ? '—' : `₹${Math.round(Number(r.waterCharges) || 0).toLocaleString('en-IN')}`;
                 const pendingText = r.locked ? '—' : `₹${Math.round(r.pendingRent).toLocaleString('en-IN')}`;
 
-                const rowClass = r.locked ? 'border-b bg-gray-50' : 'border-b hover:bg-gray-50';
-                const valueCellClass = r.locked ? 'text-gray-400' : '';
+                const rowClass = r.locked
+                    ? 'bg-stone-100/50'
+                    : 'hover:bg-emerald-50/30 transition';
+                const valueCellClass = r.locked ? 'text-slate-400' : '';
 
                 return `
                     <tr class="${rowClass}">
-                        <td class="border px-4 py-3 font-semibold text-gray-800 bg-white">${escapeHtml(r.monthLabel)}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-green-700 bg-white ${valueCellClass}">${rentText}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-red-700 bg-white">${expText}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-blue-700 bg-white ${valueCellClass}">${waterText}</td>
-                        <td class="border px-4 py-3 text-right font-semibold text-orange-700 bg-white ${valueCellClass}">${pendingText}</td>
+                        <td class="px-5 py-4 font-medium text-slate-800">${escapeHtml(r.monthLabel)}</td>
+                        <td class="px-5 py-4 text-right font-medium text-emerald-700 ${valueCellClass}">${rentText}</td>
+                        <td class="px-5 py-4 text-right font-medium text-rose-700">${expText}</td>
+                        <td class="px-5 py-4 text-right font-medium text-sky-700 ${valueCellClass}">${waterText}</td>
+                        <td class="px-5 py-4 text-right font-medium text-amber-800 ${valueCellClass}">${pendingText}</td>
                     </tr>
                 `;
             }).join('');
