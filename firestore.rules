@@ -15,15 +15,32 @@ service cloud.firestore {
     }
 
     function isAuthorizedUser() {
-      return isSignedIn() && exists(/databases/$(database)/documents/authorizedUsers/$(userEmail()));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/authorizedUsers/$(userEmail()))
+        || (userEmailLower() != null && exists(/databases/$(database)/documents/authorizedUsers/$(userEmailLower())))
+      );
     }
 
     function isAdminUser() {
-      return isSignedIn() && exists(/databases/$(database)/documents/adminUsers/$(userEmail()));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/adminUsers/$(userEmail()))
+        || (userEmailLower() != null && exists(/databases/$(database)/documents/adminUsers/$(userEmailLower())))
+      );
+    }
+
+    function isViewerUser() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/viewerUsers/$(userEmail()))
+        || (userEmailLower() != null && exists(/databases/$(database)/documents/viewerUsers/$(userEmailLower())))
+      );
     }
 
     function isStaff() {
       return isAuthorizedUser() || isAdminUser();
+    }
+
+    function isStaffOrViewer() {
+      return isStaff() || isViewerUser();
     }
 
     // Default deny
@@ -44,6 +61,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdminUser();
     }
 
+    // Read-only viewer allowlist
+    match /viewerUsers/{email} {
+      allow get: if isSignedIn() && userEmail() == email;
+      allow list: if false;
+      allow create, update, delete: if isAdminUser();
+    }
+
     // Admin-only settings (includes admin email for settlement reports)
     match /adminSettings/{docId} {
       allow read, write: if isAdminUser();
@@ -51,11 +75,13 @@ service cloud.firestore {
 
     // Main app data
     match /properties/{propertyId} {
-      allow read, write: if isStaff();
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
     }
 
     match /expenses/{expenseId} {
-      allow read, write: if isStaff();
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
     }
 
     // Tenant upload link (Option 2)

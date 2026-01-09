@@ -15,15 +15,32 @@ service firebase.storage {
     }
 
     function isAuthorizedUser() {
-      return isSignedIn() && firestore.get(/databases/(default)/documents/authorizedUsers/$(userEmail())).exists();
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/authorizedUsers/$(userEmail()))
+        || (userEmailLower() != null && firestore.exists(/databases/(default)/documents/authorizedUsers/$(userEmailLower())))
+      );
     }
 
     function isAdminUser() {
-      return isSignedIn() && firestore.get(/databases/(default)/documents/adminUsers/$(userEmail())).exists();
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/adminUsers/$(userEmail()))
+        || (userEmailLower() != null && firestore.exists(/databases/(default)/documents/adminUsers/$(userEmailLower())))
+      );
+    }
+
+    function isViewerUser() {
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/viewerUsers/$(userEmail()))
+        || (userEmailLower() != null && firestore.exists(/databases/(default)/documents/viewerUsers/$(userEmailLower())))
+      );
     }
 
     function isStaff() {
       return isAuthorizedUser() || isAdminUser();
+    }
+
+    function isStaffOrViewer() {
+      return isStaff() || isViewerUser();
     }
 
     // Default deny
@@ -33,7 +50,7 @@ service firebase.storage {
 
     // Tenant documents (staff-only)
     match /tenant-documents/{roomId}/{propertyDocId}/{fileName} {
-      allow read: if isStaff();
+      allow read: if isStaffOrViewer();
       allow write: if isStaff()
         && request.resource.size < 10 * 1024 * 1024
         && (
@@ -44,18 +61,21 @@ service firebase.storage {
 
     // Tenant upload link (Option 2) - invite-scoped path
     match /tenant-upload-invites/{inviteId}/{fileName} {
+      function invitePath() {
+        return /databases/(default)/documents/tenantUploadInvites/$(inviteId);
+      }
       function inviteDoc() {
-        return firestore.get(/databases/(default)/documents/tenantUploadInvites/$(inviteId));
+        return firestore.get(invitePath());
       }
       function isInviteValid() {
         return isSignedIn()
-          && inviteDoc().exists()
+          && firestore.exists(invitePath())
           && inviteDoc().data.status == 'active'
           && inviteDoc().data.emailLower == userEmailLower()
           && (inviteDoc().data.expiresAt == null || inviteDoc().data.expiresAt > request.time);
       }
 
-      allow read: if isStaff() || isInviteValid();
+      allow read: if isStaffOrViewer() || isInviteValid();
       allow write: if isInviteValid()
         && request.resource != null
         && request.resource.size < 10 * 1024 * 1024

@@ -549,6 +549,19 @@
                         </div>
                         <p id="tenantUploadInviteMsg" class="hidden text-xs mt-3"></p>
                     </div>
+
+                    <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 p-6 border border-black/5 max-w-2xl">
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div>
+                                <p class="text-sm text-slate-600">Tenant uploaded documents</p>
+                                <p class="text-xs text-slate-500">Shows recent submissions created from upload invites. Click a file to open it.</p>
+                            </div>
+                            <button type="button" onclick="window.refreshTenantUploadSubmissions()" class="px-4 py-2 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 font-semibold shadow-sm shadow-black/10">Refresh</button>
+                        </div>
+                        <div id="tenantUploadSubmissionsList" class="mt-4 space-y-3">
+                            <p class="text-xs text-slate-400">Loading…</p>
+                        </div>
+                    </div>
                 </div>
 
             </section>
@@ -639,11 +652,11 @@
                                         <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">May</th>
                                         <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jun</th>
                                         <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jul</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Aug</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Sep</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Oct</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Nov</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Dec</th>
                                     </tr>
                                 </thead>
                                 <tbody id="rentWaterBody" class="divide-y">
@@ -662,45 +675,45 @@
             <!-- Water Bill Section -->
             <section id="water-bill" class="section-tab mb-10">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-                    <h2 class="text-2xl font-bold text-gray-700">Water Bill</h2>
-                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Water Bill</h2>
+                    <div class="flex items-center gap-2 text-sm text-slate-700">
                         <span class="font-semibold">Year</span>
-                        <span id="water-bill-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <span class="text-xs text-gray-500">(from Dashboard)</span>
+                        <span id="water-bill-year" class="min-w-[4rem] text-center font-extrabold text-emerald-800">----</span>
+                        <span class="text-xs text-slate-500">(from Dashboard)</span>
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <p class="text-gray-500">Enter monthly meter reading for each tenant. Units = (current − previous) × 10. Amount = Units × Rate</p>
+                    <p class="text-slate-500">Enter monthly meter reading for each tenant. Units = (current − previous) × 10. Amount = Units × Rate</p>
                     <div class="flex items-center gap-2">
-                        <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">
+                        <button type="button" onclick="resetWaterRatesToDefault()" class="px-4 py-2.5 rounded-2xl border border-black/5 bg-stone-50 hover:bg-stone-100/70 font-semibold text-slate-700 shadow-sm shadow-black/5 transition">
                             Reset Water Rate Defaults
                         </button>
-                        <button type="button" onclick="openWaterImportModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                        <button type="button" onclick="openWaterImportModal()" class="px-4 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold shadow-sm shadow-black/10 transition">
                             Import Readings
                         </button>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                     <div class="w-full overflow-x-auto">
                         <table id="waterBillTable" class="table-modern text-sm w-full border-collapse">
-                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                            <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room ID</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room No</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[10rem]">Tenant Name</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jan</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Feb</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Mar</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Apr</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">May</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jun</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jul</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Aug</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Sep</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Oct</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Nov</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Dec</th>
                                 </tr>
                             </thead>
                             <tbody id="waterBillBody" class="divide-y">
@@ -718,14 +731,14 @@
             <!-- Expenses Section -->
             <section id="expenses" class="section-tab mb-10">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-                    <h2 class="text-2xl font-bold text-gray-700">Expenses</h2>
-                    <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Expenses</h2>
+                    <div class="flex items-center gap-2 text-sm text-slate-700">
                         <span class="font-semibold">Year</span>
-                        <span id="expenses-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <span class="text-xs text-gray-500 mr-2">(from Dashboard)</span>
+                        <span id="expenses-year" class="min-w-[4rem] text-center font-extrabold text-emerald-800">----</span>
+                        <span class="text-xs text-slate-500 mr-2">(from Dashboard)</span>
 
                         <span class="font-semibold">Month</span>
-                        <select id="expenses-month-filter" onchange="window.setExpensesMonthFilter(this.value)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50">
+                        <select id="expenses-month-filter" onchange="window.setExpensesMonthFilter(this.value)" class="px-4 py-2.5 rounded-2xl border border-black/10 bg-stone-50 hover:bg-stone-100/70 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80">
                             <option value="All">All</option>
                             <option value="0">Jan</option>
                             <option value="1">Feb</option>
@@ -742,17 +755,17 @@
                         </select>
                     </div>
                 </div>
-                <p class="text-gray-500 mb-4">Add item-wise expenses (salary, electricity, internet, maintenance). Dashboard shows month totals.</p>
+                <p class="text-slate-500 mb-4">Add item-wise expenses (salary, electricity, internet, maintenance). Dashboard shows month totals.</p>
 
-                <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
+                <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 p-6 mb-6 border border-black/5">
                     <form id="expenseForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <label class="block text-gray-700 font-semibold mb-2">Date</label>
-                            <input type="date" id="expenseDate" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="date" id="expenseDate" required class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-2">Category</label>
-                            <select id="expenseCategory" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <select id="expenseCategory" required class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80">
                                 <option value="House Keeping Salary">House Keeping Salary</option>
                                 <option value="Electricity Bill">Electricity Bill</option>
                                 <option value="Internet Bill">Internet Bill</option>
@@ -763,29 +776,29 @@
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-2">Note</label>
-                            <input type="text" id="expenseNote" placeholder="Optional" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="text" id="expenseNote" placeholder="Optional" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-2">Amount (₹)</label>
-                            <input type="number" id="expenseAmount" min="0" step="0.01" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="number" id="expenseAmount" min="0" step="0.01" required class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
                         </div>
                         <div class="md:col-span-4 flex justify-end">
-                            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Add Expense</button>
+                            <button type="submit" class="px-6 py-2.5 bg-emerald-700 text-white rounded-2xl hover:bg-emerald-800 font-semibold shadow-sm shadow-black/10 transition">Add Expense</button>
                         </div>
                     </form>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+                <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                     <div class="w-full overflow-x-auto">
                         <table class="table-modern text-sm w-full border-collapse">
-                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                            <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[9rem]">Date</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[12rem]">Category</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[14rem]">Note</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[8rem]">Amount</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100 min-w-[7rem]">Actions</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[8rem]">Month</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[9rem]">Date</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[12rem]">Category</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[14rem]">Note</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[8rem]">Amount</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60 min-w-[7rem]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="expensesBody"></tbody>
@@ -1177,7 +1190,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, initializeAuth, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, onAuthStateChanged, indexedDBLocalPersistence, inMemoryPersistence, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getStorage, ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+        import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
         // CONFIG
         const firebaseConfig = {
@@ -1702,6 +1715,8 @@
         let currentUser = null;
         let unsubscribe = null;
         let expensesUnsubscribe = null;
+        let tenantUploadSubmissionsUnsubscribe = null;
+        let tenantUploadSubmissionsData = [];
         let allPropertiesData = [];
         let allExpensesData = [];
         let currentLedgerPropId = null;
@@ -1788,6 +1803,17 @@
         };
 
         let isAdminSession = false;
+        let isViewerSession = false;
+
+        function isReadOnlySession() {
+            return !!isViewerSession;
+        }
+
+        function ensureWriteAllowed(actionLabel = 'This action') {
+            if (!isReadOnlySession()) return true;
+            showNotification(`${actionLabel} is disabled in read-only demo mode.`, 'info');
+            return false;
+        }
 
         function applySessionNavMode() {
             // Admin should see all regular sections + admin-only cards.
@@ -2013,7 +2039,9 @@
 
                 const tenantData = findTenantForRoom(roomData);
                 const isOccupied = isOccupiedRecord(tenantData);
-                const tenantName = tenantData?.tenant || 'No Tenant';
+                const tenantName = isOccupied
+                    ? (String(tenantData?.tenant || '').trim() || 'Unknown')
+                    : 'Vacant';
                 const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
                 const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
                 const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
@@ -2073,7 +2101,9 @@
             
             const tenantData = findTenantForRoom(roomData);
             const isOccupied = isOccupiedRecord(tenantData);
-            const tenantName = tenantData?.tenant || 'No Tenant';
+            const tenantName = isOccupied
+                ? (String(tenantData?.tenant || '').trim() || 'Unknown')
+                : 'Vacant';
             const contact = tenantData?.contact || 'N/A';
             const rent = tenantData?.rent || 'N/A';
             const deposit = tenantData?.deposit || 'N/A';
@@ -2317,6 +2347,7 @@
 
         // UPDATE ROOM STATUS (Occupied/Vacant)
         window.updateRoomStatus = async (roomId, newStatus) => {
+            if (!ensureWriteAllowed('Updating room status')) return;
             try {
                 // Find the best matching tenant record for this roomId.
                 // (There may be multiple docs for a room; pick occupied/newest.)
@@ -2399,7 +2430,7 @@
                     updatePayload.payStatus = null;
                     updatePayload.paymentHistory = {};
                     updatePayload.paymentTotals = {};
-                    updatePayload.waterReadings = {};
+                    // NOTE: Keep waterReadings so meter history remains available after vacate.
                 }
 
                 // Update the Firestore document
@@ -2437,6 +2468,8 @@
                 showNotification("Please login first", "warning");
                 return;
             }
+
+            if (!ensureWriteAllowed('Marking rooms vacant')) return;
 
             try {
                 const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
@@ -2539,7 +2572,6 @@
                     payStatus: null,
                     paymentHistory: {},
                     paymentTotals: {},
-                    waterReadings: {},
                     updatedAt: serverTimestamp(),
                     updatedBy: currentUser.uid
                 };
@@ -3214,6 +3246,8 @@
                 return;
             }
 
+            if (!ensureWriteAllowed('Finalizing settlement')) return;
+
             try {
                 const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
                     no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
@@ -3410,7 +3444,6 @@
                     payStatus: null,
                     paymentHistory: {},
                     paymentTotals: {},
-                    waterReadings: {},
                     updatedAt: serverTimestamp(),
                     updatedBy: currentUser.uid
                 };
@@ -3591,7 +3624,6 @@
                         payStatus: null,
                         paymentHistory: {},
                         paymentTotals: {},
-                        waterReadings: {},
                         updatedAt: serverTimestamp(),
                         updatedBy: currentUser.uid
                     };
@@ -4789,7 +4821,17 @@
                     }
                 }
 
+                // Read-only viewer allowlist (demo mode)
+                let viewerSnapshot = null;
                 if (!adminSnapshot.exists() && !(staffSnapshot && staffSnapshot.exists())) {
+                    viewerSnapshot = await getDoc(doc(db, 'viewerUsers', email));
+                    if ((!viewerSnapshot || !viewerSnapshot.exists()) && emailRaw && emailRaw !== email) {
+                        const viewerSnapshotRaw = await getDoc(doc(db, 'viewerUsers', emailRaw));
+                        if (viewerSnapshotRaw.exists()) viewerSnapshot = viewerSnapshotRaw;
+                    }
+                }
+
+                if (!adminSnapshot.exists() && !(staffSnapshot && staffSnapshot.exists()) && !(viewerSnapshot && viewerSnapshot.exists())) {
                     console.error('❌ Unauthorized user:', email);
                     await signOutEverywhere();
                     const msg = `❌ ACCESS DENIED\n\nYour email (${emailRaw || email}) is not authorized.\n\nPlease contact the administrator for access.`;
@@ -4802,6 +4844,7 @@
                 }
 
                 isAdminSession = adminSnapshot.exists();
+                isViewerSession = !isAdminSession && !(staffSnapshot && staffSnapshot.exists()) && (viewerSnapshot && viewerSnapshot.exists());
                 applySessionNavMode();
 
                 // User is authorized - proceed with login
@@ -4836,9 +4879,14 @@
                 try { window.renderFinancialDashboard(); } catch (e) { console.warn('⚠️ renderFinancialDashboard failed:', e); }
                 try { window.renderExpensesList(); } catch (e) { console.warn('⚠️ renderExpensesList failed:', e); }
 
+                if (isViewerSession) {
+                    showNotification('Read-only demo mode enabled.', 'info');
+                }
+
                 // Admin-only settings UI (embedded on normal page)
                 if (isAdminSession) {
                     try { await loadAdminSettings(); } catch (e) { console.warn('⚠️ loadAdminSettings failed:', e); }
+                    try { window.subscribeTenantUploadSubmissions(); } catch (e) { console.warn('⚠️ subscribeTenantUploadSubmissions failed:', e); }
                 }
             } catch (err) {
                 console.error('Authorization check error:', err);
@@ -5403,6 +5451,7 @@
                 applySessionNavMode();
                 if (unsubscribe) { try { unsubscribe(); } catch {} unsubscribe = null; }
                 if (expensesUnsubscribe) { try { expensesUnsubscribe(); } catch {} expensesUnsubscribe = null; }
+                if (tenantUploadSubmissionsUnsubscribe) { try { tenantUploadSubmissionsUnsubscribe(); } catch {} tenantUploadSubmissionsUnsubscribe = null; }
                 if (loginScreenEl) {
                     if (!appLockEnabled || appLockUnlocked) loginScreenEl.classList.remove('hidden-section');
                     else loginScreenEl.classList.add('hidden-section');
@@ -5507,6 +5556,136 @@
             }
         };
 
+        function formatUploadSubmissionTime(ts) {
+            try {
+                if (!ts) return '';
+                const d = typeof ts?.toDate === 'function' ? ts.toDate() : (ts instanceof Date ? ts : null);
+                if (!d) return '';
+                return d.toLocaleString('en-IN', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch {
+                return '';
+            }
+        }
+
+        window.openTenantUploadFile = async (storagePath) => {
+            if (!currentUser) {
+                showNotification('Please login first', 'warning');
+                return;
+            }
+            if (!isAdminSession) {
+                showNotification('Admin login required', 'warning');
+                return;
+            }
+
+            try {
+                const path = String(storagePath || '').trim();
+                if (!path) {
+                    showNotification('Missing file path', 'warning');
+                    return;
+                }
+                const url = await getDownloadURL(storageRef(storage, path));
+                window.open(url, '_blank');
+            } catch (e) {
+                console.warn('⚠️ openTenantUploadFile failed:', e);
+                showNotification('Could not open file: ' + (e?.message || 'Unknown error'), 'error');
+            }
+        };
+
+        window.renderTenantUploadSubmissions = () => {
+            const el = document.getElementById('tenantUploadSubmissionsList');
+            if (!el) return;
+
+            if (!currentUser || !isAdminSession) {
+                el.innerHTML = '<p class="text-xs text-slate-400">Admin login required.</p>';
+                return;
+            }
+
+            const items = Array.isArray(tenantUploadSubmissionsData) ? tenantUploadSubmissionsData : [];
+            if (!items.length) {
+                el.innerHTML = '<p class="text-xs text-slate-400">No submissions yet.</p>';
+                return;
+            }
+
+            el.innerHTML = items.slice(0, 30).map(s => {
+                const created = formatUploadSubmissionTime(s?.createdAt);
+                const email = String(s?.emailLower || '').trim();
+                const roomId = String(s?.roomId || '').trim();
+                const inviteId = String(s?.inviteId || '').trim();
+                const files = Array.isArray(s?.files) ? s.files : [];
+
+                const filesHtml = files.length
+                    ? files.map(f => {
+                        const name = String(f?.originalName || f?.name || 'File');
+                        const path = String(f?.storagePath || '').trim();
+                        const ct = String(f?.contentType || '').trim();
+                        const sizeKb = Number(f?.size || 0) ? `${Math.round(Number(f.size) / 1024)} KB` : '';
+                        const meta = [ct, sizeKb].filter(Boolean).join(' • ');
+                        const btn = path
+                            ? `<button type="button" class="text-emerald-800 hover:text-emerald-900 underline" onclick="window.openTenantUploadFile('${escapeHtml(path)}')">${escapeHtml(name)}</button>`
+                            : `<span class="text-slate-500">${escapeHtml(name)}</span>`;
+                        return `<div class="text-xs text-slate-700 truncate">${btn}${meta ? ` <span class=\"text-slate-400\">(${escapeHtml(meta)})</span>` : ''}</div>`;
+                    }).join('')
+                    : '<div class="text-xs text-slate-400">No files</div>';
+
+                return `
+                    <div class="rounded-2xl border border-black/5 bg-white/70 p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="text-sm font-semibold text-slate-900">Room ${escapeHtml(roomId || '—')}</div>
+                            <div class="text-xs text-slate-400">${escapeHtml(created || '')}</div>
+                        </div>
+                        <div class="mt-1 text-xs text-slate-600">${escapeHtml(email || '')}${inviteId ? ` • Invite: ${escapeHtml(inviteId)}` : ''}</div>
+                        <div class="mt-3 space-y-1">${filesHtml}</div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.subscribeTenantUploadSubmissions = () => {
+            if (!currentUser || !isAdminSession) return;
+            if (tenantUploadSubmissionsUnsubscribe) return;
+
+            const listEl = document.getElementById('tenantUploadSubmissionsList');
+            if (listEl) listEl.innerHTML = '<p class="text-xs text-slate-400">Loading…</p>';
+
+            try {
+                const q = query(collection(db, 'tenantUploadSubmissions'), orderBy('createdAt', 'desc'));
+                tenantUploadSubmissionsUnsubscribe = onSnapshot(q, (snap) => {
+                    const items = [];
+                    snap.forEach(docSnap => {
+                        items.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    tenantUploadSubmissionsData = items;
+                    try { window.renderTenantUploadSubmissions(); } catch (e) { console.warn('⚠️ renderTenantUploadSubmissions failed:', e); }
+                }, (err) => {
+                    console.warn('⚠️ tenantUploadSubmissions subscription failed:', err);
+                    const el = document.getElementById('tenantUploadSubmissionsList');
+                    if (el) el.innerHTML = `<p class="text-xs text-red-600">Failed to load submissions: ${escapeHtml(err?.message || 'Unknown error')}</p>`;
+                });
+            } catch (e) {
+                console.warn('⚠️ subscribeTenantUploadSubmissions error:', e);
+                const el = document.getElementById('tenantUploadSubmissionsList');
+                if (el) el.innerHTML = `<p class="text-xs text-red-600">Failed to load submissions: ${escapeHtml(e?.message || 'Unknown error')}</p>`;
+            }
+        };
+
+        window.refreshTenantUploadSubmissions = () => {
+            if (!currentUser || !isAdminSession) {
+                showNotification('Admin login required', 'warning');
+                return;
+            }
+            if (!tenantUploadSubmissionsUnsubscribe) {
+                window.subscribeTenantUploadSubmissions();
+                return;
+            }
+            try { window.renderTenantUploadSubmissions(); } catch (e) { console.warn('⚠️ renderTenantUploadSubmissions failed:', e); }
+        };
+
         // DATA LISTENER
         function initDataListener() {
             console.log("✓ Initializing data listener");
@@ -5580,6 +5759,7 @@
         }
 
         window.addExpense = async () => {
+            if (!ensureWriteAllowed('Saving expenses')) return;
             const dateEl = document.getElementById('expenseDate');
             const categoryEl = document.getElementById('expenseCategory');
             const amountEl = document.getElementById('expenseAmount');
@@ -6436,6 +6616,8 @@
                     void window.uiAlert({ title: 'Sign in required', message: 'Please sign in to save a room.', okText: 'OK' });
                     return;
                 }
+
+                if (!ensureWriteAllowed('Saving rooms')) return;
                 
                 const btnText = document.getElementById('btn-text');
                 const btnLoader = document.getElementById('btn-loader');
@@ -6491,6 +6673,8 @@
                 void window.uiAlert({ title: 'Sign in required', message: 'Please sign in to delete a record.', okText: 'OK' });
                 return;
             }
+
+            if (!ensureWriteAllowed('Deleting properties')) return;
             const ok = await window.uiConfirm({
                 title: 'Delete this property?',
                 message: 'This will permanently delete the record from the database.',
@@ -6519,6 +6703,8 @@
                 void window.uiAlert({ title: 'Sign in required', message: 'Please sign in first.', okText: 'OK' });
                 return;
             }
+
+            if (!ensureWriteAllowed('Saving room details')) return;
 
             // Read values from the input fields
             const roomNo = document.getElementById(`row-${rowIndex}-roomNo`).value.trim();
@@ -6724,7 +6910,7 @@
                 const tenantData = findTenantForRoom(roomData);
                 const occupied = isOccupiedRecord(tenantData);
 
-                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
+                const tenantName = occupied ? (tenantData?.tenant || 'Unknown') : 'Vacant';
                 const history = tenantData?.paymentHistory || {};
                 const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
                 
@@ -6819,7 +7005,7 @@
                 const tenantData = findTenantForRoom(roomData);
                 const occupied = isOccupiedRecord(tenantData);
 
-                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
+                const tenantName = occupied ? (tenantData?.tenant || 'Unknown') : 'Vacant';
                 const history = tenantData?.paymentHistory || {};
                 const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
 
@@ -6970,6 +7156,7 @@
         };
 
         window.toggleMonthStatus = async (roomId, key, currentStatus) => {
+            if (!ensureWriteAllowed('Updating rent status')) return;
             let newStatus = 'Pending';
             if (currentStatus === 'Pending') newStatus = 'Rent Only';
             else if (currentStatus === 'Rent Only') newStatus = 'Paid';
@@ -7122,7 +7309,7 @@
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = findTenantForRoom(roomData);
                 const occupied = isOccupiedRecord(tenantData);
-                const tenantName = occupied ? (tenantData?.tenant || 'No Tenant') : 'No Tenant';
+                const tenantName = occupied ? (tenantData?.tenant || 'Unknown') : 'Vacant';
                 const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
 
                 let row = `
@@ -7198,6 +7385,7 @@
         };
 
         window.setWaterReading = async (roomId, year, monthIndex) => {
+            if (!ensureWriteAllowed('Saving water reading')) return;
             try {
                 if (isFutureYearMonth(year, monthIndex, new Date())) {
                     showNotification('Current & future months are disabled (available after month ends).', 'warning');
@@ -7348,6 +7536,7 @@
 
         // Reset water rates to defaults (0.25 or 0.20 for rooms 11–13)
         window.resetWaterRatesToDefault = async () => {
+            if (!ensureWriteAllowed('Resetting water rates')) return;
             const ok = await window.uiConfirm({
                 title: 'Reset water rate defaults',
                 message: 'This will set water rate to 0.25 for all rooms, and 0.20 for rooms 11–13. Continue?',
@@ -7484,6 +7673,7 @@
         }
 
         window.runWaterImport = async () => {
+            if (!ensureWriteAllowed('Importing water readings')) return;
             const text = String(document.getElementById('waterImportText')?.value || '').trim();
             if (!text) {
                 await window.uiAlert('Paste some rows first.');
