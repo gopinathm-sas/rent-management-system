@@ -28,3 +28,7 @@
 - Rooms are fixed in `IMMUTABLE_ROOMS_DATA` (room 03 intentionally absent) in [index.html](index.html).
 - Water billing constants/logic are duplicated in [index.html](index.html) and [functions/index.js](functions/index.js) (rates, multiplier, ₹60 service charge). If you change one, change the other.
 - Date strings are `YYYY-MM-DD`; status strings are case-sensitive (`Occupied` / `Vacant`).
+
+## Git workflow
+- After completing a change, commit and push to the current branch by default.
+- If the user says not to commit/push (or asks to batch multiple changes), follow the user’s instruction.
