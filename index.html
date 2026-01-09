@@ -20,23 +20,8 @@
         .section-tab { display: none !important; }
         .section-tab.active { display: block !important; }
 
-        /* Nav active state */
-        .nav-link {
-            opacity: 0.92;
-            padding: 0.4rem 0.8rem;
-            border-radius: 9999px;
-            line-height: 1.1;
-            white-space: nowrap;
-        }
-        .nav-link:hover {
-            opacity: 1;
-            background: rgba(255, 255, 255, 0.12);
-        }
-        .nav-link.nav-active {
-            opacity: 1;
-            background: rgba(255, 255, 255, 0.22);
-            border: 1px solid rgba(255, 255, 255, 0.28);
-        }
+        /* Nav active state: JS applies Tailwind classes; keep only layout defaults here */
+        .nav-link { white-space: nowrap; }
 
         /* Rent Details table usability: sticky first columns */
         #rentDetailsTable { border-collapse: separate; border-spacing: 0; }
@@ -99,12 +84,10 @@
             font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
         }
 
-        /* Glassmorphism surfaces */
+        /* Glass effects: color comes from Tailwind classes on elements */
         .glass-nav {
-            background: linear-gradient(90deg, rgba(67, 56, 202, 0.72), rgba(37, 99, 235, 0.60));
-            backdrop-filter: blur(14px) saturate(1.4);
-            -webkit-backdrop-filter: blur(14px) saturate(1.4);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(14px) saturate(1.2);
+            -webkit-backdrop-filter: blur(14px) saturate(1.2);
         }
 
         /* iOS safe-area + mobile polish */
@@ -124,15 +107,7 @@
             border: 1px solid transparent;
             background: transparent;
         }
-        .mobile-nav-btn.nav-active {
-            background: rgba(37, 99, 235, 0.10);
-            border-color: rgba(37, 99, 235, 0.28);
-        }
-
-        .quick-nav-btn.nav-active {
-            background: rgba(37, 99, 235, 0.08);
-            border-color: rgba(37, 99, 235, 0.25);
-        }
+        /* Active states are applied by JS via Tailwind classes */
 
         .modal-backdrop {
             background: rgba(15, 23, 42, 0.45) !important;
@@ -174,7 +149,6 @@
             border-width: 0 !important;
         }
         .table-modern thead th {
-            background: rgba(226, 232, 240, 0.75) !important; /* slate-200-ish */
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
         }
@@ -207,7 +181,7 @@
         }
     </style>
 </head>
-<body class="bg-emerald-50 font-sans text-slate-800">
+<body class="bg-emerald-50 font-sans text-slate-800 antialiased">
 
     <!-- SOFT BACKDROP (global, subtle) -->
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -217,14 +191,18 @@
     </div>
 
     <!-- AUTH BOOT (prevents login flash on iOS while auth restores) -->
-    <div id="auth-boot" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[60]">
-        <div class="flex items-center gap-3 text-gray-700">
-            <i class="fa-solid fa-circle-notch fa-spin text-blue-600 text-xl"></i>
+    <div id="auth-boot" class="fixed inset-0 bg-emerald-50 flex flex-col items-center justify-center z-[60]">
+        <div class="flex items-center gap-3 text-slate-700">
+            <span class="inline-flex size-10 items-center justify-center rounded-2xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                <i class="fa-solid fa-circle-notch fa-spin text-lg"></i>
+            </span>
             <span id="auth-boot-text" class="text-sm font-semibold">Loading…</span>
         </div>
 
-        <button id="auth-boot-unlock-btn" class="hidden mt-6 bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
-            <i class="fa-solid fa-face-smile mr-2"></i>
+        <button id="auth-boot-unlock-btn" class="hidden mt-6 bg-stone-50 border border-black/5 text-slate-700 font-semibold py-2.5 px-4 rounded-2xl hover:bg-stone-100/70 transition shadow-sm shadow-black/5 flex items-center justify-center">
+            <span class="mr-2 inline-flex size-9 items-center justify-center rounded-xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                <i class="fa-solid fa-face-smile"></i>
+            </span>
             Unlock with Face ID
         </button>
         <p id="auth-boot-error" role="alert" aria-live="assertive" class="hidden text-red-500 text-sm mt-4 text-center bg-red-50 p-3 rounded border border-red-200 max-w-sm"></p>
@@ -288,49 +266,55 @@
     </div>
 
     <!-- TENANT UPLOAD SCREEN (link-based, authenticated) -->
-    <div id="tenant-upload-screen" class="hidden fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50 p-4">
-        <div class="text-center bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full">
-            <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5">
-                <i class="fa-solid fa-file-arrow-up text-3xl text-blue-600"></i>
+    <div id="tenant-upload-screen" class="hidden fixed inset-0 bg-emerald-50 flex flex-col items-center justify-center z-50 p-4">
+        <div class="text-center bg-stone-50 p-8 rounded-3xl shadow-sm shadow-black/5 border border-black/5 max-w-lg w-full">
+            <div class="bg-emerald-100/70 border border-emerald-200/60 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-5 text-emerald-800">
+                <i class="fa-solid fa-file-arrow-up text-2xl"></i>
             </div>
-            <h1 class="text-2xl font-bold mb-1 text-gray-800">Upload Tenant Documents</h1>
-            <p class="text-gray-500 mb-6">Secure upload link</p>
+            <h1 class="text-2xl font-extrabold mb-1 text-slate-900 tracking-tight">Upload Tenant Documents</h1>
+            <p class="text-slate-500 mb-6">Secure upload link</p>
 
             <div id="tenant-upload-step" class="text-left space-y-4">
                 <div>
                     <label class="block text-gray-700 font-semibold mb-2">Your Email</label>
-                    <input id="tenant-upload-email" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <p class="text-xs text-gray-500 mt-2">We’ll send a sign-in link to this email. Open it on the same device to continue.</p>
+                    <input id="tenant-upload-email" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
+                    <p class="text-xs text-slate-500 mt-2">We’ll send a sign-in link to this email. Open it on the same device to continue.</p>
                 </div>
-                <button id="tenant-upload-send-link" type="button" class="w-full bg-gray-900 border border-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-black transition flex items-center justify-center">
-                    <i class="fa-solid fa-envelope mr-3"></i>
+                <button id="tenant-upload-send-link" type="button" class="w-full bg-emerald-700 text-white font-semibold py-3 px-4 rounded-2xl hover:bg-emerald-800 transition shadow-sm shadow-black/10 flex items-center justify-center">
+                    <span class="mr-3 inline-flex size-9 items-center justify-center rounded-xl bg-white/15 border border-white/15">
+                        <i class="fa-solid fa-envelope"></i>
+                    </span>
                     Send sign-in link
                 </button>
-                <p id="tenant-upload-error" role="alert" aria-live="assertive" class="hidden text-red-600 text-sm bg-red-50 p-3 rounded border border-red-200"></p>
+                <p id="tenant-upload-error" role="alert" aria-live="assertive" class="hidden text-rose-700 text-sm bg-rose-50 p-3 rounded-2xl border border-rose-200"></p>
             </div>
 
             <div id="tenant-upload-authenticated" class="hidden text-left space-y-4">
-                <div class="bg-gray-50 p-3 rounded border border-gray-200">
-                    <p class="text-sm text-gray-700"><span class="font-semibold">Signed in as:</span> <span id="tenant-upload-user"></span></p>
-                    <p class="text-xs text-gray-500 mt-1" id="tenant-upload-invite-meta"></p>
+                <div class="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-100">
+                    <p class="text-sm text-slate-700"><span class="font-semibold">Signed in as:</span> <span id="tenant-upload-user"></span></p>
+                    <p class="text-xs text-slate-500 mt-1" id="tenant-upload-invite-meta"></p>
                 </div>
 
                 <div>
                     <label class="block text-gray-700 font-semibold mb-2">Select documents</label>
-                    <input id="tenant-upload-files" type="file" multiple accept="application/pdf,image/*" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-500 mt-2">Accepted: PDF, images. Max 10MB per file.</p>
-                    <ul id="tenant-upload-files-list" class="mt-3 text-xs text-gray-700 list-disc pl-5"></ul>
+                    <input id="tenant-upload-files" type="file" multiple accept="application/pdf,image/*" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80">
+                    <p class="text-xs text-slate-500 mt-2">Accepted: PDF, images. Max 10MB per file.</p>
+                    <ul id="tenant-upload-files-list" class="mt-3 text-xs text-slate-600 list-disc pl-5"></ul>
                 </div>
 
-                <button id="tenant-upload-submit" type="button" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center">
-                    <i class="fa-solid fa-cloud-arrow-up mr-3"></i>
+                <button id="tenant-upload-submit" type="button" class="w-full bg-emerald-700 text-white font-semibold py-3 px-4 rounded-2xl hover:bg-emerald-800 transition shadow-sm shadow-black/10 flex items-center justify-center">
+                    <span class="mr-3 inline-flex size-9 items-center justify-center rounded-xl bg-white/15 border border-white/15">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </span>
                     Upload documents
                 </button>
-                <button id="tenant-upload-signout" type="button" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center">
-                    <i class="fa-solid fa-right-from-bracket mr-3"></i>
+                <button id="tenant-upload-signout" type="button" class="w-full bg-stone-50 border border-black/5 text-slate-700 font-semibold py-3 px-4 rounded-2xl hover:bg-stone-100/70 transition shadow-sm shadow-black/5 flex items-center justify-center">
+                    <span class="mr-3 inline-flex size-9 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </span>
                     Sign out
                 </button>
-                <p id="tenant-upload-success" class="hidden text-green-700 text-sm bg-green-50 p-3 rounded border border-green-200"></p>
+                <p id="tenant-upload-success" class="hidden text-emerald-800 text-sm bg-emerald-50 p-3 rounded-2xl border border-emerald-200"></p>
             </div>
         </div>
     </div>
@@ -339,35 +323,37 @@
     <div id="app-content" class="hidden-section">
         
         <!-- Navigation -->
-        <nav class="glass-nav text-white shadow-lg sticky top-0 z-40 backdrop-blur-md">
+        <nav class="glass-nav bg-stone-50/80 text-slate-800 shadow-sm shadow-black/5 sticky top-0 z-40 backdrop-blur-md border-b border-black/5">
             <div class="nav-inner container mx-auto px-4 py-3 flex justify-between items-center gap-3">
                 <div class="flex items-center gap-2 min-w-0">
-                    <i class="fa-solid fa-building-user text-xl sm:text-2xl"></i>
-                    <span class="text-base sm:text-xl font-bold truncate">Munirathnam Illam</span>
+                    <span class="inline-flex size-10 items-center justify-center rounded-2xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                        <i class="fa-solid fa-building-user text-lg"></i>
+                    </span>
+                    <span class="text-base sm:text-xl font-extrabold tracking-tight truncate">Munirathnam Illam</span>
                 </div>
                 
                 <div class="flex items-center space-x-4">
                     <div data-user-only="1" class="hidden sm:flex items-center gap-2 text-sm font-medium overflow-x-auto whitespace-nowrap max-w-[55vw] md:max-w-none">
-                        <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link hover:text-blue-200 transition cursor-pointer">Dashboard</a>
-                        <a href="#" data-section="room-details" onclick="showSection('room-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Room Details</a>
-                        <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link hover:text-blue-200 transition cursor-pointer">Rent Details</a>
-                        <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link hover:text-blue-200 transition cursor-pointer">Water Bill</a>
-                        <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link hover:text-blue-200 transition cursor-pointer">Expenses</a>
+                        <a href="#" data-section="dashboard" onclick="showSection('dashboard')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Dashboard</a>
+                        <a href="#" data-section="room-details" onclick="showSection('room-details')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Room Details</a>
+                        <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Rent Details</a>
+                        <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Water Bill</a>
+                        <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Expenses</a>
                     </div>
                     
-                    <div class="flex items-center sm:border-l sm:border-blue-400 sm:pl-4 sm:ml-2">
-                        <button type="button" onclick="toggleDesktopView()" class="hidden sm:inline-flex items-center justify-center text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10" title="Toggle Desktop View">
+                    <div class="flex items-center sm:border-l sm:border-black/5 sm:pl-4 sm:ml-2">
+                        <button type="button" onclick="toggleDesktopView()" class="hidden sm:inline-flex items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 hover:text-slate-900 transition" title="Toggle Desktop View" aria-label="Toggle Desktop View">
                             <i class="fa-solid fa-desktop"></i>
                         </button>
-                        <button id="app-lock-toggle" type="button" class="hidden items-center justify-center text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="App Lock" aria-label="App Lock" aria-pressed="true">
+                        <button id="app-lock-toggle" type="button" class="hidden items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 hover:text-slate-900 transition ml-1" title="App Lock" aria-label="App Lock" aria-pressed="true">
                             <i id="app-lock-toggle-icon" class="fa-solid fa-lock"></i>
                         </button>
-                        <img id="user-photo" src="" alt="User" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white ml-2 sm:ml-0">
-                        <span id="user-name" class="text-sm font-semibold ml-2 hidden sm:block">User</span>
-                        <button data-admin-only="1" style="display:none" type="button" onclick="window.openAdminSettings()" class="text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="Admin Settings" aria-label="Admin Settings">
+                        <img id="user-photo" src="" alt="User" class="w-8 h-8 rounded-2xl border border-black/5 ml-2 sm:ml-1 bg-stone-50">
+                        <span id="user-name" class="text-sm font-semibold ml-2 hidden sm:block text-slate-700">User</span>
+                        <button data-admin-only="1" style="display:none" type="button" onclick="window.openAdminSettings()" class="inline-flex items-center justify-center size-9 rounded-2xl bg-emerald-100/70 hover:bg-emerald-100 border border-emerald-200/60 text-emerald-800 transition ml-1" title="Admin Settings" aria-label="Admin Settings">
                             <i class="fa-solid fa-shield-halved"></i>
                         </button>
-                        <button onclick="logout()" class="text-blue-100 hover:text-white p-2 rounded-full hover:bg-white/10 ml-1" title="Sign Out" aria-label="Sign Out">
+                        <button onclick="logout()" class="inline-flex items-center justify-center size-9 rounded-2xl bg-slate-100/70 hover:bg-slate-100 border border-slate-200/60 text-slate-700 transition ml-1" title="Sign Out" aria-label="Sign Out">
                             <i class="fa-solid fa-right-from-bracket"></i>
                         </button>
                     </div>
@@ -381,91 +367,99 @@
             <!-- Dashboard (Financial Summary) -->
             <section id="dashboard" class="section-tab active mb-16">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Dashboard</h2>
-                    <div class="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Dashboard</h2>
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-slate-700">
                         <span class="font-semibold">Year</span>
-                        <button type="button" onclick="changeDashboardYear(-1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Previous year">
+                        <button type="button" onclick="changeDashboardYear(-1)" class="inline-flex items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 transition" aria-label="Previous year">
                             <i class="fa-solid fa-chevron-left"></i>
                         </button>
-                        <span id="dashboard-year" class="min-w-[4rem] text-center font-bold text-blue-800">----</span>
-                        <button type="button" onclick="changeDashboardYear(1)" class="px-3 py-1 rounded border bg-white hover:bg-gray-50" aria-label="Next year">
+                        <span id="dashboard-year" class="min-w-[4rem] text-center font-extrabold text-emerald-800">----</span>
+                        <button type="button" onclick="changeDashboardYear(1)" class="inline-flex items-center justify-center size-9 rounded-2xl bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-600 transition" aria-label="Next year">
                             <i class="fa-solid fa-chevron-right"></i>
                         </button>
                         
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+                <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                     <div class="w-full overflow-x-auto">
                         <table class="table-modern text-sm w-full border-collapse">
-                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                            <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[8rem]">Month</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Rent Collected</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Expenses</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Water Charges</th>
-                                    <th class="border px-4 py-3 text-right font-semibold bg-blue-100 min-w-[10rem]">Pending Rent</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[8rem]">Month</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Rent Collected</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Expenses</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Water Charges</th>
+                                    <th class="border px-4 py-3 text-right font-semibold bg-emerald-100/60 min-w-[10rem]">Pending Rent</th>
                                 </tr>
                             </thead>
                             <tbody id="dashboardBody"></tbody>
                         </table>
                     </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-3">Rent Collected includes only months marked Paid. Water Charges are computed from meter readings.</p>
+                <p class="text-xs text-slate-500 mt-3">Rent Collected includes only months marked Paid. Water Charges are computed from meter readings.</p>
             </section>
 
             <!-- Room Details (formerly Dashboard) -->
             <section id="room-details" class="section-tab mb-16">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
-                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-700">Room Details</h2>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Room Details</h2>
                     
                 </div>
 
                 <!-- Occupancy Metrics - Maximized -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8 mb-10 sm:mb-12 md:mb-16">
                     <!-- Card 1: Occupied Rooms -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-blue-500 hover-lift">
+                    <div class="bg-stone-50 p-6 sm:p-7 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
-                                <p class="text-gray-500 text-base font-semibold mb-3">Occupied Rooms</p>
-                                <p class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-blue-600" id="occupied-count">0</p>
-                                <p class="text-base text-gray-400 mt-4">Out of 12</p>
+                                <p class="text-slate-500 text-sm font-semibold mb-2">Occupied Rooms</p>
+                                <p class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900" id="occupied-count">0</p>
+                                <p class="text-sm text-slate-500 mt-3">Out of 12</p>
                             </div>
-                            <i class="fa-solid fa-door-open text-blue-500 text-5xl md:text-6xl opacity-20"></i>
+                            <span class="inline-flex size-12 items-center justify-center rounded-3xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                                <i class="fa-solid fa-door-open text-lg"></i>
+                            </span>
                         </div>
                     </div>
                     
                     <!-- Card 2: Vacant Rooms -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-gray-400 hover-lift">
+                    <div class="bg-stone-50 p-6 sm:p-7 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
-                                <p class="text-gray-500 text-base font-semibold mb-3">Vacant Rooms</p>
-                                <p class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-600" id="vacant-count">12</p>
-                                <p class="text-base text-gray-400 mt-4">Available</p>
+                                <p class="text-slate-500 text-sm font-semibold mb-2">Vacant Rooms</p>
+                                <p class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900" id="vacant-count">12</p>
+                                <p class="text-sm text-slate-500 mt-3">Available</p>
                             </div>
-                            <i class="fa-solid fa-house text-gray-400 text-5xl md:text-6xl opacity-20"></i>
+                            <span class="inline-flex size-12 items-center justify-center rounded-3xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                                <i class="fa-solid fa-house text-lg"></i>
+                            </span>
                         </div>
                     </div>
                     
                     <!-- Card 3: Total Rent Received (Previous Month) -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-green-500 hover-lift">
+                    <div class="bg-stone-50 p-6 sm:p-7 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
-                                <p class="text-gray-500 text-base font-semibold mb-3">Rent Received</p>
-                                <p class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-green-600" id="rent-received">₹0</p>
+                                <p class="text-slate-500 text-sm font-semibold mb-2">Rent Received</p>
+                                <p class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900" id="rent-received">₹0</p>
                             </div>
-                            <i class="fa-solid fa-circle-check text-green-500 text-5xl md:text-6xl opacity-20"></i>
+                            <span class="inline-flex size-12 items-center justify-center rounded-3xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                                <i class="fa-solid fa-circle-check text-lg"></i>
+                            </span>
                         </div>
                     </div>
                     
                     <!-- Card 4: Pending Rent (Previous Month) -->
-                    <div class="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-lg border-l-8 border-orange-500 hover-lift">
+                    <div class="bg-stone-50 p-6 sm:p-7 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                         <div class="flex justify-between items-start mb-6">
                             <div class="flex-1">
-                                <p class="text-gray-500 text-base font-semibold mb-3">Pending Rent</p>
-                                <p class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-orange-600" id="pending-rent">₹0</p>
+                                <p class="text-slate-500 text-sm font-semibold mb-2">Pending Rent</p>
+                                <p class="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900" id="pending-rent">₹0</p>
                             </div>
-                            <i class="fa-solid fa-exclamation-triangle text-orange-500 text-5xl md:text-6xl opacity-20"></i>
+                            <span class="inline-flex size-12 items-center justify-center rounded-3xl bg-amber-100/70 border border-amber-200/60 text-amber-800">
+                                <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -480,56 +474,56 @@
 
                     <div class="lg:col-span-4 xl:col-span-3 space-y-6">
                         <!-- Rent Revision Due Card (Compact) -->
-                        <div id="rentRevisionDueCard" class="bg-white p-4 rounded-xl shadow-lg border-l-8 border-purple-500 hover-lift">
+                        <div id="rentRevisionDueCard" class="bg-stone-50 p-5 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                             <div class="flex items-center justify-between gap-3 mb-3">
-                                <h3 class="text-lg font-bold text-gray-800">Annual Revision Trigger</h3>
-                                <span id="rent-revision-count" class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">0</span>
+                                <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Annual Revision Trigger</h3>
+                                <span id="rent-revision-count" class="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100/70 text-emerald-900 border border-emerald-200/60">0</span>
                             </div>
                             <div id="rentRevisionList" class="space-y-2 max-h-80 overflow-y-auto pr-1">
-                                <p class="text-gray-400">Loading...</p>
+                                <p class="text-slate-400">Loading...</p>
                             </div>
-                            <p class="text-xs text-gray-500 mt-3">Based on last rent revision date (fallback: relocation date). Click a tenant to open their room card and edit rent.</p>
+                            <p class="text-xs text-slate-500 mt-3">Based on last rent revision date (fallback: relocation date). Click a tenant to open their room card and edit rent.</p>
                         </div>
 
                         <!-- Last Month Pending (Compact) -->
-                        <div id="pendingThisMonthCard" class="bg-white p-4 rounded-xl shadow-lg border-l-8 border-orange-500 hover-lift">
+                        <div id="pendingThisMonthCard" class="bg-stone-50 p-5 rounded-3xl shadow-sm shadow-black/5 border border-black/5 hover-lift">
                             <div class="flex items-center justify-between gap-3 mb-3">
-                                <h3 class="text-lg font-bold text-gray-800">Last Month Pending</h3>
-                                <span id="pending-this-month-count" class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-50 text-orange-800 border border-orange-200">0</span>
+                                <h3 class="text-base font-extrabold text-slate-900 tracking-tight">Last Month Pending</h3>
+                                <span id="pending-this-month-count" class="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100/70 text-amber-900 border border-amber-200/60">0</span>
                             </div>
                             <div id="pendingThisMonthList" class="space-y-2 max-h-80 overflow-y-auto pr-1">
-                                <p class="text-gray-400">Loading...</p>
+                                <p class="text-slate-400">Loading...</p>
                             </div>
-                            <p class="text-xs text-gray-500 mt-3">Click a row to open Rent Details.</p>
+                            <p class="text-xs text-slate-500 mt-3">Click a row to open Rent Details.</p>
                         </div>
                     </div>
                 </div>
 
                 <div id="admin-settings" data-admin-only="1" style="display:none" class="mt-10 space-y-6">
-                    <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
-                        <p class="text-sm text-gray-600 mb-2">Admin settings</p>
+                    <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 p-6 border border-black/5 max-w-2xl">
+                        <p class="text-sm text-slate-600 mb-2">Admin settings</p>
                         <p class="text-xs text-orange-700 mb-4">Note: Email automation is paused while running on Firebase Spark (no server-side Functions).</p>
 
                         <label class="block text-gray-700 font-semibold mb-2">Admin Email (saved for future)</label>
                         <div class="flex flex-col sm:flex-row gap-3">
-                            <input id="adminEmailInput" type="email" placeholder="admin@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                            <button type="button" onclick="saveAdminEmail()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Save</button>
+                            <input id="adminEmailInput" type="email" placeholder="admin@example.com" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
+                            <button type="button" onclick="saveAdminEmail()" class="px-6 py-2.5 bg-emerald-700 text-white rounded-2xl hover:bg-emerald-800 font-semibold shadow-sm shadow-black/10">Save</button>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
+                        <p class="text-xs text-slate-500 mt-2">This email is stored securely (admin-only). Email sending will be enabled if/when you switch to Blaze.</p>
                     </div>
 
-                    <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 max-w-2xl">
-                        <p class="text-sm text-gray-600 mb-2">Tenant document upload link (secure)</p>
-                        <p class="text-xs text-gray-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
+                    <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 p-6 border border-black/5 max-w-2xl">
+                        <p class="text-sm text-slate-600 mb-2">Tenant document upload link (secure)</p>
+                        <p class="text-xs text-slate-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
-                                <input id="tenantUploadInviteEmail" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <input id="tenantUploadInviteEmail" type="email" placeholder="tenant@example.com" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
                             </div>
                             <div>
                                 <label class="block text-gray-700 font-semibold mb-2">Room</label>
-                                <select id="tenantUploadInviteRoom" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <select id="tenantUploadInviteRoom" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80">
                                     <option value="">-- Choose a room --</option>
                                     <option value="01">Room 01 (G01)</option>
                                     <option value="02">Room 02 (G02)</option>
@@ -548,9 +542,9 @@
                         </div>
 
                         <div class="flex flex-col sm:flex-row gap-3 mt-4">
-                            <button type="button" onclick="window.generateTenantUploadLink()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Generate link</button>
-                            <input id="tenantUploadInviteLink" readonly class="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-700" placeholder="Generated link will appear here" />
-                            <button type="button" onclick="window.copyTenantUploadLink()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-semibold">Copy</button>
+                            <button type="button" onclick="window.generateTenantUploadLink()" class="px-6 py-2.5 bg-emerald-700 text-white rounded-2xl hover:bg-emerald-800 font-semibold shadow-sm shadow-black/10">Generate link</button>
+                            <input id="tenantUploadInviteLink" readonly class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-emerald-50/60 text-slate-700" placeholder="Generated link will appear here" />
+                            <button type="button" onclick="window.copyTenantUploadLink()" class="px-4 py-2.5 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 font-semibold shadow-sm shadow-black/10">Copy</button>
                         </div>
                         <p id="tenantUploadInviteMsg" class="hidden text-xs mt-3"></p>
                     </div>
@@ -568,29 +562,29 @@
                         <span class="text-xs text-gray-500">(from Dashboard)</span>
                     </div>
                 </div>
-                <p class="text-gray-500 mb-4">Monthly rent payment status for all rooms - select a year, then click any month to toggle (Pending/Rent Only/Paid/None)</p>
+                <p class="text-slate-500 mb-4">Monthly rent payment status for all rooms - select a year, then click any month to toggle (Pending/Rent Only/Paid/None)</p>
                 
                 <!-- Rent Details Table -->
-                <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                     <div class="w-full overflow-x-auto">
                         <table id="rentDetailsTable" class="table-modern text-sm w-full border-collapse">
-                            <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                            <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                 <tr>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
-                                    <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Nov</th>
-                                    <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Dec</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room ID</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room No</th>
+                                    <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[10rem]">Tenant Name</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jan</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Feb</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Mar</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Apr</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">May</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jun</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jul</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Aug</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Sep</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Oct</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Nov</th>
+                                    <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Dec</th>
                                 </tr>
                             </thead>
                             <tbody id="rentDetailsBody" class="divide-y">
@@ -611,7 +605,7 @@
                         <span>Vacant (No Tenant)</span>
                     </span>
                     <span class="flex items-center gap-2">
-                        <div class="w-5 h-5 bg-red-100 border-2 border-red-400 rounded flex items-center justify-center text-red-600 font-bold text-xs">✗</div>
+                        <div class="w-5 h-5 bg-amber-100/80 border-2 border-amber-300 rounded flex items-center justify-center text-amber-800 font-bold text-xs">✗</div>
                         <span>Pending (Not Paid)</span>
                     </span>
                     <span class="flex items-center gap-2">
@@ -629,21 +623,21 @@
                     <h3 class="text-xl font-bold text-gray-700 mb-2">Rent and Water</h3>
                     <p class="text-gray-500 mb-4">Auto-calculated from Rent Details. When a month is marked <span class="font-semibold">Paid (green)</span> there, this table shows <span class="font-semibold">Rent + Water Bill + 60</span>.</p>
 
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 overflow-hidden border border-black/5">
                         <div class="w-full overflow-x-auto">
                             <table id="rentWaterTable" class="table-modern text-sm w-full border-collapse">
-                                <thead class="bg-blue-100 text-gray-700 sticky top-0">
+                                <thead class="bg-emerald-100/60 text-slate-700 sticky top-0">
                                     <tr>
-                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room ID</th>
-                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[6rem]">Room No</th>
-                                        <th class="border px-4 py-3 text-left font-semibold bg-blue-100 min-w-[10rem]">Tenant Name</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jan</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Feb</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Mar</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Apr</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">May</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jun</th>
-                                        <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Jul</th>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room ID</th>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[6rem]">Room No</th>
+                                        <th class="border px-4 py-3 text-left font-semibold bg-emerald-100/60 min-w-[10rem]">Tenant Name</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jan</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Feb</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Mar</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Apr</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">May</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jun</th>
+                                        <th class="border px-4 py-3 text-center font-semibold bg-emerald-100/60">Jul</th>
                                         <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Aug</th>
                                         <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Sep</th>
                                         <th class="border px-4 py-3 text-center font-semibold bg-blue-100">Oct</th>
@@ -803,34 +797,42 @@
             <!-- Rooms Section -->
             <section id="rooms" class="section-tab mb-10">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                    <h2 class="text-2xl font-bold text-gray-700">Rooms</h2>
+                    <h2 class="text-2xl font-extrabold tracking-tight text-slate-900">Rooms</h2>
                     
                     <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         <!-- Search & Filter Controls -->
                         <div class="relative w-full sm:w-64">
-                            <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search..." class="pl-9 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full shadow-sm">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+                            <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search..." class="pl-10 pr-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80 w-full shadow-sm shadow-black/5">
+                            <span class="absolute left-3 top-2.5 inline-flex size-8 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-600">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </span>
                         </div>
                         
-                        <select id="filterStatus" onchange="applyFilters()" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <select id="filterStatus" onchange="applyFilters()" class="px-4 py-2.5 border border-black/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80 bg-stone-50 text-slate-700">
                             <option value="All">All Status</option>
                             <option value="Occupied">Occupied</option>
                             <option value="Vacant">Vacant</option>
                         </select>
                         
-                        <select id="filterPayment" onchange="applyFilters()" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <select id="filterPayment" onchange="applyFilters()" class="px-4 py-2.5 border border-black/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80 bg-stone-50 text-slate-700">
                             <option value="All">All Payments</option>
                             <option value="Pending">Pending</option>
                             <option value="Paid">Paid</option>
                         </select>
 
                         <div class="flex gap-2">
-                            <button onclick="exportToCSV()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center justify-center">
-                                <i class="fa-solid fa-file-csv mr-2"></i> Export
+                            <button onclick="exportToCSV()" class="bg-stone-50 hover:bg-stone-100/70 border border-black/5 text-slate-700 px-4 py-2.5 rounded-2xl shadow-sm shadow-black/5 transition flex items-center justify-center font-semibold">
+                                <span class="mr-2 inline-flex size-9 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                                    <i class="fa-solid fa-file-csv"></i>
+                                </span>
+                                Export
                             </button>
 
-                            <button onclick="toggleModal('propertyModal')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center justify-center">
-                                <i class="fa-solid fa-plus mr-2"></i> Add
+                            <button onclick="toggleModal('propertyModal')" class="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-2xl shadow-sm shadow-black/10 transition flex items-center justify-center font-semibold">
+                                <span class="mr-2 inline-flex size-9 items-center justify-center rounded-xl bg-white/15 border border-white/15">
+                                    <i class="fa-solid fa-plus"></i>
+                                </span>
+                                Add
                             </button>
                         </div>
                     </div>
@@ -840,8 +842,10 @@
                 <div id="property-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Loading State -->
                     <div class="col-span-full text-center py-12">
-                        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i>
-                        <p class="text-gray-500">Loading your rooms from cloud...</p>
+                        <div class="mx-auto mb-4 inline-flex size-14 items-center justify-center rounded-3xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                            <i class="fa-solid fa-circle-notch fa-spin text-xl"></i>
+                        </div>
+                        <p class="text-slate-500">Loading your rooms from cloud...</p>
                     </div>
                 </div>
             </section>
@@ -850,49 +854,69 @@
 
         <!-- Floating Quick Nav (desktop/tablet) -->
         <div data-user-only="1" class="quick-nav-desktop fixed left-4 top-1/4 z-30 hidden sm:flex flex-col gap-2">
-            <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Dashboard">
-                <i class="fa-solid fa-chart-line text-blue-600"></i>
+            <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50/90 hover:bg-stone-50 border border-black/5 shadow-sm shadow-black/5 text-slate-700 text-sm font-semibold transition" title="Dashboard">
+                <span class="inline-flex size-9 items-center justify-center rounded-xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                    <i class="fa-solid fa-chart-line"></i>
+                </span>
                 <span class="hidden md:inline">Dashboard</span>
             </button>
-            <button type="button" data-section="room-details" onclick="showSection('room-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Room Details">
-                <i class="fa-solid fa-house text-blue-600"></i>
+            <button type="button" data-section="room-details" onclick="showSection('room-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50/90 hover:bg-stone-50 border border-black/5 shadow-sm shadow-black/5 text-slate-700 text-sm font-semibold transition" title="Room Details">
+                <span class="inline-flex size-9 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                    <i class="fa-solid fa-house"></i>
+                </span>
                 <span class="hidden md:inline">Rooms</span>
             </button>
-            <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Rent Details">
-                <i class="fa-solid fa-receipt text-purple-600"></i>
+            <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50/90 hover:bg-stone-50 border border-black/5 shadow-sm shadow-black/5 text-slate-700 text-sm font-semibold transition" title="Rent Details">
+                <span class="inline-flex size-9 items-center justify-center rounded-xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                    <i class="fa-solid fa-receipt"></i>
+                </span>
                 <span class="hidden md:inline">Rent</span>
             </button>
-            <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Water Bill">
-                <i class="fa-solid fa-droplet text-blue-600"></i>
+            <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50/90 hover:bg-stone-50 border border-black/5 shadow-sm shadow-black/5 text-slate-700 text-sm font-semibold transition" title="Water Bill">
+                <span class="inline-flex size-9 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                    <i class="fa-solid fa-droplet"></i>
+                </span>
                 <span class="hidden md:inline">Water</span>
             </button>
-            <button type="button" data-section="expenses" onclick="showSection('expenses')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 hover:bg-white border border-gray-200 shadow-md text-gray-700 text-sm font-semibold transition" title="Expenses">
-                <i class="fa-solid fa-wallet text-red-600"></i>
+            <button type="button" data-section="expenses" onclick="showSection('expenses')" class="quick-nav-btn flex items-center gap-2 px-3 py-2 rounded-2xl bg-stone-50/90 hover:bg-stone-50 border border-black/5 shadow-sm shadow-black/5 text-slate-700 text-sm font-semibold transition" title="Expenses">
+                <span class="inline-flex size-9 items-center justify-center rounded-xl bg-amber-100/70 border border-amber-200/60 text-amber-800">
+                    <i class="fa-solid fa-wallet"></i>
+                </span>
                 <span class="hidden md:inline">Expenses</span>
             </button>
         </div>
 
         <!-- Bottom Nav (mobile) -->
-        <div data-user-only="1" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-white/95 backdrop-blur-md border-t border-gray-200">
+        <div data-user-only="1" class="mobile-bottom-nav fixed bottom-0 inset-x-0 z-40 sm:hidden bg-stone-50/90 backdrop-blur-md border-t border-black/5">
             <div class="max-w-screen-sm mx-auto px-3 py-2 grid grid-cols-5 gap-2">
-                <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
-                    <i class="fa-solid fa-chart-line text-blue-600 text-base"></i>
+                <button type="button" data-section="dashboard" onclick="showSection('dashboard')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-[11px] font-semibold text-slate-700 border border-transparent">
+                    <span class="inline-flex size-9 items-center justify-center rounded-2xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                        <i class="fa-solid fa-chart-line text-base"></i>
+                    </span>
                     <span class="mt-1">Dash</span>
                 </button>
-                <button type="button" data-section="room-details" onclick="showSection('room-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
-                    <i class="fa-solid fa-house text-blue-600 text-base"></i>
+                <button type="button" data-section="room-details" onclick="showSection('room-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-[11px] font-semibold text-slate-700 border border-transparent">
+                    <span class="inline-flex size-9 items-center justify-center rounded-2xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                        <i class="fa-solid fa-house text-base"></i>
+                    </span>
                     <span class="mt-1">Rooms</span>
                 </button>
-                <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
-                    <i class="fa-solid fa-receipt text-purple-600 text-base"></i>
+                <button type="button" data-section="rent-details" onclick="showSection('rent-details')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-[11px] font-semibold text-slate-700 border border-transparent">
+                    <span class="inline-flex size-9 items-center justify-center rounded-2xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800">
+                        <i class="fa-solid fa-receipt text-base"></i>
+                    </span>
                     <span class="mt-1">Rent</span>
                 </button>
-                <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
-                    <i class="fa-solid fa-droplet text-blue-600 text-base"></i>
+                <button type="button" data-section="water-bill" onclick="showSection('water-bill')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-[11px] font-semibold text-slate-700 border border-transparent">
+                    <span class="inline-flex size-9 items-center justify-center rounded-2xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
+                        <i class="fa-solid fa-droplet text-base"></i>
+                    </span>
                     <span class="mt-1">Water</span>
                 </button>
-                <button type="button" data-section="expenses" onclick="showSection('expenses')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-xl text-[11px] font-semibold text-gray-700">
-                    <i class="fa-solid fa-wallet text-red-600 text-base"></i>
+                <button type="button" data-section="expenses" onclick="showSection('expenses')" class="mobile-nav-btn flex flex-col items-center justify-center py-2 rounded-2xl text-[11px] font-semibold text-slate-700 border border-transparent">
+                    <span class="inline-flex size-9 items-center justify-center rounded-2xl bg-amber-100/70 border border-amber-200/60 text-amber-800">
+                        <i class="fa-solid fa-wallet text-base"></i>
+                    </span>
                     <span class="mt-1">Cost</span>
                 </button>
             </div>
@@ -906,15 +930,15 @@
         <div class="modal-panel glass-panel rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
             <div class="px-6 py-4 border-b flex items-center justify-between">
                 <div>
-                    <h3 id="water-import-title" class="text-xl font-bold text-gray-800">Import Water Readings</h3>
-                    <p class="text-sm text-gray-500 mt-1">Paste rows copied from Excel (CSV or tab-separated).</p>
+                    <h3 id="water-import-title" class="text-xl font-extrabold text-slate-900 tracking-tight">Import Water Readings</h3>
+                    <p class="text-sm text-slate-500 mt-1">Paste rows copied from Excel (CSV or tab-separated).</p>
                 </div>
                 <button type="button" onclick="closeWaterImportModal()" class="text-gray-500 hover:text-red-600 text-2xl" aria-label="Close">&times;</button>
             </div>
 
             <div class="p-6 space-y-4">
-                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-gray-700">
-                    <p class="font-semibold text-blue-900 mb-2">Supported formats (one row per line)</p>
+                <div class="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-4 text-sm text-slate-700">
+                    <p class="font-semibold text-emerald-900 mb-2">Supported formats (one row per line)</p>
                     <ul class="list-disc pl-5 space-y-1">
                         <li><span class="font-mono">RoomId, 2025-Jan, 1234</span></li>
                         <li><span class="font-mono">RoomNo, 2025-Jan, 1234</span></li>
@@ -923,11 +947,11 @@
                         <li><span class="font-mono">Excel month headers may include year:</span> <span class="font-mono">Apr-2024</span>, <span class="font-mono">Apr 24</span>, <span class="font-mono">04/2024</span>, <span class="font-mono">2024-Apr</span></li>
                         <li>Separator can be comma or tab</li>
                     </ul>
-                    <p class="text-xs text-gray-500 mt-2">If month headers don’t include a year (e.g. “April”), the import uses the Water Bill year currently selected in the app.</p>
-                    <p class="text-xs text-gray-500 mt-2">Note: Units are calculated as (current − previous) × 10.</p>
+                    <p class="text-xs text-slate-500 mt-2">If month headers don’t include a year (e.g. “April”), the import uses the Water Bill year currently selected in the app.</p>
+                    <p class="text-xs text-slate-500 mt-2">Note: Units are calculated as (current − previous) × 10.</p>
                 </div>
 
-                <textarea id="waterImportText" rows="10" class="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" placeholder="Paste here..."></textarea>
+                <textarea id="waterImportText" rows="10" class="w-full px-4 py-3 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80 font-mono text-sm" placeholder="Paste here..."></textarea>
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <button type="button" onclick="document.getElementById('waterImportText').value='';" class="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50 font-semibold text-gray-700">Clear</button>
@@ -1140,7 +1164,7 @@
 
             <div class="mt-6 text-xs text-gray-400 flex justify-center gap-4">
                 <span class="flex items-center"><i class="fa-solid fa-circle text-gray-200 mr-1"></i> No Record</span>
-                <span class="flex items-center"><i class="fa-solid fa-circle text-red-500 mr-1"></i> Pending</span>
+                <span class="flex items-center"><i class="fa-solid fa-circle text-amber-500 mr-1"></i> Pending</span>
                 <span class="flex items-center"><i class="fa-solid fa-circle text-green-500 mr-1"></i> Paid</span>
             </div>
         </div>
@@ -5031,6 +5055,44 @@
                 link.classList.toggle('nav-active', isActive);
                 if (isActive) link.setAttribute('aria-current', 'page');
                 else link.removeAttribute('aria-current');
+
+                try {
+                    // Active styling is applied via Tailwind classes (not CSS color rules).
+                    // Supports top-nav links (.nav-link), quick-nav buttons (.quick-nav-btn), and mobile nav (.mobile-nav-btn).
+                    const isTopNavLink = link.classList.contains('nav-link') && link.tagName === 'A';
+                    const isQuickNav = link.classList.contains('quick-nav-btn');
+                    const isMobileNav = link.classList.contains('mobile-nav-btn');
+
+                    const activeClasses = [
+                        'bg-emerald-100/70',
+                        'border',
+                        'border-emerald-200/70',
+                        'text-slate-900',
+                        'ring-1',
+                        'ring-emerald-200/40'
+                    ];
+                    const inactiveClasses = [
+                        'bg-emerald-100/70',
+                        'border',
+                        'border-emerald-200/70',
+                        'text-slate-900',
+                        'ring-1',
+                        'ring-emerald-200/40'
+                    ];
+
+                    if (isTopNavLink || isQuickNav || isMobileNav) {
+                        if (isActive) {
+                            link.classList.add(...activeClasses);
+                            // Ensure visible border in mobile nav active state.
+                            if (isMobileNav) link.classList.remove('border-transparent');
+                        } else {
+                            link.classList.remove(...inactiveClasses);
+                            if (isMobileNav) link.classList.add('border-transparent');
+                        }
+                    }
+                } catch (e) {
+                    /* ignore */
+                }
             });
             
             console.log("✓ Showing section:", sectionName);
@@ -5848,7 +5910,7 @@
                 let icon = "";
                 
                 if (status === 'Pending') {
-                    btnClass = "bg-red-100 text-red-600 border border-red-200 shadow-sm";
+                    btnClass = "bg-amber-100/80 text-amber-800 border border-amber-200 shadow-sm";
                     icon = '<i class="fa-solid fa-circle-exclamation mr-1"></i>';
                 } else if (status === 'Paid') {
                     btnClass = "bg-green-100 text-green-700 border border-green-200 shadow-sm";
@@ -6564,7 +6626,7 @@
                 }
 
                 let statusBadge = displayStatus === 'Paid' ? '<span class="text-green-600 font-bold text-xs"><i class="fa-solid fa-check-circle"></i> Paid</span>' 
-                                : displayStatus === 'Pending' ? '<span class="text-red-600 font-bold text-xs"><i class="fa-solid fa-circle-exclamation"></i> Pending</span>'
+                                : displayStatus === 'Pending' ? '<span class="text-amber-800 font-bold text-xs"><i class="fa-solid fa-circle-exclamation text-amber-700"></i> Pending</span>'
                                 : '<span class="text-gray-400 text-xs">No status</span>';
 
                 const rentNum = Number(p?.rent ?? 0);
@@ -6689,9 +6751,9 @@
                     // Only show payment statuses if tenant status is 'Occupied'
                     if (occupied) {
                         if (status === 'Pending') {
-                            cellClass = "bg-red-100 text-red-700 border-red-300 cursor-pointer hover:bg-red-200";
+                            cellClass = "bg-amber-100/80 text-amber-900 border-amber-200 cursor-pointer hover:bg-amber-200";
                             displayText = "✗";
-                            icon = '<i class="fa-solid fa-xmark text-red-600"></i>';
+                            icon = '<i class="fa-solid fa-xmark text-amber-700"></i>';
                         } else if (status === 'Rent Only') {
                             cellClass = "bg-purple-100 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-200";
                             displayText = "✓";
@@ -6791,7 +6853,7 @@
                     }
 
                     if (!locked && occupied && status === 'Pending') {
-                        cellClass = "bg-red-100 text-red-800 border-red-300";
+                        cellClass = "bg-amber-100/80 text-amber-900 border-amber-200";
                         displayText = "0";
                         title = 'Pending = 0';
                     }
