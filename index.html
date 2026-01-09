@@ -195,15 +195,6 @@
             transform: translateY(-2px);
         }
 
-        /* Premium login screen */
-        .login-left-bg {
-            background-color: #dfeee3;
-            background-image:
-                radial-gradient(circle at 18% 30%, rgba(16, 185, 129, 0.16), transparent 46%),
-                radial-gradient(circle at 42% 72%, rgba(16, 185, 129, 0.10), transparent 50%),
-                radial-gradient(circle at 82% 22%, rgba(15, 23, 42, 0.06), transparent 44%);
-        }
-
         @media (prefers-reduced-motion: no-preference) {
             .login-card-anim {
                 animation: loginCardIn 220ms ease-out;
@@ -216,7 +207,14 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 font-sans text-slate-800">
+<body class="bg-emerald-50 font-sans text-slate-800">
+
+    <!-- SOFT BACKDROP (global, subtle) -->
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div class="absolute -top-32 -left-40 h-[520px] w-[520px] rounded-full bg-emerald-200/35 blur-3xl"></div>
+        <div class="absolute top-44 left-48 h-[560px] w-[560px] rounded-full bg-emerald-100/55 blur-3xl"></div>
+        <div class="absolute -bottom-40 -right-44 h-[640px] w-[640px] rounded-full bg-slate-200/35 blur-3xl"></div>
+    </div>
 
     <!-- AUTH BOOT (prevents login flash on iOS while auth restores) -->
     <div id="auth-boot" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[60]">
@@ -236,7 +234,12 @@
     <div id="login-screen" class="hidden-section fixed inset-0 z-50">
         <div class="h-full w-full grid grid-cols-1 lg:grid-cols-2">
             <!-- Left: branding/context -->
-            <div class="login-left-bg relative overflow-hidden">
+            <div class="relative overflow-hidden bg-emerald-100/70">
+                <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+                    <div class="absolute -top-24 -left-28 h-[420px] w-[420px] rounded-full bg-emerald-200/35 blur-3xl"></div>
+                    <div class="absolute top-56 left-40 h-[520px] w-[520px] rounded-full bg-emerald-50/60 blur-3xl"></div>
+                    <div class="absolute -bottom-32 -right-36 h-[520px] w-[520px] rounded-full bg-slate-200/30 blur-3xl"></div>
+                </div>
                 <div class="h-full flex flex-col p-8 lg:p-14">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white/70 border border-white/60 flex items-center justify-center">
@@ -271,31 +274,9 @@
                     <p class="text-slate-600 text-sm mt-2 text-center">Sign in to manage your property</p>
 
                     <div class="mt-8 space-y-4">
-                        <div class="text-left">
-                            <label class="block text-sm font-semibold text-slate-700 mb-2" for="login-email">Email / Username</label>
-                            <input id="login-email" type="email" autocomplete="username" placeholder="you@example.com" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300" />
-                        </div>
-
-                        <div class="text-left">
-                            <label class="block text-sm font-semibold text-slate-700 mb-2" for="login-password">Password</label>
-                            <div class="relative">
-                                <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" class="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300" />
-                                <button type="button" onclick="window.toggleLoginPassword()" class="absolute inset-y-0 right-0 px-4 text-slate-500 hover:text-slate-800" aria-label="Show or hide password">
-                                    <i id="login-password-icon" class="fa-regular fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center justify-between gap-4">
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700 select-none">
-                                <input id="login-remember" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-200" />
-                                Remember me
-                            </label>
-                            <a href="#" onclick="event.preventDefault(); window.showLoginResetHint();" class="text-sm font-semibold text-emerald-900 hover:text-emerald-800">Forgot password?</a>
-                        </div>
-
-                        <button type="button" onclick="loginWithGoogle()" class="w-full mt-1 bg-slate-900 text-white font-semibold py-3 rounded-xl hover:bg-slate-800 transition shadow-sm">
-                            Sign In
+                        <button type="button" onclick="loginWithGoogle()" class="w-full bg-white border border-slate-200 text-slate-900 font-semibold py-3 px-4 rounded-xl hover:bg-slate-50 transition flex items-center justify-center shadow-sm">
+                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5 mr-3" alt="Google">
+                            Continue with Google
                         </button>
 
                         <p class="text-center text-xs text-slate-600">Your data is securely encrypted</p>
