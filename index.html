@@ -529,6 +529,12 @@
                         <p class="text-sm text-slate-600 mb-2">Tenant document upload link (secure)</p>
                         <p class="text-xs text-slate-500 mb-4">Generates a link for a specific tenant email. Tenant must sign in via email link before uploading.</p>
 
+                        <div class="mt-2">
+                            <label class="block text-gray-700 font-semibold mb-2">Drive Upload Web App URL (Apps Script)</label>
+                            <input id="tenantUploadDriveWebAppUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-4 py-2.5 border border-black/10 rounded-2xl bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" />
+                            <p class="text-xs text-slate-500 mt-2">If provided, tenant uploads will go to Google Drive (admin-owned) via Apps Script instead of Firebase Storage.</p>
+                        </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
@@ -4956,6 +4962,16 @@
         // Initialize room cards on page load
         document.addEventListener('DOMContentLoaded', () => {
             console.log("✓ Page loaded, initializing room cards");
+
+            // Admin convenience: remember Drive Apps Script URL used for tenant uploads.
+            try {
+                const el = document.getElementById('tenantUploadDriveWebAppUrl');
+                if (el && !el.value) {
+                    const saved = localStorage.getItem('tenantUploadDriveWebAppUrl');
+                    if (saved) el.value = saved;
+                }
+            } catch { /* ignore */ }
+
             if (tenantUploadMode) {
                 // Tenant upload screen wiring
                 const sendBtn = document.getElementById('tenant-upload-send-link');
@@ -5656,7 +5672,7 @@
             }
         }
 
-        window.openTenantUploadFile = async (storagePath) => {
+        window.openTenantUploadFile = async (refOrUrl) => {
             if (!currentUser) {
                 showNotification('Please login first', 'warning');
                 return;
@@ -5667,12 +5683,20 @@
             }
 
             try {
-                const path = String(storagePath || '').trim();
-                if (!path) {
+                const raw = String(refOrUrl || '').trim();
+                if (!raw) {
                     showNotification('Missing file path', 'warning');
                     return;
                 }
-                const url = await getDownloadURL(storageRef(storage, path));
+
+                // Drive URLs can be opened directly.
+                if (raw.startsWith('http://') || raw.startsWith('https://')) {
+                    window.open(raw, '_blank');
+                    return;
+                }
+
+                // Otherwise treat as Firebase Storage path.
+                const url = await getDownloadURL(storageRef(storage, raw));
                 window.open(url, '_blank');
             } catch (e) {
                 console.warn('⚠️ openTenantUploadFile failed:', e);
@@ -5728,12 +5752,14 @@
                                 const filesHtml = files.length
                                     ? files.map(f => {
                                         const name = String(f?.originalName || f?.name || 'File');
+                                        const driveUrl = String(f?.driveWebViewLink || f?.driveDownloadLink || '').trim();
                                         const path = String(f?.storagePath || '').trim();
+                                        const openRef = driveUrl || path;
                                         const ct = String(f?.contentType || '').trim();
                                         const sizeKb = Number(f?.size || 0) ? `${Math.round(Number(f.size) / 1024)} KB` : '';
                                         const meta = [ct, sizeKb].filter(Boolean).join(' • ');
-                                        const btn = path
-                                            ? `<button type=\"button\" class=\"text-emerald-800 hover:text-emerald-900 underline\" onclick=\"window.openTenantUploadFile('${escapeHtml(path)}')\">${escapeHtml(name)}</button>`
+                                        const btn = openRef
+                                            ? `<button type=\"button\" class=\"text-emerald-800 hover:text-emerald-900 underline\" onclick=\"window.openTenantUploadFile('${escapeHtml(openRef)}')\">${escapeHtml(name)}</button>`
                                             : `<span class=\"text-slate-500\">${escapeHtml(name)}</span>`;
                                         return `<div class=\"text-xs text-slate-700 truncate\">${btn}${meta ? ` <span class=\\\"text-slate-400\\\">(${escapeHtml(meta)})</span>` : ''}</div>`;
                                     }).join('')
