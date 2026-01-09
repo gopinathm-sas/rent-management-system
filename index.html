@@ -1351,6 +1351,18 @@
             return cleaned || 'file';
         }
 
+        function inferTenantUploadContentType(file) {
+            const explicit = String(file?.type || '').trim();
+            if (explicit) return explicit;
+            const name = String(file?.name || '').toLowerCase();
+            if (name.endsWith('.pdf')) return 'application/pdf';
+            if (name.endsWith('.png')) return 'image/png';
+            if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+            if (name.endsWith('.webp')) return 'image/webp';
+            if (name.endsWith('.heic')) return 'image/heic';
+            return '';
+        }
+
         function randomToken(len = 8) {
             try {
                 const buf = new Uint8Array(len);
@@ -5077,8 +5089,9 @@
                                 const safeName = sanitizeTenantUploadFileName(file.name);
                                 const path = `tenant-upload-invites/${tenantUploadInviteId}/${Date.now()}_${randomToken(6)}_${safeName}`;
                                 const ref = storageRef(storage, path);
+                                const inferredContentType = inferTenantUploadContentType(file);
                                 const res = await withTimeout(
-                                    uploadBytes(ref, file, { contentType: file.type || undefined }),
+                                    uploadBytes(ref, file, { contentType: inferredContentType || undefined }),
                                     60_000,
                                     'Upload timed out. Please check your internet connection and try again.'
                                 );

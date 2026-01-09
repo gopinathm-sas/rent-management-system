@@ -99,7 +99,7 @@ service cloud.firestore {
       function isInviteValid(inviteId) {
         return inviteId != null
           && inviteDoc(inviteId).exists()
-          && inviteDoc(inviteId).data.status == 'active'
+          && (inviteDoc(inviteId).data.status == null || inviteDoc(inviteId).data.status == 'active')
           && inviteDoc(inviteId).data.emailLower == userEmailLower()
           && (inviteDoc(inviteId).data.expiresAt == null || inviteDoc(inviteId).data.expiresAt > request.time);
       }
