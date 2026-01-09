@@ -306,8 +306,9 @@
                     <span class="mr-3 inline-flex size-9 items-center justify-center rounded-xl bg-white/15 border border-white/15">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                     </span>
-                    Upload documents
+                    <span id="tenant-upload-submit-label">Upload documents</span>
                 </button>
+                <p id="tenant-upload-progress" aria-live="polite" class="hidden text-slate-700 text-sm bg-slate-50 p-3 rounded-2xl border border-slate-200"></p>
                 <button id="tenant-upload-signout" type="button" class="w-full bg-stone-50 border border-black/5 text-slate-700 font-semibold py-3 px-4 rounded-2xl hover:bg-stone-100/70 transition shadow-sm shadow-black/5 flex items-center justify-center">
                     <span class="mr-3 inline-flex size-9 items-center justify-center rounded-xl bg-slate-100/70 border border-slate-200/60 text-slate-700">
                         <i class="fa-solid fa-right-from-bracket"></i>
@@ -1285,6 +1286,7 @@
             if (!el) return;
             el.textContent = String(message || 'Unknown error');
             el.classList.remove('hidden');
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch { /* ignore */ }
         }
 
         function clearTenantUploadError() {
@@ -1299,6 +1301,7 @@
             if (!el) return;
             el.textContent = String(message || '✓ Uploaded');
             el.classList.remove('hidden');
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch { /* ignore */ }
         }
 
         function clearTenantUploadSuccess() {
@@ -1306,6 +1309,33 @@
             if (!el) return;
             el.textContent = '';
             el.classList.add('hidden');
+        }
+
+        function showTenantUploadProgress(message) {
+            const el = document.getElementById('tenant-upload-progress');
+            if (!el) return;
+            el.textContent = String(message || 'Uploading…');
+            el.classList.remove('hidden');
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch { /* ignore */ }
+        }
+
+        function clearTenantUploadProgress() {
+            const el = document.getElementById('tenant-upload-progress');
+            if (!el) return;
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+
+        function withTimeout(promise, ms, timeoutMessage) {
+            const timeoutMs = Math.max(0, Number(ms || 0));
+            if (!timeoutMs) return promise;
+            let timeoutId;
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(String(timeoutMessage || 'Timed out'))), timeoutMs);
+            });
+            return Promise.race([promise, timeoutPromise]).finally(() => {
+                try { clearTimeout(timeoutId); } catch { /* ignore */ }
+            });
         }
 
         function setTenantUploadUiAuthenticated(isAuthed) {
@@ -4921,6 +4951,7 @@
                 const filesInput = document.getElementById('tenant-upload-files');
                 const filesList = document.getElementById('tenant-upload-files-list');
                 const submitBtn = document.getElementById('tenant-upload-submit');
+                const submitLabel = document.getElementById('tenant-upload-submit-label');
                 const signOutBtn = document.getElementById('tenant-upload-signout');
 
                 if (filesInput && filesList) {
@@ -4939,6 +4970,7 @@
                     sendBtn.addEventListener('click', async () => {
                         clearTenantUploadError();
                         clearTenantUploadSuccess();
+                        clearTenantUploadProgress();
                         const email = String(emailInput?.value || '').trim().toLowerCase();
                         if (!email || !email.includes('@')) {
                             showTenantUploadError('Please enter a valid email.');
@@ -4974,6 +5006,7 @@
                     submitBtn.addEventListener('click', async () => {
                         clearTenantUploadError();
                         clearTenantUploadSuccess();
+                        clearTenantUploadProgress();
 
                         const user = auth.currentUser;
                         if (!user) {
@@ -5020,15 +5053,35 @@
 
                         submitBtn.disabled = true;
                         submitBtn.classList.add('opacity-60');
+                        if (submitLabel) submitLabel.textContent = 'Uploading…';
+
+                        const formatUploadError = (e) => {
+                            const code = String(e?.code || e?.errorCode || '').trim();
+                            if (code === 'storage/unauthorized' || code === 'storage/unauthenticated') {
+                                return 'Upload blocked by permissions. Please ensure you are signed in with the invited email, and ask the admin to verify Storage rules.';
+                            }
+                            if (code === 'storage/retry-limit-exceeded') {
+                                return 'Network is unstable (retry limit exceeded). Please check your internet and try again.';
+                            }
+                            if (code === 'storage/canceled') {
+                                return 'Upload was canceled. Please try again.';
+                            }
+                            return formatAuthError(e);
+                        };
 
                         try {
+                            const total = files.length;
                             for (const file of files) {
+                                const idx = uploaded.length + 1;
+                                showTenantUploadProgress(`Uploading ${idx}/${total}: ${file.name}`);
                                 const safeName = sanitizeTenantUploadFileName(file.name);
                                 const path = `tenant-upload-invites/${tenantUploadInviteId}/${Date.now()}_${randomToken(6)}_${safeName}`;
                                 const ref = storageRef(storage, path);
-                                const res = await uploadBytes(ref, file, {
-                                    contentType: file.type || undefined
-                                });
+                                const res = await withTimeout(
+                                    uploadBytes(ref, file, { contentType: file.type || undefined }),
+                                    60_000,
+                                    'Upload timed out. Please check your internet connection and try again.'
+                                );
                                 uploaded.push({
                                     name: safeName,
                                     originalName: file.name,
@@ -5038,22 +5091,27 @@
                                 });
                             }
 
-                            await addDoc(collection(db, 'tenantUploadSubmissions'), {
+                            showTenantUploadProgress('Finalizing…');
+                            await withTimeout(addDoc(collection(db, 'tenantUploadSubmissions'), {
                                 inviteId: tenantUploadInviteId,
                                 roomId: tenantUploadInviteData.roomId,
                                 emailLower,
                                 createdAt: serverTimestamp(),
                                 files: uploaded
-                            });
+                            }), 15_000, 'Saving submission timed out. Please try again.');
+
+                            clearTenantUploadProgress();
                             showTenantUploadSuccess('✓ Documents uploaded successfully. You can close this page.');
                             try { filesInput.value = ''; } catch { /* ignore */ }
                             if (filesList) filesList.innerHTML = '';
                         } catch (e) {
                             console.warn('⚠️ tenant upload failed:', e);
-                            showTenantUploadError(e?.message || 'Upload failed. Please try again.');
+                            clearTenantUploadProgress();
+                            showTenantUploadError(formatUploadError(e) || 'Upload failed. Please try again.');
                         } finally {
                             submitBtn.disabled = false;
                             submitBtn.classList.remove('opacity-60');
+                            if (submitLabel) submitLabel.textContent = 'Upload documents';
                         }
                     });
                 }
