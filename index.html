@@ -339,6 +339,7 @@
                         <a href="#" data-section="rent-details" onclick="showSection('rent-details')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Rent Details</a>
                         <a href="#" data-section="water-bill" onclick="showSection('water-bill')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Water Bill</a>
                         <a href="#" data-section="expenses" onclick="showSection('expenses')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Expenses</a>
+                        <a href="#" data-admin-only="1" style="display:none" data-section="admin" onclick="showSection('admin')" class="nav-link px-3 py-2 rounded-full text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-stone-100/70 transition cursor-pointer">Admin</a>
                     </div>
                     
                     <div class="flex items-center sm:border-l sm:border-black/5 sm:pl-4 sm:ml-2">
@@ -499,8 +500,18 @@
                         </div>
                     </div>
                 </div>
+            </section>
 
-                <div id="admin-settings" data-admin-only="1" style="display:none" class="mt-10 space-y-6">
+            <!-- Admin Section (admin-only) -->
+            <section id="admin" class="section-tab mb-16">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                    <div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Admin</h2>
+                        <p class="text-sm text-slate-500 mt-1">Admin-only settings and tenant upload management.</p>
+                    </div>
+                </div>
+
+                <div id="admin-settings" data-admin-only="1" style="display:none" class="space-y-6">
                     <div class="bg-stone-50 rounded-3xl shadow-sm shadow-black/5 p-6 border border-black/5 max-w-2xl">
                         <p class="text-sm text-slate-600 mb-2">Admin settings</p>
                         <p class="text-xs text-orange-700 mb-4">Note: Email automation is paused while running on Firebase Spark (no server-side Functions).</p>
@@ -554,16 +565,15 @@
                         <div class="flex items-start justify-between gap-3 mb-2">
                             <div>
                                 <p class="text-sm text-slate-600">Tenant uploaded documents</p>
-                                <p class="text-xs text-slate-500">Shows recent submissions created from upload invites. Click a file to open it.</p>
+                                <p class="text-xs text-slate-500">Grouped by Room No. Click a file to open it.</p>
                             </div>
                             <button type="button" onclick="window.refreshTenantUploadSubmissions()" class="px-4 py-2 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 font-semibold shadow-sm shadow-black/10">Refresh</button>
                         </div>
-                        <div id="tenantUploadSubmissionsList" class="mt-4 space-y-3">
+                        <div id="tenantUploadSubmissionsList" class="mt-4 space-y-4">
                             <p class="text-xs text-slate-400">Loading…</p>
                         </div>
                     </div>
                 </div>
-
             </section>
 
             <!-- Rent Details Section -->
@@ -5089,6 +5099,10 @@
 
         // SECTION NAVIGATION
         window.showSection = (sectionName) => {
+            if (sectionName === 'admin' && !isAdminSession) {
+                showNotification('Admin login required', 'warning');
+                sectionName = 'dashboard';
+            }
             // Hide all sections
             document.querySelectorAll('.section-tab').forEach(section => {
                 section.classList.remove('active');
@@ -5150,13 +5164,11 @@
         };
 
         window.openAdminSettings = () => {
-            try { window.showSection('room-details'); } catch (e) { /* ignore */ }
-            setTimeout(() => {
-                const el = document.getElementById('admin-settings');
-                if (el && typeof el.scrollIntoView === 'function') {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 50);
+            if (!isAdminSession) {
+                showNotification('Admin login required', 'warning');
+                return;
+            }
+            try { window.showSection('admin'); } catch (e) { /* ignore */ }
         };
 
         // --- APP LOCK (Face ID on iOS) ---
@@ -5612,38 +5624,66 @@
                 return;
             }
 
-            el.innerHTML = items.slice(0, 30).map(s => {
-                const created = formatUploadSubmissionTime(s?.createdAt);
-                const email = String(s?.emailLower || '').trim();
-                const roomId = String(s?.roomId || '').trim();
-                const inviteId = String(s?.inviteId || '').trim();
-                const files = Array.isArray(s?.files) ? s.files : [];
+            const groups = new Map();
+            for (const s of items) {
+                const roomNoRaw = String(s?.roomId || '').trim();
+                const roomNo = roomNoRaw ? roomNoRaw.padStart(2, '0') : '—';
+                if (!groups.has(roomNo)) groups.set(roomNo, []);
+                groups.get(roomNo).push(s);
+            }
 
-                const filesHtml = files.length
-                    ? files.map(f => {
-                        const name = String(f?.originalName || f?.name || 'File');
-                        const path = String(f?.storagePath || '').trim();
-                        const ct = String(f?.contentType || '').trim();
-                        const sizeKb = Number(f?.size || 0) ? `${Math.round(Number(f.size) / 1024)} KB` : '';
-                        const meta = [ct, sizeKb].filter(Boolean).join(' • ');
-                        const btn = path
-                            ? `<button type="button" class="text-emerald-800 hover:text-emerald-900 underline" onclick="window.openTenantUploadFile('${escapeHtml(path)}')">${escapeHtml(name)}</button>`
-                            : `<span class="text-slate-500">${escapeHtml(name)}</span>`;
-                        return `<div class="text-xs text-slate-700 truncate">${btn}${meta ? ` <span class=\"text-slate-400\">(${escapeHtml(meta)})</span>` : ''}</div>`;
-                    }).join('')
-                    : '<div class="text-xs text-slate-400">No files</div>';
+            const sortedRoomNos = Array.from(groups.keys()).sort((a, b) => {
+                if (a === '—') return 1;
+                if (b === '—') return -1;
+                return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+            });
 
-                return `
-                    <div class="rounded-2xl border border-black/5 bg-white/70 p-4">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="text-sm font-semibold text-slate-900">Room ${escapeHtml(roomId || '—')}</div>
-                            <div class="text-xs text-slate-400">${escapeHtml(created || '')}</div>
+            const html = [];
+            for (const roomNo of sortedRoomNos) {
+                const roomItems = groups.get(roomNo) || [];
+                html.push(`
+                    <div class="rounded-3xl border border-black/5 bg-white/70 p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-sm font-extrabold text-slate-900">Room ${escapeHtml(roomNo)}</div>
+                            <div class="text-xs text-slate-400">${roomItems.length} submission${roomItems.length === 1 ? '' : 's'}</div>
                         </div>
-                        <div class="mt-1 text-xs text-slate-600">${escapeHtml(email || '')}${inviteId ? ` • Invite: ${escapeHtml(inviteId)}` : ''}</div>
-                        <div class="mt-3 space-y-1">${filesHtml}</div>
+                        <div class="mt-3 space-y-3">
+                            ${roomItems.slice(0, 20).map(s => {
+                                const created = formatUploadSubmissionTime(s?.createdAt);
+                                const email = String(s?.emailLower || '').trim();
+                                const inviteId = String(s?.inviteId || '').trim();
+                                const files = Array.isArray(s?.files) ? s.files : [];
+
+                                const filesHtml = files.length
+                                    ? files.map(f => {
+                                        const name = String(f?.originalName || f?.name || 'File');
+                                        const path = String(f?.storagePath || '').trim();
+                                        const ct = String(f?.contentType || '').trim();
+                                        const sizeKb = Number(f?.size || 0) ? `${Math.round(Number(f.size) / 1024)} KB` : '';
+                                        const meta = [ct, sizeKb].filter(Boolean).join(' • ');
+                                        const btn = path
+                                            ? `<button type=\"button\" class=\"text-emerald-800 hover:text-emerald-900 underline\" onclick=\"window.openTenantUploadFile('${escapeHtml(path)}')\">${escapeHtml(name)}</button>`
+                                            : `<span class=\"text-slate-500\">${escapeHtml(name)}</span>`;
+                                        return `<div class=\"text-xs text-slate-700 truncate\">${btn}${meta ? ` <span class=\\\"text-slate-400\\\">(${escapeHtml(meta)})</span>` : ''}</div>`;
+                                    }).join('')
+                                    : '<div class="text-xs text-slate-400">No files</div>';
+
+                                return `
+                                    <div class=\"rounded-2xl border border-black/5 bg-stone-50/70 p-4\">
+                                        <div class=\"flex flex-wrap items-center justify-between gap-2\">
+                                            <div class=\"text-xs font-semibold text-slate-700\">${escapeHtml(email || '')}${inviteId ? ` • Invite: ${escapeHtml(inviteId)}` : ''}</div>
+                                            <div class=\"text-xs text-slate-400\">${escapeHtml(created || '')}</div>
+                                        </div>
+                                        <div class=\"mt-3 space-y-1\">${filesHtml}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
                     </div>
-                `;
-            }).join('');
+                `);
+            }
+
+            el.innerHTML = html.join('');
         };
 
         window.subscribeTenantUploadSubmissions = () => {
