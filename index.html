@@ -213,19 +213,31 @@
     </div>
 
     <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="hidden-section fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
-        <div class="text-center bg-white p-10 rounded-2xl shadow-2xl max-w-md w-full mx-4">
-            <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i class="fa-solid fa-building-user text-4xl text-blue-600"></i>
+    <div id="login-screen" class="hidden-section fixed inset-0 bg-gray-900 z-50">
+        <div class="h-full w-full flex flex-col md:flex-row">
+            <!-- Left: login -->
+            <div class="flex-1 flex items-center justify-center md:justify-start p-6 md:p-12">
+                <div class="text-center bg-white p-10 rounded-2xl shadow-2xl max-w-md w-full">
+                    <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fa-solid fa-building-user text-4xl text-blue-600"></i>
+                    </div>
+                    <h1 class="text-3xl font-bold mb-2 text-gray-800">Munirathnam Illam</h1>
+                    <p class="text-gray-500 mb-8">Secure Rent Management System</p>
+
+                    <button onclick="loginWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-3" alt="Google">
+                        Sign in with Google
+                    </button>
+                    <p id="login-error" role="alert" aria-live="assertive" class="text-red-500 text-sm mt-4 hidden text-left bg-red-50 p-3 rounded border border-red-200"></p>
+                </div>
             </div>
-            <h1 class="text-3xl font-bold mb-2 text-gray-800">Munirathnam Illam</h1>
-            <p class="text-gray-500 mb-8">Secure Rent Management System</p>
-            
-            <button onclick="loginWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition flex items-center justify-center shadow-sm">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 mr-3" alt="Google">
-                Sign in with Google
-            </button>
-            <p id="login-error" role="alert" aria-live="assertive" class="text-red-500 text-sm mt-4 hidden text-left bg-red-50 p-3 rounded border border-red-200"></p>
+
+            <!-- Right: building image (desktop/tablet) -->
+            <div class="hidden md:flex flex-1 items-center justify-center p-6 md:p-12">
+                <div class="w-full max-w-2xl h-[520px] rounded-2xl overflow-hidden shadow-2xl bg-white">
+                    <img src="assets/building.jpg" alt="Building" class="w-full h-full object-cover" />
+                </div>
+            </div>
         </div>
     </div>
 
