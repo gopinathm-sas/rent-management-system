@@ -4848,6 +4848,9 @@
 
                 const history = tenantData?.paymentHistory || {};
                 const status = history[targetMonthKey] || tenantData?.payStatus || 'None';
+                const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
+                // Exclude if eviction is confirmed (Adjusted from SD)
+                if (evictionConfirmed) continue;
                 if (status !== 'Pending') continue;
 
                 const rent = Number(tenantData?.rent) || 0;
