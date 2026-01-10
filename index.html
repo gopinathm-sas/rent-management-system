@@ -2198,27 +2198,6 @@
             if (toggleBtn) toggleBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
         };
 
-        window.openWhatsAppForRoom = (roomId, message = '') => {
-            try {
-                const immutableRoomNo = Object.keys(IMMUTABLE_ROOMS_DATA).find(
-                    no => IMMUTABLE_ROOMS_DATA[no].roomId === roomId
-                );
-                const tenantRecord = immutableRoomNo
-                    ? findTenantForRoom(IMMUTABLE_ROOMS_DATA[immutableRoomNo])
-                    : pickBestRoomRecord(allPropertiesData.filter(p => String(p?.roomId || '').trim() === String(roomId || '').trim()));
-
-                const contactRaw = tenantRecord?.contact;
-                if (!contactRaw || String(contactRaw).trim() === '') {
-                    showNotification('No tenant contact number saved for this room.', 'warning');
-                    return;
-                }
-                openWhatsAppWebChat(contactRaw, String(message || ''));
-            } catch (e) {
-                console.warn('openWhatsAppForRoom failed:', e);
-                showNotification('Could not open WhatsApp for this room.', 'error');
-            }
-        };
-
         // OPEN ROOM DETAIL MODAL (Hover-expandable cards)
         window.openRoomDetailModal = (roomNo) => {
             const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
@@ -2401,12 +2380,8 @@
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(formatDateForDisplay(relocateDate))}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs font-semibold text-slate-500">Reference</p>
+                                                <p class="text-xs font-semibold text-slate-500">Room ID</p>
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(roomData.roomId)}</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-xs font-semibold text-slate-500">Record ID</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1 font-mono">${recordId}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -2449,14 +2424,6 @@
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(pendingLabel)}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs font-semibold text-slate-500">Last payment date</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-xs font-semibold text-slate-500">Payment method</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
-                                            <div>
                                                 <p class="text-xs font-semibold text-slate-500">Unrevised rent (previous)</p>
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(unRevisedRentLabel)}</p>
                                             </div>
@@ -2481,10 +2448,6 @@
                                                 <p class="text-xs font-semibold text-slate-500">Room number</p>
                                                 <p class="text-lg font-semibold text-slate-900 mt-1">${escapeHtml(roomData.roomNo)}</p>
                                             </div>
-                                            <div>
-                                                <p class="text-xs font-semibold text-slate-500">Room type</p>
-                                                <p class="text-base font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
                                         </div>
                                     </button>
                                     <div class="hovercard-details mt-4 pt-4 border-t border-black/5">
@@ -2494,23 +2457,11 @@
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(floorLabel)}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs font-semibold text-slate-500">Room size</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-xs font-semibold text-slate-500">Amenities</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-xs font-semibold text-slate-500">Occupancy capacity</p>
-                                                <p class="text-sm font-semibold text-slate-900 mt-1">N/A</p>
-                                            </div>
-                                            <div>
                                                 <p class="text-xs font-semibold text-slate-500">Key number</p>
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">${escapeHtml(roomData.keyNo)}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs font-semibold text-slate-500">Meter numbers</p>
+                                                <p class="text-xs font-semibold text-slate-500">EB Meter No / EB Acc No</p>
                                                 <p class="text-sm font-semibold text-slate-900 mt-1">EB ${escapeHtml(roomData.ebServNo)} / ${escapeHtml(roomData.ebAcNo)}</p>
                                             </div>
                                             <div>
@@ -2613,11 +2564,6 @@
                                     Mark Vacant
                                 </button>
                                 ` : ''}
-
-                                <button type="button" onclick="window.openWhatsAppForRoom('${roomData.roomId}')" class="group relative inline-flex items-center justify-center size-12 rounded-2xl bg-emerald-100/70 border border-emerald-200/60 text-emerald-800 hover:bg-emerald-100 transition shadow-sm shadow-black/5" aria-label="WhatsApp" title="WhatsApp">
-                                    <i class="fa-brands fa-whatsapp text-lg"></i>
-                                    <span class="pointer-events-none absolute -bottom-9 right-0 whitespace-nowrap rounded-xl bg-slate-900 text-white text-xs font-semibold px-2.5 py-1 opacity-0 group-hover:opacity-100 transition">WhatsApp</span>
-                                </button>
 
                                 <button type="button" onclick="window.openAddTenantModal('${roomData.roomId}'); window.closeRoomDetailModal();" class="group relative inline-flex items-center justify-center size-12 rounded-2xl bg-slate-100/70 border border-slate-200/60 text-slate-700 hover:bg-slate-100 transition shadow-sm shadow-black/5" aria-label="Edit" title="Edit">
                                     <i class="fa-solid ${isOccupied ? 'fa-pen-to-square' : 'fa-plus'}"></i>
