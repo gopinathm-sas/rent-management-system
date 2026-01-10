@@ -4416,8 +4416,10 @@
                         return v !== null && v !== undefined && String(v).trim() !== '';
                     });
                     const status = history[targetMonthKey] || (!hasAnyHistory ? (tenantData?.payStatus || 'None') : 'None');
+                    const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
 
-                    if (status === 'Pending') {
+                    // Exclude from pending if eviction is confirmed
+                    if (status === 'Pending' && !evictionConfirmed) {
                         totalPending += rent;
                     } else if (status === 'Rent Only') {
                         totalReceived += rent;
