@@ -1103,6 +1103,10 @@
                         <input type="tel" id="tenantContact" required placeholder="e.g. 9876543210" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
+                        <label class="block text-gray-700 font-semibold mb-2">Tenant Email</label>
+                        <input type="email" id="tenantEmailInput" placeholder="tenant@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
                         <label class="block text-gray-700 font-semibold mb-2">Monthly Rent (₹) <span class="text-red-500">*</span></label>
                         <input type="number" id="tenantRent" required min="1" placeholder="e.g. 5600" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
@@ -4082,7 +4086,9 @@
                 const safeValue = escapeHtml(String(value ?? ''));
                 const safeOkText = escapeHtml(String(okText ?? 'OK'));
                 const safeCancelText = escapeHtml(String(cancelText ?? 'Cancel'));
-                const safeExtraText = escapeHtml(String(extraButtonText ?? ''));
+                const extraTextRaw = String(extraButtonText ?? '');
+                const extraIsWhatsApp = extraTextRaw.toLowerCase().includes('whatsapp');
+                const safeExtraText = escapeHtml(extraTextRaw);
 
                 const normalizedInfoRows = Array.isArray(infoRows) ? infoRows : [];
                 const infoRowsHtml = normalizedInfoRows
@@ -4103,6 +4109,11 @@
 
                 const inputModeAttr = inputMode ? ` inputmode="${escapeHtml(String(inputMode))}"` : '';
 
+                const iconBtnBase = 'group relative inline-flex items-center justify-center size-12 rounded-2xl transition shadow-sm shadow-black/5';
+                const iconBtnTooltip = (text) => `
+                    <span class="pointer-events-none absolute -bottom-9 right-0 whitespace-nowrap rounded-xl bg-slate-900 text-white text-xs font-semibold px-2.5 py-1 opacity-0 group-hover:opacity-100 transition">${text}</span>
+                `;
+
                 modal.innerHTML = `
                     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border-l-8 border-blue-600" role="dialog" aria-modal="true" aria-labelledby="hoverInputTitle">
                         <div class="p-6 border-b">
@@ -4115,9 +4126,20 @@
                             <input id="hoverInputField" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" type="${escapeHtml(String(inputType))}"${inputModeAttr} placeholder="${safePlaceholder}" value="${safeValue}" />
                         </div>
                         <div class="p-6 pt-0 flex justify-end gap-3">
-                            <button type="button" id="hoverInputCancel" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold">${safeCancelText}</button>
-                            ${safeExtraText ? `<button type="button" id="hoverInputExtra" class="px-4 py-2 rounded-lg ${escapeHtml(String(extraButtonClass || ''))}">${safeExtraText}</button>` : ''}
-                            <button type="button" id="hoverInputOk" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">${safeOkText}</button>
+                            <button type="button" id="hoverInputCancel" class="${iconBtnBase} bg-slate-100/70 border border-slate-200/60 text-slate-700 hover:bg-slate-100" aria-label="${safeCancelText}" title="${safeCancelText}">
+                                <i class="fa-solid fa-xmark"></i>
+                                ${iconBtnTooltip(safeCancelText)}
+                            </button>
+                            ${safeExtraText ? `
+                                <button type="button" id="hoverInputExtra" class="${iconBtnBase} ${escapeHtml(String(extraButtonClass || ''))}" aria-label="${safeExtraText}" title="${safeExtraText}">
+                                    <i class="${extraIsWhatsApp ? 'fa-brands fa-whatsapp text-lg' : 'fa-solid fa-bolt'}"></i>
+                                    ${iconBtnTooltip(safeExtraText)}
+                                </button>
+                            ` : ''}
+                            <button type="button" id="hoverInputOk" class="${iconBtnBase} bg-blue-600 hover:bg-blue-700 text-white" aria-label="${safeOkText}" title="${safeOkText}">
+                                <i class="fa-solid fa-check"></i>
+                                ${iconBtnTooltip(safeOkText)}
+                            </button>
                         </div>
                     </div>
                 `;
@@ -6658,6 +6680,7 @@
                     if (existing) {
                         const nameEl = document.getElementById('tenantNameInput');
                         const contactEl = document.getElementById('tenantContact');
+                        const emailEl = document.getElementById('tenantEmailInput');
                         const rentEl = document.getElementById('tenantRent');
                         const depositEl = document.getElementById('tenantDeposit');
                         const relocateEl = document.getElementById('tenantRelocateDate');
@@ -6665,6 +6688,7 @@
 
                         if (nameEl) nameEl.value = String(existing?.tenant || '').trim();
                         if (contactEl) contactEl.value = String(existing?.contact || '').trim();
+                        if (emailEl) emailEl.value = String(existing?.tenantEmail || existing?.email || existing?.contactEmail || '').trim();
                         if (rentEl) rentEl.value = existing?.rent !== null && existing?.rent !== undefined ? String(existing.rent) : '';
                         if (depositEl) depositEl.value = existing?.deposit !== null && existing?.deposit !== undefined ? String(existing.deposit) : '';
 
@@ -6740,6 +6764,8 @@
                 const roomId = document.getElementById('tenantRoomId').value.trim();
                 const tenantName = document.getElementById('tenantNameInput').value.trim();
                 const contact = document.getElementById('tenantContact').value.trim();
+                const tenantEmailRaw = document.getElementById('tenantEmailInput')?.value || '';
+                const tenantEmail = String(tenantEmailRaw).trim();
                 const rent = parseFloat(document.getElementById('tenantRent').value);
                 const waterRateInput = document.getElementById('tenantWaterRate')?.value;
                 const parsedWaterRate = parseFloat(String(waterRateInput ?? '').trim());
@@ -6806,6 +6832,7 @@
                             roomId: roomId,
                             roomNo: roomNo,
                             tenant: tenantName,
+                            tenantEmail: tenantEmail ? tenantEmail : null,
                             rent: rent,
                             waterRate: waterRate,
                             contact: contact,
@@ -6839,6 +6866,7 @@
                             roomId: roomId,
                             roomNo: roomNo,
                             tenant: tenantName,
+                            tenantEmail: tenantEmail ? tenantEmail : null,
                             rent: rent,
                             waterRate: waterRate,
                             contact: contact,
@@ -6920,6 +6948,7 @@
             const roomSelector = document.getElementById('roomSelector');
             const tenantName = document.getElementById('tenantNameInput');
             const tenantContact = document.getElementById('tenantContact');
+            const tenantEmailInput = document.getElementById('tenantEmailInput');
             const tenantRent = document.getElementById('tenantRent');
             const tenantDeposit = document.getElementById('tenantDeposit');
             const relocateDate = document.getElementById('tenantRelocateDate');
@@ -6930,6 +6959,7 @@
             });
             if (tenantName) tenantName.addEventListener('input', window.validateAddTenantForm);
             if (tenantContact) tenantContact.addEventListener('input', window.validateAddTenantForm);
+            if (tenantEmailInput) tenantEmailInput.addEventListener('input', window.validateAddTenantForm);
             if (tenantRent) tenantRent.addEventListener('input', window.validateAddTenantForm);
             if (tenantDeposit) tenantDeposit.addEventListener('input', window.validateAddTenantForm);
             if (relocateDate) relocateDate.addEventListener('change', window.validateAddTenantForm);
