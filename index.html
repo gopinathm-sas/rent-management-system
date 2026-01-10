@@ -1788,22 +1788,19 @@
             const t = tenantData || {};
             const relocateDate = parseDateValue(t.relocate);
             const lastRevisionDate = parseDateValue(t.lastRentRevisionAt);
-
             const noAnnualRevision = Boolean(t.noAnnualRevision);
-            if (noAnnualRevision) {
+            const evictionConfirmed = Boolean(t.evictionConfirmed);
+            if (noAnnualRevision || evictionConfirmed) {
+                // Block rent revision for confirmed eviction
                 return { relocateDate, lastRevisionDate, nextDue: null, daysTo: null, noAnnualRevision: true };
             }
-
             const base = lastRevisionDate || relocateDate;
-
             const normalizedToday = new Date(today);
             normalizedToday.setHours(0, 0, 0, 0);
-
             const nextDue = base ? addYears(base, 1) : null;
             const daysTo = nextDue
                 ? Math.round((nextDue.getTime() - normalizedToday.getTime()) / (1000 * 60 * 60 * 24))
                 : null;
-
             return { relocateDate, lastRevisionDate, nextDue, daysTo, noAnnualRevision: false };
         }
 
@@ -2135,12 +2132,27 @@
 
                 const tenantData = findTenantForRoom(roomData);
                 const isOccupied = isOccupiedRecord(tenantData);
+                const evictionConfirmed = Boolean(tenantData?.evictionConfirmed);
                 const tenantName = isOccupied
                     ? (String(tenantData?.tenant || '').trim() || 'Unknown')
                     : 'Vacant';
-                const borderColor = isOccupied ? 'border-blue-600' : 'border-gray-300';
-                const bgColor = isOccupied ? 'bg-gradient-to-br from-blue-50 to-white' : 'bg-gray-50';
-                const statusColor = isOccupied ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-200 text-gray-700 border-gray-300';
+                let borderColor, bgColor, statusColor, statusLabel;
+                if (evictionConfirmed) {
+                    borderColor = 'border-red-600';
+                    bgColor = 'bg-gradient-to-br from-red-50 to-white';
+                    statusColor = 'bg-red-100 text-red-800 border-red-200';
+                    statusLabel = 'Eviction in Progress';
+                } else if (isOccupied) {
+                    borderColor = 'border-blue-600';
+                    bgColor = 'bg-gradient-to-br from-blue-50 to-white';
+                    statusColor = 'bg-blue-100 text-blue-800 border-blue-200';
+                    statusLabel = '✓ Occupied';
+                } else {
+                    borderColor = 'border-gray-300';
+                    bgColor = 'bg-gray-50';
+                    statusColor = 'bg-gray-200 text-gray-700 border-gray-300';
+                    statusLabel = '◯ Vacant';
+                }
 
                 return `
                     <div class="${bgColor} rounded-xl shadow-lg border-l-8 ${borderColor} p-5 cursor-pointer hover-lift" onclick="window.openRoomDetailModal('${roomNo}')">
@@ -2150,7 +2162,7 @@
                                 <p class="text-xs text-gray-500 mt-1">ID: <span class="font-mono font-semibold text-blue-700">${roomData.roomId}</span></p>
                             </div>
                             <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${statusColor} border">
-                                ${isOccupied ? '✓ Occupied' : '◯ Vacant'}
+                                ${statusLabel}
                             </span>
                         </div>
 
@@ -2350,8 +2362,9 @@
                             <div class="rounded-3xl bg-stone-50/90 border border-black/5 shadow-sm shadow-black/5 p-6">
                                 <label class="text-xs font-semibold text-slate-500 block mb-2">Room Status</label>
                                 <select id="roomStatusDropdown_${roomData.roomId}" class="w-full px-4 py-3 rounded-2xl border border-black/10 bg-white/70 hover:bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-200/70 focus:border-emerald-200/80" onchange="window.updateRoomStatus('${roomData.roomId}', this.value)">
-                                    <option value="Occupied" ${isOccupied ? 'selected' : ''}>Occupied - Tenant Present</option>
-                                    <option value="Vacant" ${!isOccupied ? 'selected' : ''}>Vacant - No Tenant</option>
+                                    <option value="Occupied" ${isOccupied && !evictionConfirmed ? 'selected' : ''}>Occupied - Tenant Present</option>
+                                    <option value="Eviction in Progress" ${evictionConfirmed ? 'selected' : ''}>Eviction in Progress</option>
+                                    <option value="Vacant" ${!isOccupied && !evictionConfirmed ? 'selected' : ''}>Vacant - No Tenant</option>
                                 </select>
                             </div>
 
@@ -2367,7 +2380,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center gap-2">
-                                                <span class="px-3 py-1 rounded-full text-xs font-semibold ${occupancyBadge}">${isOccupied ? 'Occupied' : 'Vacant'}</span>
+                                                <span class="px-3 py-1 rounded-full text-xs font-semibold ${evictionConfirmed ? 'bg-red-100 text-red-800 border-red-200' : occupancyBadge}">${evictionConfirmed ? 'Eviction in Progress' : (isOccupied ? 'Occupied' : 'Vacant')}</span>
                                                 <span class="inline-flex size-10 items-center justify-center rounded-2xl bg-white/70 border border-black/5 text-slate-600 group-hover:text-slate-900 transition"><i class="fa-solid fa-chevron-down group-hover:rotate-180 transition-transform"></i></span>
                                             </div>
                                         </div>
