@@ -7041,15 +7041,88 @@
 
             if (!ensureWriteAllowed('Deleting properties')) return;
             const ok = await window.uiConfirm({
-                title: 'Delete this property?',
-                message: 'This will permanently delete the record from the database.',
-                confirmText: 'Delete',
+                title: 'Remove tenant record?',
+                message: 'This will mark the room as Vacant and remove tenant details, but keep rent/water history for reference.',
+                confirmText: 'Remove',
                 cancelText: 'Cancel',
                 danger: true
             });
             if (ok) {
                 try {
-                    await deleteDoc(doc(db, "properties", id));
+                    const record = allPropertiesData.find(p => p?.id === id);
+                    if (!record) {
+                        throw new Error('Record not found');
+                    }
+
+                    const shouldArchive = isOccupiedRecord(record) ||
+                        String(record?.tenant || '').trim() ||
+                        String(record?.contact || '').trim() ||
+                        (record?.rent !== null && record?.rent !== undefined);
+
+                    const updatePayload = {
+                        status: 'Vacant',
+                        updatedAt: serverTimestamp(),
+                        updatedBy: currentUser.uid,
+                        tenant: null,
+                        contact: null,
+                        rent: null,
+                        waterRate: null,
+                        deposit: null,
+                        ebServNo: null,
+                        ebAcNo: null,
+                        keyNo: null,
+                        relocate: null,
+                        lastRentRevisionAt: null,
+                        noAnnualRevision: false,
+                        evictionDate: null,
+                        evictionNoticeDate: null,
+                        evictionSettlement: null,
+                        tenantDocuments: [],
+                        tenantDocumentsAddedAt: null,
+                        tenantDocumentsAddedBy: null,
+                        payStatus: null,
+                        paymentHistory: {},
+                        paymentTotals: {}
+                        // NOTE: Keep waterReadings/waterMeterReset so Water Bill history remains available.
+                    };
+
+                    if (shouldArchive) {
+                        updatePayload.archivedTenant = {
+                            archivedAt: serverTimestamp(),
+                            reason: 'manual-remove',
+                            tenant: record?.tenant ?? null,
+                            contact: record?.contact ?? null,
+                            rent: record?.rent ?? null,
+                            waterRate: record?.waterRate ?? null,
+                            deposit: record?.deposit ?? null,
+                            ebServNo: record?.ebServNo ?? null,
+                            ebAcNo: record?.ebAcNo ?? null,
+                            keyNo: record?.keyNo ?? null,
+                            relocate: record?.relocate ?? null,
+                            lastRentRevisionAt: record?.lastRentRevisionAt ?? null,
+                            noAnnualRevision: Boolean(record?.noAnnualRevision),
+                            evictionDate: record?.evictionDate ?? null,
+                            evictionNoticeDate: record?.evictionNoticeDate ?? null,
+                            evictionSettlement: record?.evictionSettlement ?? null,
+                            tenantDocuments: record?.tenantDocuments ?? [],
+                            paymentHistory: record?.paymentHistory ?? {},
+                            paymentTotals: record?.paymentTotals ?? {},
+                            waterReadings: record?.waterReadings ?? {},
+                            unRevisedRent: record?.unRevisedRent ?? null,
+                            unRevisedRentCapturedAt: record?.unRevisedRentCapturedAt ?? null,
+                        };
+                    }
+
+                    await updateDoc(doc(db, "properties", id), updatePayload);
+
+                    showNotification('✓ Tenant record removed (history preserved)', 'success');
+
+                    // Refresh views
+                    window.generateRoomCards();
+                    window.renderRentDetailsTable();
+                    try { window.renderRentWaterTable(); } catch (e) { console.warn("⚠️ renderRentWaterTable failed:", e); }
+                    try { window.updateOccupancyMetrics(); } catch (e) { console.warn("⚠️ updateOccupancyMetrics failed:", e); }
+                    try { window.renderWaterBillTable(); } catch (e) { console.warn("⚠️ renderWaterBillTable failed:", e); }
                 } catch (error) {
                     console.error("Error deleting: ", error);
                     void window.uiAlert({
@@ -7674,8 +7747,13 @@
                 const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
                 const tenantData = findTenantForRoom(roomData);
                 const occupied = isOccupiedRecord(tenantData);
-                const tenantName = occupied ? (tenantData?.tenant || 'Unknown') : 'Vacant';
+                const archivedName = String(tenantData?.archivedTenant?.tenant || '').trim();
+                const tenantName = occupied
+                    ? (tenantData?.tenant || 'Unknown')
+                    : (archivedName ? `${archivedName} (Vacated)` : 'Vacant');
                 const rowClass = occupied ? 'hover:bg-gray-50 border-b' : 'bg-gray-50 border-b';
+
+                const hasWaterHistory = !!(tenantData?.waterReadings && Object.keys(tenantData.waterReadings).length);
 
                 let row = `
                     <tr class="${rowClass}">
@@ -7686,13 +7764,18 @@
 
                 months.forEach((month, monthIndex) => {
                     const isFuture = isFutureYearMonth(selectedYear, monthIndex, now);
+                    const canShowHistory = occupied || hasWaterHistory;
                     let cellClass = occupied
                         ? 'bg-white text-gray-700 border-gray-200 cursor-pointer hover:bg-gray-50'
-                        : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed';
-                    let display = '-';
-                    let title = occupied ? 'Click to add a meter reading' : 'Vacant — no tenant';
+                        : (canShowHistory
+                            ? 'bg-white text-gray-700 border-gray-200'
+                            : 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed');
+                    let display = canShowHistory ? '<span class="text-gray-400">—</span>' : '-';
+                    let title = occupied
+                        ? 'Click to add a meter reading'
+                        : (canShowHistory ? 'Vacant — showing saved history' : 'Vacant — no history');
 
-                    if (occupied) {
+                    if (canShowHistory) {
                         const key = getWaterMonthKey(selectedYear, monthIndex);
                         const rate = Number(tenantData?.waterRate);
                         const effectiveRate = Number.isFinite(rate) ? rate : DEFAULT_WATER_RATE;
@@ -7723,7 +7806,9 @@
                                 title = `Saved reading: ${savedNum}. Rate: ${effectiveRate}/unit.${isReset ? ' Meter reset: yes (units = reading × 10).' : ' Add the previous month reading to calculate units.'}`;
                             } else {
                                 display = '<span class="text-gray-400">—</span>';
-                                title = `No reading for ${month} ${selectedYear}. Rate: ${effectiveRate}/unit. Click to add.`;
+                                title = occupied
+                                    ? `No reading for ${month} ${selectedYear}. Rate: ${effectiveRate}/unit. Click to add.`
+                                    : `No saved reading for ${month} ${selectedYear}.`;
                             }
                         }
                     }
