@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "munirathnam-illam"
+    "default": "munirathnam-illam",
+    "live": "munirathnam-illam",
+    "test": "munirathnam-illam-test"
   }
 }

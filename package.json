@@ -10,7 +10,13 @@
     "test": "jest",
     "copy:web": "node scripts/copy-web-assets.js",
     "cap:sync": "npm run copy:web && npx cap sync",
-    "ios": "npm run copy:web && npx cap sync ios && npx cap open ios"
+    "ios": "npm run copy:web && npx cap sync ios && npx cap open ios",
+    "deploy:live:hosting": "firebase deploy --project live --only hosting",
+    "deploy:live:functions": "firebase deploy --project live --only functions",
+    "deploy:live": "firebase deploy --project live --only hosting,functions",
+    "deploy:test:hosting": "firebase deploy --project test --only hosting",
+    "deploy:test:functions": "firebase deploy --project test --only functions",
+    "deploy:test": "firebase deploy --project test --only hosting,functions"
   },
   "repository": {
     "type": "git",
