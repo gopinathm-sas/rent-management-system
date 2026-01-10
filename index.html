@@ -2300,9 +2300,13 @@
                 return v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== 'None';
             });
             const rawPayStatus = (history && history[payMonthKey]) || (!hasAnyHistory ? (tenantData?.payStatus || 'None') : 'None');
-            const paymentStatus = (rawPayStatus === 'Pending')
+            let paymentStatus = (rawPayStatus === 'Pending')
                 ? 'Pending'
                 : ((rawPayStatus === 'Paid' || rawPayStatus === 'Rent Only') ? 'Paid' : (rawPayStatus === 'Adjusted from SD' ? 'Adjusted from SD' : 'N/A'));
+            // If eviction is confirmed, always show as Adjusted from SD
+            if (evictionConfirmed) {
+                paymentStatus = 'Adjusted from SD';
+            }
             // Color coding for payment status, including SD adjustment
             const paymentBadge = paymentStatus === 'Paid'
                 ? 'bg-emerald-100/70 text-emerald-900 border border-emerald-200/60'
