@@ -22,11 +22,12 @@
     "deploy:test": "npm run build && firebase deploy --project test --only hosting,functions"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.0.1",
     "@capacitor/cli": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
     "@capgo/capacitor-native-biometric": "^8.0.3",
-    "firebase": "^10.7.1",
+    "firebase": "^12.8.0",
     "firebase-admin": "^13.6.0",
     "lucide-react": "^0.303.0",
     "react": "^18.2.0",
