@@ -22,7 +22,6 @@
     "deploy:test": "npm run build && firebase deploy --project test --only hosting,functions"
   },
   "dependencies": {
-    "@capacitor-firebase/authentication": "^8.0.1",
     "@capacitor/cli": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
