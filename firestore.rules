@@ -78,6 +78,11 @@ service cloud.firestore {
       allow read: if isStaffOrViewer();
       allow write: if isStaff();
     }
+    
+    match /rooms/{roomId} {
+       allow read: if isStaffOrViewer();
+       allow write: if isStaff();
+    }
 
     match /expenses/{expenseId} {
       allow read: if isStaffOrViewer();
