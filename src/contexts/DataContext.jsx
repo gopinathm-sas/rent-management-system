@@ -150,8 +150,6 @@ export function DataProvider({ children }) {
         updateRentStatus,
         addExpense,
         deleteExpense,
-        addExpense,
-        deleteExpense,
         updateTenant,
         createTenant: async (data) => {
             const { addDoc, collection } = await import('firebase/firestore');
