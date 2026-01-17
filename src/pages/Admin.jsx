@@ -239,7 +239,8 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
         const url = `${window.location.origin}/upload/${tenant.uploadToken}`;
         const subject = `Document Upload Link for Room ${tenant.roomNo}`;
         const body = `Hi ${tenant.tenant},\n\nPlease use the following secure link to upload your documents for Room ${tenant.roomNo}.\n\n${url}\n\nThis link is valid for 24 hours.\n\nRegards,\nMunirathnam Illam`;
-        window.open(`mailto:${tenant.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(tenant.email || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(gmailUrl, '_blank');
     };
 
     const deleteDoc = async (key) => {
