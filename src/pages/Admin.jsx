@@ -181,8 +181,8 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
                                     tenant={tenant}
                                     updateTenant={updateTenant}
                                     showToast={showToast}
-                                    tenantType={tenantType}
-                                    occupantCount={occupantCount}
+                                    tenantType={tenantType || 'Family'}
+                                    occupantCount={occupantCount || 1}
                                 />
                             </div>
                         </>
