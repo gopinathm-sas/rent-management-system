@@ -82,6 +82,7 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
     const isOccupied = isOccupiedRecord(tenant);
     // Local state for edits
     const [tenantType, setTenantType] = useState(tenant?.tenantType || 'Family'); // Default to Family
+    const [occupantCount, setOccupantCount] = useState(tenant?.occupantCount || 3);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
@@ -93,7 +94,8 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
         setIsSaving(true);
         try {
             await updateDoc(doc(db, 'properties', tenant.id), {
-                tenantType: tenantType
+                tenantType,
+                occupantCount: tenantType === 'Bachelors' ? occupantCount : 1
             });
             showToast("Tenant details updated", "success");
             onClose();
@@ -158,10 +160,30 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
                                 </div>
                             </div>
 
+                            {tenantType === 'Bachelors' && (
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">No. of Occupants</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                        value={occupantCount}
+                                        onChange={(e) => setOccupantCount(Number(e.target.value))}
+                                    />
+                                </div>
+                            )}
+
                             {/* Document Vault */}
                             <div className="pt-4 border-t border-slate-100">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Document Vault</p>
-                                <DocumentVault tenant={tenant} updateTenant={updateTenant} showToast={showToast} onClose={onClose} />
+                                <DocumentVault
+                                    tenant={tenant}
+                                    updateTenant={updateTenant}
+                                    showToast={showToast}
+                                    tenantType={tenantType}
+                                    occupantCount={occupantCount}
+                                />
                             </div>
                         </>
                     ) : (
@@ -188,9 +210,10 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
     );
 }
 
-function DocumentVault({ tenant, updateTenant, showToast }) {
+function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCount }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const documents = tenant?.documents || {};
+    const bachelorDetails = tenant?.bachelorDetails || [];
 
     const generateLink = async () => {
         const token = crypto.randomUUID();
@@ -214,7 +237,7 @@ function DocumentVault({ tenant, updateTenant, showToast }) {
     const shareViaEmail = () => {
         const url = `${window.location.origin}/upload/${tenant.uploadToken}`;
         const subject = `Document Upload Link for Room ${tenant.roomNo}`;
-        const body = `Hi ${tenant.tenant},\n\nPlease use the following secure link to upload your documents (Aadhar, ID Proof, Agreement, Photo) for Room ${tenant.roomNo}.\n\n${url}\n\nThis link is valid for 24 hours.\n\nRegards,\nMunirathnam Illam`;
+        const body = `Hi ${tenant.tenant},\n\nPlease use the following secure link to upload your documents for Room ${tenant.roomNo}.\n\n${url}\n\nThis link is valid for 24 hours.\n\nRegards,\nMunirathnam Illam`;
         window.open(`mailto:${tenant.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
     };
 
@@ -226,6 +249,17 @@ function DocumentVault({ tenant, updateTenant, showToast }) {
             showToast("Document removed", "success");
         } catch (e) {
             showToast("Failed to remove document", "error");
+        }
+    };
+
+    const updateBachelorDetail = async (index, field, value) => {
+        const newDetails = [...(tenant.bachelorDetails || [])];
+        if (!newDetails[index]) newDetails[index] = {};
+        newDetails[index][field] = value;
+        try {
+            await updateTenant(tenant.id, { bachelorDetails: newDetails });
+        } catch (e) {
+            console.error("Failed to update bachelor details", e);
         }
     };
 
@@ -278,11 +312,56 @@ function DocumentVault({ tenant, updateTenant, showToast }) {
                     </div>
 
                     {/* Documents List */}
-                    <div className="space-y-2">
-                        <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
-                        <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
-                        <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
-                        <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+                    <div className="space-y-6">
+                        {tenantType === 'Bachelors' ? (
+                            Array.from({ length: occupantCount || 1 }).map((_, i) => (
+                                <div key={i} className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                    <h5 className="font-bold text-xs text-slate-800 mb-3 uppercase tracking-wider border-b border-slate-200 pb-2">Occupant #{i + 1}</h5>
+
+                                    {/* Metadata Fields */}
+                                    <div className="grid grid-cols-1 gap-2 mb-4">
+                                        <input
+                                            placeholder="Occupant Name"
+                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                            value={bachelorDetails[i]?.name || ''}
+                                            onChange={(e) => updateBachelorDetail(i, 'name', e.target.value)}
+                                        />
+                                        <input
+                                            placeholder="Phone Number"
+                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                            value={bachelorDetails[i]?.phone || ''}
+                                            onChange={(e) => updateBachelorDetail(i, 'phone', e.target.value)}
+                                        />
+                                        <input
+                                            placeholder="Family Contact (Relationship: Number)"
+                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                            value={bachelorDetails[i]?.familyPhone || ''}
+                                            onChange={(e) => updateBachelorDetail(i, 'familyPhone', e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* Docs */}
+                                    <div className="space-y-2">
+                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} />
+                                        <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
+                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
+                                        <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // Family Mode (Default)
+                            <div className="space-y-2">
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Family Details</p>
+                                    <p className="text-xs text-slate-600 whitespace-pre-wrap">{tenant.familyMembers || 'No family contact details added.'}</p>
+                                </div>
+                                <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
+                                <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
+                                <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
+                                <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

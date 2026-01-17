@@ -232,42 +232,113 @@ export default function TenantUpload() {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <label className="block text-sm font-bold text-slate-900 mb-2">Family Member Contact Numbers</label>
-                        <p className="text-xs text-slate-500 mb-3">Please provide contact details for your family members (Name & Phone).</p>
-                        <textarea
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition"
-                            rows={3}
-                            placeholder="e.g. Spouse: 9876543210, Father: 9123456780"
-                            defaultValue={tenant.familyMembers || ''}
-                            onBlur={(e) => {
-                                updateDoc(doc(db, 'properties', tenant.id), { familyMembers: e.target.value });
-                            }}
-                        />
-                    </div>
+                    {tenant.tenantType === 'Bachelors' ? (
+                        Array.from({ length: tenant.occupantCount || 1 }).map((_, i) => (
+                            <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+                                <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex justify-between items-center">
+                                    <span>Occupant #{i + 1}</span>
+                                    {tenant.bachelorDetails?.[i]?.name && (
+                                        <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">{tenant.bachelorDetails[i].name}</span>
+                                    )}
+                                </h2>
 
-                    <div className="space-y-4">
-                        <UploadCard
-                            title="Tenant Photo"
-                            type="photo"
-                            description="Recent passport size photo."
-                        />
-                        <UploadCard
-                            title="Aadhar Card"
-                            type="aadhar"
-                            description="Front and back photo or PDF."
-                        />
-                        <UploadCard
-                            title="ID Proof"
-                            type="pan"
-                            description="Any valid government ID (PAN/Voter)."
-                        />
-                        <UploadCard
-                            title="Rental Agreement"
-                            type="agreement"
-                            description="Signed copy of the agreement."
-                        />
-                    </div>
+                                {/* Occupant Details Input - Auto-saves on blur */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Name</label>
+                                        <input
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                            placeholder="Enter full name"
+                                            defaultValue={tenant.bachelorDetails?.[i]?.name || ''}
+                                            onBlur={(e) => {
+                                                const newDetails = [...(tenant.bachelorDetails || [])];
+                                                if (!newDetails[i]) newDetails[i] = {};
+                                                newDetails[i].name = e.target.value;
+                                                updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                                        <input
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                            placeholder="Mobile number"
+                                            defaultValue={tenant.bachelorDetails?.[i]?.phone || ''}
+                                            onBlur={(e) => {
+                                                const newDetails = [...(tenant.bachelorDetails || [])];
+                                                if (!newDetails[i]) newDetails[i] = {};
+                                                newDetails[i].phone = e.target.value;
+                                                updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <UploadCard
+                                        title="Photo"
+                                        type={`bachelor_${i}_photo`}
+                                        description="Passport size photo."
+                                    />
+                                    <UploadCard
+                                        title="Aadhar Card"
+                                        type={`bachelor_${i}_aadhar`}
+                                        description="Front and back."
+                                    />
+                                    <UploadCard
+                                        title="ID Proof"
+                                        type={`bachelor_${i}_pan`}
+                                        description="PAN or Voter ID."
+                                    />
+                                    <UploadCard
+                                        title="Rental Agreement"
+                                        type={`bachelor_${i}_agreement`}
+                                        description="Page with signature."
+                                    />
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        // Family Layout
+                        <>
+                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                <label className="block text-sm font-bold text-slate-900 mb-2">Family Member Contact Numbers</label>
+                                <p className="text-xs text-slate-500 mb-3">Please provide contact details for your family members (Name & Phone).</p>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition"
+                                    rows={3}
+                                    placeholder="e.g. Spouse: 9876543210, Father: 9123456780"
+                                    defaultValue={tenant.familyMembers || ''}
+                                    onBlur={(e) => {
+                                        updateDoc(doc(db, 'properties', tenant.id), { familyMembers: e.target.value });
+                                    }}
+                                />
+                            </div>
+
+                            <div className="space-y-4">
+                                <UploadCard
+                                    title="Tenant Photo"
+                                    type="photo"
+                                    description="Recent passport size photo."
+                                />
+                                <UploadCard
+                                    title="Aadhar Card"
+                                    type="aadhar"
+                                    description="Front and back photo or PDF."
+                                />
+                                <UploadCard
+                                    title="ID Proof"
+                                    type="pan"
+                                    description="Any valid government ID (PAN/Voter)."
+                                />
+                                <UploadCard
+                                    title="Rental Agreement"
+                                    type="agreement"
+                                    description="Signed copy of the agreement."
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="mt-12 text-center text-xs text-slate-400">
