@@ -350,7 +350,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                         />
 
                                                         <input
-                                                            placeholder="Family Contact (Relationship: Number)"
+                                                            placeholder="Family Contact Number"
                                                             className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
                                                             value={bachelorDetails[i]?.familyPhone || ''}
                                                             onChange={(e) => updateBachelorDetail(i, 'familyPhone', e.target.value)}
