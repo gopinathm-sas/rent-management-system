@@ -68,7 +68,7 @@ export default function Admin() {
             {selectedRoom && (
                 <AdminRoomModal
                     room={selectedRoom.room}
-                    tenant={selectedRoom.tenant}
+                    tenant={findTenantForRoom(tenants, selectedRoom.room?.roomId)}
                     onClose={() => setSelectedRoom(null)}
                     showToast={showToast}
                     updateTenant={useData().updateTenant}
