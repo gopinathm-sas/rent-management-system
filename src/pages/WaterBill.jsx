@@ -153,10 +153,16 @@ export default function WaterBill() {
         try {
             const reader = new FileReader();
             reader.onloadend = async () => {
-                const base64String = reader.result.toString().split(',')[1];
-                const mimeType = file.type;
-                const reading = await getMeterReadingFromImage(base64String, mimeType);
-                handleScanComplete(reading);
+                try {
+                    const base64String = reader.result.toString().split(',')[1];
+                    const mimeType = file.type;
+                    const reading = await getMeterReadingFromImage(base64String, mimeType);
+                    handleScanComplete(reading);
+                } catch (error) {
+                    console.error("Error in AI analysis:", error);
+                    showToast("Error scanning image: " + error.message, "error");
+                    setIsAnalyzing(false);
+                }
             };
             reader.readAsDataURL(file);
         } catch (error) {
