@@ -214,7 +214,7 @@ export default function TenantUpload() {
             <div className="max-w-xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div className="inline-block px-4 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold tracking-wide uppercase">
-                        Secure Upload Portal
+                        Secure Document Portal
                     </div>
                     <button onClick={handleLogout} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm font-bold">
                         <LogOut size={16} /> Sign Out
@@ -268,7 +268,11 @@ export default function TenantUpload() {
                                                 const val = e.target.value.trim();
                                                 if (!val) return;
 
-                                                if (val === tenant.phone) {
+                                                const normalize = (s) => String(s || '').replace(/\D/g, '');
+                                                const tenantPhone = normalize(tenant.phone);
+                                                const inputPhone = normalize(val);
+
+                                                if (tenantPhone && tenantPhone.length > 5 && inputPhone === tenantPhone) {
                                                     alert("Only Family contact numbers accepted. You cannot use your own number.");
                                                     e.target.value = '';
                                                     return;
