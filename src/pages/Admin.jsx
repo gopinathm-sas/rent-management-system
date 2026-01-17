@@ -120,7 +120,7 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar max-h-[60vh]">
                     {isOccupied ? (
                         <>
                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
@@ -212,6 +212,7 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
 
 function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCount }) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [activeOccupant, setActiveOccupant] = useState(0);
     const documents = tenant?.documents || {};
     const bachelorDetails = tenant?.bachelorDetails || [];
 
@@ -314,48 +315,75 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                     {/* Documents List */}
                     <div className="space-y-6">
                         {tenantType === 'Bachelors' ? (
-                            Array.from({ length: occupantCount || 1 }).map((_, i) => (
-                                <div key={i} className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                    <h5 className="font-bold text-xs text-slate-800 mb-3 uppercase tracking-wider border-b border-slate-200 pb-2">Occupant #{i + 1}</h5>
+                            <div className="space-y-3">
+                                {Array.from({ length: occupantCount || 1 }).map((_, i) => {
+                                    const isActive = activeOccupant === i;
+                                    const name = bachelorDetails[i]?.name || `Occupant #${i + 1}`;
 
-                                    {/* Metadata Fields */}
-                                    <div className="grid grid-cols-1 gap-2 mb-4">
-                                        <input
-                                            placeholder="Occupant Name"
-                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                            value={bachelorDetails[i]?.name || ''}
-                                            onChange={(e) => updateBachelorDetail(i, 'name', e.target.value)}
-                                        />
-                                        <input
-                                            placeholder="Phone Number"
-                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                            value={bachelorDetails[i]?.phone || ''}
-                                            onChange={(e) => updateBachelorDetail(i, 'phone', e.target.value)}
-                                        />
-                                        <input
-                                            placeholder="Family Contact (Relationship: Number)"
-                                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                            value={bachelorDetails[i]?.familyPhone || ''}
-                                            onChange={(e) => updateBachelorDetail(i, 'familyPhone', e.target.value)}
-                                        />
-                                    </div>
+                                    return (
+                                        <div key={i} className={`rounded-xl border transition-all duration-200 overflow-hidden ${isActive ? 'bg-slate-50 border-blue-200 shadow-sm' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                                            <button
+                                                onClick={() => setActiveOccupant(isActive ? -1 : i)}
+                                                className="w-full flex items-center justify-between p-3"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {i + 1}
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <h5 className={`text-sm font-bold ${isActive ? 'text-blue-900' : 'text-slate-700'}`}>{name}</h5>
+                                                        {!isActive && <p className="text-[10px] text-slate-400">Click to view documents</p>}
+                                                    </div>
+                                                </div>
+                                                {isActive ? <ChevronUp size={16} className="text-blue-500" /> : <ChevronDown size={16} className="text-slate-300" />}
+                                            </button>
 
-                                    {/* Docs */}
-                                    <div className="space-y-2">
-                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} />
-                                        <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
-                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
-                                        <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
-                                    </div>
-                                </div>
-                            ))
+                                            {isActive && (
+                                                <div className="p-4 pt-0 border-t border-blue-100/50 mt-3 animate-in slide-in-from-top-1">
+                                                    {/* Metadata Fields */}
+                                                    <div className="grid grid-cols-1 gap-3 mb-4 mt-3">
+                                                        <input
+                                                            placeholder="Occupant Name"
+                                                            className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                                                            value={bachelorDetails[i]?.name || ''}
+                                                            onChange={(e) => updateBachelorDetail(i, 'name', e.target.value)}
+                                                        />
+                                                        <input
+                                                            placeholder="Phone Number"
+                                                            className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                                                            value={bachelorDetails[i]?.phone || ''}
+                                                            onChange={(e) => updateBachelorDetail(i, 'phone', e.target.value)}
+                                                        />
+                                                        <input
+                                                            placeholder="Family Contact (Relationship: Number)"
+                                                            className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                                                            value={bachelorDetails[i]?.familyPhone || ''}
+                                                            onChange={(e) => updateBachelorDetail(i, 'familyPhone', e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    {/* Docs */}
+                                                    <div className="space-y-2">
+                                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} />
+                                                        <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
+                                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
+                                                        <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         ) : (
                             // Family Mode (Default)
-                            <div className="space-y-2">
-                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Family Details</p>
-                                    <p className="text-xs text-slate-600 whitespace-pre-wrap">{tenant.familyMembers || 'No family contact details added.'}</p>
-                                </div>
+                            <div className="space-y-3">
+                                {tenant.familyMembers && (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4">
+                                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-1">Family Contacts</h4>
+                                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{tenant.familyMembers}</p>
+                                    </div>
+                                )}
                                 <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
                                 <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
                                 <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
