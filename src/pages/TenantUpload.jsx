@@ -4,7 +4,7 @@ import { db, auth, googleProvider } from '../services/firebase';
 import { uploadToCloudinary } from '../services/cloudinary';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
-import { Upload, FileText, Check, AlertTriangle, Loader2, Shield, LogOut } from 'lucide-react';
+import { Upload, FileText, Check, AlertTriangle, Loader2, Shield, LogOut, X, XCircle } from 'lucide-react';
 
 export default function TenantUpload() {
     const { token } = useParams();
@@ -13,6 +13,12 @@ export default function TenantUpload() {
     const [tenant, setTenant] = useState(null);
     const [uploading, setUploading] = useState({});
     const [documents, setDocuments] = useState({});
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const showError = (msg) => {
+        setErrorMsg(msg);
+        setTimeout(() => setErrorMsg(''), 5000);
+    };
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -273,7 +279,7 @@ export default function TenantUpload() {
                                                 const inputPhone = normalize(val);
 
                                                 if (tenantPhone && tenantPhone.length > 5 && inputPhone === tenantPhone) {
-                                                    alert("Only Family contact numbers accepted. You cannot use your own number.");
+                                                    showError("Only Family contact numbers accepted. You cannot use your own number.");
                                                     e.target.value = '';
                                                     return;
                                                 }
@@ -358,6 +364,17 @@ export default function TenantUpload() {
                     <p>Files are securely stored in Munirathnam Illam Cloud.</p>
                 </div>
             </div>
+            {errorMsg && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+                    <div className="bg-rose-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm mx-4 border-2 border-rose-400/50">
+                        <XCircle className="shrink-0 text-white/90" size={24} />
+                        <p className="font-bold text-sm leading-tight">{errorMsg}</p>
+                        <button onClick={() => setErrorMsg('')} className="ml-auto p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
