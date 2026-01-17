@@ -10,6 +10,15 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
  */
 export async function getMeterReadingFromImage(base64Image, mimeType = "image/jpeg") {
     try {
+        if (!GEMINI_API_KEY) {
+            throw new Error("Gemini API Key is missing. Please check your .env file.");
+        }
+
+        console.log("Starting Gemini analysis...");
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
         const response = await fetch(GEMINI_URL, {
             method: "POST",
             headers: {
@@ -29,13 +38,16 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
                         }
                     ]
                 }]
-            })
+            }),
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", errorText);
-            throw new Error(`Gemini API Error: ${response.statusText}`);
+            console.error("Gemini API Error Body:", errorText);
+            throw new Error(`Gemini API Error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
