@@ -14,19 +14,8 @@ import Expenses from './pages/Expenses';
 import AdminMigration from './pages/AdminMigration';
 import TenantUpload from './pages/TenantUpload';
 
-const Login = () => {
-    const { loginWithGoogle, currentUser } = useAuth();
-    // ...
-    // ...
-    if (currentUser) return <Navigate to="/" />;
-    return (
-        <div className="h-screen flex items-center justify-center bg-stone-50">
-            <button onClick={loginWithGoogle} className="px-6 py-3 bg-white border rounded-xl shadow-sm font-semibold">
-                Sign in with Google
-            </button>
-        </div>
-    );
-}
+import BiometricLock from './components/BiometricLock';
+import Login from './pages/Login';
 
 // Protected Route Wrapper
 function ProtectedRoute({ children }) {
@@ -36,11 +25,23 @@ function ProtectedRoute({ children }) {
     return children;
 }
 
+// Component to handle global app locking
+function GlobalLock() {
+    const { isAppLocked, unlockApp, currentUser } = useAuth();
+
+    // Only lock if user is logged in
+    if (currentUser && isAppLocked) {
+        return <BiometricLock />; // onUnlock handled internally via context
+    }
+    return null;
+}
+
 function App() {
     return (
         <AuthProvider>
             <UIProvider>
                 <DataProvider>
+                    <GlobalLock />
                     <Router>
                         <Routes>
                             <Route path="/login" element={<Login />} />

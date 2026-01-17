@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useData } from '../contexts/DataContext';
 import {
     formatMonthLabel,
@@ -10,7 +10,7 @@ import {
     getRentRevisionDetails,
     findTenantForRoom
 } from '../lib/utils';
-import { ChevronLeft, ChevronRight, LayoutDashboard, Home, Receipt, Droplet, Wallet, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertCircle, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
 
@@ -38,19 +38,10 @@ export default function Dashboard() {
             locked
         });
     }
-    const currentMonthIndex = new Date().getMonth();
-    const currentYearVal = new Date().getFullYear();
 
     // -- ALERT LOGIC --
-    // 1. Pending Rents (Global or Current Month)
-    // We'll show pending for the currently selected month context
-    const pendingRentTotal = isFutureYearMonth(year, 11) ? 0 : computePendingRentForMonth(tenants, rooms, year, new Date().getMonth());
-    // (Optimization: In a real app, 'pending' might mean *any* past unpaid month. For now, mirroring legacy dashboard which often checked current status.)
-
-    // Better Approach for Pending: Check if *any* active tenant has 'Pending' status for the current month key.
-    // legacy verified: triggers if pending rent > 0.
-
-
+    // 1. Pending Rents: Check if any rows have pending amounts
+    const hasPending = rows.some(r => r.pending > 0);
 
     // 2. Rent Revision Logic
     const overdueRevisions = [];
@@ -72,6 +63,7 @@ export default function Dashboard() {
             }
         }
     });
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -87,7 +79,7 @@ export default function Dashboard() {
             </div>
 
             {/* ALERTS SECTION */}
-            {(overdueRevisions.length > 0 || rows.some(r => r.pending > 0)) && (
+            {(overdueRevisions.length > 0 || hasPending) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
 
                     {/* Rent Revision Alert */}
@@ -122,7 +114,7 @@ export default function Dashboard() {
                     )}
 
                     {/* Pending Payments Alert */}
-                    {rows.reduce((acc, curr) => acc + curr.pending, 0) > 0 && (
+                    {hasPending && (
                         <div className="bg-rose-50 rounded-3xl p-5 border border-rose-100 shadow-sm relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                                 <AlertCircle size={80} className="text-rose-600" />
@@ -155,10 +147,9 @@ export default function Dashboard() {
                         <thead className="bg-emerald-100/60 text-slate-700">
                             <tr>
                                 <th className="px-5 py-4 font-semibold">Month</th>
-                                <th className="px-5 py-4 text-right font-semibold">Rent (Only)</th>
-                                <th className="px-5 py-4 text-right font-semibold">Water Charges</th>
-                                <th className="px-5 py-4 text-right font-semibold">Total Revenue</th>
+                                <th className="px-5 py-4 text-right font-semibold">Rent Collected</th>
                                 <th className="px-5 py-4 text-right font-semibold">Expenses</th>
+                                <th className="px-5 py-4 text-right font-semibold">Water Charges</th>
                                 <th className="px-5 py-4 text-right font-semibold">Pending Rent</th>
                             </tr>
                         </thead>
@@ -167,24 +158,24 @@ export default function Dashboard() {
                                 <tr key={idx} className={row.locked ? 'bg-stone-100/50 text-slate-400' : 'hover:bg-emerald-50/30 transition'}>
                                     <td className="px-5 py-4 font-bold text-slate-800">{row.label}</td>
                                     <td className="px-5 py-4 text-right font-medium text-emerald-700">
-                                        {row.locked ? '—' : `₹${row.rent.toLocaleString('en-IN')}`}
-                                    </td>
-                                    <td className="px-5 py-4 text-right font-medium text-blue-600">
-                                        {row.locked ? '—' : `₹${row.water.toLocaleString('en-IN')}`}
-                                    </td>
-                                    <td className="px-5 py-4 text-right font-bold text-slate-900 bg-stone-50/50">
-                                        {row.locked ? '—' : `₹${row.total.toLocaleString('en-IN')}`}
+                                        {row.locked ? '₹0' : `₹${row.rent.toLocaleString('en-IN')}`}
                                     </td>
                                     <td className="px-5 py-4 text-right font-medium text-rose-700">
                                         {`₹${row.expenses.toLocaleString('en-IN')}`}
                                     </td>
+                                    <td className="px-5 py-4 text-right font-medium text-blue-600">
+                                        {row.locked ? '₹0' : `₹${row.water.toLocaleString('en-IN')}`}
+                                    </td>
                                     <td className="px-5 py-4 text-right font-medium text-amber-800">
-                                        {row.locked ? '—' : `₹${row.pending.toLocaleString('en-IN')}`}
+                                        {row.locked ? '₹0' : `₹${row.pending.toLocaleString('en-IN')}`}
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                </div>
+                <div className="p-4 bg-emerald-50/50 text-[10px] text-slate-500 text-center border-t border-emerald-100">
+                    Rent Collected includes only months marked Paid. Water Charges are computed from meter readings.
                 </div>
             </div>
         </div>

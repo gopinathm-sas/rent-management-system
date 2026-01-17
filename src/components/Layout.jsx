@@ -88,17 +88,20 @@ export default function Layout({ children }) {
 
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-                {/* Mobile Header */}
-                <header className="md:hidden bg-white border-b border-stone-100 sticky top-0 z-30 px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <span className="inline-flex size-8 items-center justify-center rounded-xl bg-emerald-100/70 text-emerald-800">
-                            <Building size={16} />
+                {/* Mobile Header (Safe Area Aware) */}
+                <header className="md:hidden bg-white/90 backdrop-blur-md border-b border-stone-100 sticky top-0 z-30 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+16px)] flex items-center justify-between transition-all">
+                    <div className="flex items-center gap-3">
+                        <span className="inline-flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-sm ring-1 ring-emerald-50">
+                            <Building size={18} />
                         </span>
-                        <span className="font-extrabold text-slate-900">Munirathnam Illam</span>
+                        <div>
+                            <h1 className="font-black text-slate-900 text-base leading-tight tracking-tight">Munirathnam</h1>
+                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Rent Manager</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         {currentUser && (
-                            <img src={currentUser.photoURL} className="w-8 h-8 rounded-full border border-stone-100" />
+                            <img src={currentUser.photoURL} className="w-8 h-8 rounded-full border border-stone-200 shadow-sm" />
                         )}
                     </div>
                 </header>

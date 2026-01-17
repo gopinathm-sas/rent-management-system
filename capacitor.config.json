@@ -1,12 +1,14 @@
 {
   "appId": "com.munirathnamillam.rentmanagement",
   "appName": "Rent Manager",
-  "webDir": "www",
+  "webDir": "dist",
   "bundledWebRuntime": false,
   "plugins": {
     "FirebaseAuthentication": {
       "skipNativeAuth": false,
-      "providers": ["google.com"]
+      "providers": [
+        "google.com"
+      ]
     }
   },
   "server": {

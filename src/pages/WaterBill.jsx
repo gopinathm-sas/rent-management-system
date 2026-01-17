@@ -14,9 +14,10 @@ import {
     getPrevYearMonth
 } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { getMeterReadingFromImage } from '../services/gemini';
 
 const WhatsAppIcon = ({ size = 24, className = "" }) => (
     <svg
@@ -40,6 +41,7 @@ export default function WaterBill() {
     const [editingCell, setEditingCell] = useState(null); // { roomId, roomNo, year, monthIndex, currentVal, prevVal, isReset }
     const [inputValue, setInputValue] = useState('');
     const [isResetChecked, setIsResetChecked] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading water details...</div>;
 
@@ -108,6 +110,37 @@ export default function WaterBill() {
         } catch (e) {
             console.error(e);
             showToast("Error saving reading: " + e.message, "error");
+        }
+    };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsAnalyzing(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                // reader.result contains the data URL
+                // We need to split it to get the base64 part
+                const base64String = reader.result.toString().split(',')[1];
+                const mimeType = file.type;
+
+                const reading = await getMeterReadingFromImage(base64String, mimeType);
+
+                if (reading !== null) {
+                    setInputValue(reading.toString());
+                    showToast("Reading extracted successfully!", "success");
+                } else {
+                    showToast("Could not extract reading. Please try again or enter manually.", "error");
+                }
+                setIsAnalyzing(false);
+            };
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error(error);
+            showToast("Error processing image: " + error.message, "error");
+            setIsAnalyzing(false);
         }
     };
 
@@ -259,9 +292,32 @@ export default function WaterBill() {
                                 </div>
                             </div>
 
-                            {/* Current Reading Input */}
+                            {/* Current Reading Input with AI Scan */}
                             <div className="space-y-1">
-                                <label className="block text-sm font-bold text-blue-900">Enter the current meter reading</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-bold text-blue-900">Current reading</label>
+                                    <label className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            className="hidden"
+                                            onChange={handleImageUpload}
+                                            disabled={isAnalyzing}
+                                        />
+                                        {isAnalyzing ? (
+                                            <>
+                                                <Loader2 size={14} className="animate-spin" />
+                                                Analyzing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Camera size={14} />
+                                                Scan Meter
+                                            </>
+                                        )}
+                                    </label>
+                                </div>
                                 <div className="relative">
                                     <input
                                         type="number"

@@ -10,3 +10,4 @@ ios/
 android/
 www/
 .capacitor/
+.env
