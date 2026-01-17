@@ -259,15 +259,24 @@ export default function TenantUpload() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Family Contact Number</label>
                                         <input
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                            placeholder="Mobile number"
-                                            defaultValue={tenant.bachelorDetails?.[i]?.phone || ''}
+                                            placeholder="Parent/Guardian number"
+                                            defaultValue={tenant.bachelorDetails?.[i]?.familyPhone || ''}
                                             onBlur={(e) => {
+                                                const val = e.target.value.trim();
+                                                if (!val) return;
+
+                                                if (val === tenant.phone) {
+                                                    alert("Only Family contact numbers accepted. You cannot use your own number.");
+                                                    e.target.value = '';
+                                                    return;
+                                                }
+
                                                 const newDetails = [...(tenant.bachelorDetails || [])];
                                                 if (!newDetails[i]) newDetails[i] = {};
-                                                newDetails[i].phone = e.target.value;
+                                                newDetails[i].familyPhone = val;
                                                 updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
                                             }}
                                         />
