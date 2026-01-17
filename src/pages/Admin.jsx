@@ -71,13 +71,14 @@ export default function Admin() {
                     tenant={selectedRoom.tenant}
                     onClose={() => setSelectedRoom(null)}
                     showToast={showToast}
+                    updateTenant={useData().updateTenant}
                 />
             )}
         </div>
     );
 }
 
-function AdminRoomModal({ room, tenant, onClose, showToast }) {
+function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
     const isOccupied = isOccupiedRecord(tenant);
     // Local state for edits
     const [tenantType, setTenantType] = useState(tenant?.tenantType || 'Family'); // Default to Family
