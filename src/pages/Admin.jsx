@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
@@ -157,12 +157,10 @@ function AdminRoomModal({ room, tenant, onClose, showToast }) {
                                 </div>
                             </div>
 
-                            {/* Placeholders for future Vault features */}
+                            {/* Document Vault */}
                             <div className="pt-4 border-t border-slate-100">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Document Vault</p>
-                                <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400 text-sm bg-slate-50">
-                                    Vault migration coming soon...
-                                </div>
+                                <DocumentVault tenant={tenant} updateTenant={updateTenant} showToast={showToast} onClose={onClose} />
                             </div>
                         </>
                     ) : (
@@ -185,6 +183,144 @@ function AdminRoomModal({ room, tenant, onClose, showToast }) {
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+function DocumentVault({ tenant, updateTenant, showToast }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const documents = tenant?.documents || {};
+
+    const generateLink = async () => {
+        const token = crypto.randomUUID();
+        try {
+            await updateTenant(tenant.id, {
+                uploadToken: token,
+                uploadTokenCreatedAt: new Date().toISOString()
+            });
+            showToast("Secure upload link generated", "success");
+        } catch (e) {
+            showToast("Failed to generate link", "error");
+        }
+    };
+
+    const copyLink = () => {
+        const url = `${window.location.origin}/upload/${tenant.uploadToken}`;
+        navigator.clipboard.writeText(url);
+        showToast("Link copied to clipboard", "success");
+    };
+
+    const shareViaEmail = () => {
+        const url = `${window.location.origin}/upload/${tenant.uploadToken}`;
+        const subject = `Document Upload Link for Room ${tenant.roomNo}`;
+        const body = `Hi ${tenant.tenant},\n\nPlease use the following secure link to upload your documents (Aadhar, ID Proof, Agreement, Photo) for Room ${tenant.roomNo}.\n\n${url}\n\nThis link is valid for 24 hours.\n\nRegards,\nMunirathnam Illam`;
+        window.open(`mailto:${tenant.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+    };
+
+    const deleteDoc = async (key) => {
+        const newDocs = { ...documents };
+        delete newDocs[key];
+        try {
+            await updateTenant(tenant.id, { documents: newDocs });
+            showToast("Document removed", "success");
+        } catch (e) {
+            showToast("Failed to remove document", "error");
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-slate-50 transition"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
+                        <LinkIcon size={18} />
+                    </div>
+                    <div className="text-left">
+                        <h4 className="font-bold text-slate-800 text-sm">Vault Access</h4>
+                        <p className="text-[10px] text-slate-500">Manage documents</p>
+                    </div>
+                </div>
+                {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+            </button>
+
+            {isExpanded && (
+                <div className="p-4 border-t border-slate-100 animate-in slide-in-from-top-2">
+                    {/* Link Generator */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Secure Upload Link</label>
+                        {tenant?.uploadToken ? (
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 truncate font-mono">
+                                    {window.location.origin}/upload/...
+                                </div>
+                                <button onClick={copyLink} className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition" title="Copy Link">
+                                    <Copy size={16} />
+                                </button>
+                                <button onClick={shareViaEmail} className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition" title="Share via Email">
+                                    <ExternalLink size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={generateLink}
+                                className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition"
+                            >
+                                Generate Link
+                            </button>
+                        )}
+                        <p className="text-[9px] text-slate-400 mt-2">
+                            Link expires in 24 hours.
+                        </p>
+                    </div>
+
+                    {/* Documents List */}
+                    <div className="space-y-2">
+                        <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
+                        <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
+                        <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
+                        <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function DocItem({ title, docUrl, onDelete }) {
+    return (
+        <div className="flex items-center justify-between p-2 border border-slate-100 rounded-xl hover:bg-slate-50 transition">
+            <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${docUrl ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {docUrl ? <Check size={14} /> : <User size={14} />}
+                </div>
+                <div>
+                    <div className="font-bold text-xs text-slate-700">{title}</div>
+                    <div className="text-[9px] text-slate-400">{docUrl ? 'Uploaded' : 'Pending'}</div>
+                </div>
+            </div>
+            {docUrl && (
+                <div className="flex gap-1">
+                    <a
+                        href={docUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                        title="View"
+                    >
+                        <ExternalLink size={14} />
+                    </a>
+                    <button
+                        onClick={onDelete}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                        title="Remove"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

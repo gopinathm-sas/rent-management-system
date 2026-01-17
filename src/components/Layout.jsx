@@ -56,6 +56,7 @@ export default function Layout({ children }) {
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
                     <div className="h-px bg-stone-100 my-2"></div>
+                    <NavItem to="/admin" icon={User} label="Admin" />
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
                 </nav>
 
