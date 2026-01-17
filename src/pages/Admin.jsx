@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
