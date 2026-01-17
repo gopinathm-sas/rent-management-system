@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
@@ -296,7 +296,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                     <Copy size={16} />
                                 </button>
                                 <button onClick={shareViaEmail} className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition" title="Share via Email">
-                                    <ExternalLink size={16} />
+                                    <Send size={16} />
                                 </button>
                             </div>
                         ) : (
