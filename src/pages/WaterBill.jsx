@@ -113,28 +113,50 @@ export default function WaterBill() {
         }
     };
 
-    const handleImageUpload = async (e) => {
+    const handleScanComplete = (reading) => {
+        if (reading !== null) {
+            setInputValue(reading.toString());
+            showToast("Reading extracted successfully!", "success");
+        } else {
+            showToast("Could not extract reading. Please try again or enter manually.", "error");
+        }
+        setIsAnalyzing(false);
+    };
+
+    const handleImageUpload = async (e, specificMonthIndex = null, specificRoom = null) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // If scanning from row action, we need to setup the editing cell first
+        if (specificMonthIndex !== null && specificRoom) {
+            const tenant = findTenantForRoom(tenants, specificRoom.roomId);
+            const isOccupied = isOccupiedRecord(tenant);
+            const key = getWaterMonthKey(year, specificMonthIndex);
+            const savedReading = tenant?.waterReadings?.[key];
+            const isReset = (tenant?.waterMeterReset || {})[key];
+            const prev = getPrevYearMonth(year, specificMonthIndex);
+            const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
+            const prevVal = Number(tenant?.waterReadings?.[prevKey]);
+
+            setEditingCell({
+                room: specificRoom,
+                monthIndex: specificMonthIndex,
+                currentVal: savedReading,
+                prevVal,
+                existingReset: isReset
+            });
+            // We set input value after analysis completes
+            setInputValue('');
+        }
 
         setIsAnalyzing(true);
         try {
             const reader = new FileReader();
             reader.onloadend = async () => {
-                // reader.result contains the data URL
-                // We need to split it to get the base64 part
                 const base64String = reader.result.toString().split(',')[1];
                 const mimeType = file.type;
-
                 const reading = await getMeterReadingFromImage(base64String, mimeType);
-
-                if (reading !== null) {
-                    setInputValue(reading.toString());
-                    showToast("Reading extracted successfully!", "success");
-                } else {
-                    showToast("Could not extract reading. Please try again or enter manually.", "error");
-                }
-                setIsAnalyzing(false);
+                handleScanComplete(reading);
             };
             reader.readAsDataURL(file);
         } catch (error) {
@@ -163,6 +185,7 @@ export default function WaterBill() {
                                 {MONTHS.map(m => (
                                     <th key={m} className="px-2 py-3 w-24">{m}</th>
                                 ))}
+                                <th className="px-2 py-3 w-16 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">Scan</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -242,6 +265,30 @@ export default function WaterBill() {
                                                 </td>
                                             );
                                         })}
+
+                                        {/* Quick Scan Action Column */}
+                                        <td className="px-2 py-2 h-16 align-middle sticky right-0 bg-white z-10 border-l border-slate-100">
+                                            {(() => {
+                                                const currentMonthIndex = new Date().getMonth();
+                                                const isCurrentYear = year === new Date().getFullYear();
+
+                                                if (!isCurrentYear) return <span className="text-slate-200">-</span>;
+
+                                                return (
+                                                    <label className="flex items-center justify-center size-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all cursor-pointer mx-auto">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            capture="environment"
+                                                            className="hidden"
+                                                            onChange={(e) => handleImageUpload(e, currentMonthIndex, room)}
+                                                            disabled={isAnalyzing}
+                                                        />
+                                                        {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                                                    </label>
+                                                );
+                                            })()}
+                                        </td>
                                     </tr>
                                 );
                             })}
