@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE } from '../lib/constants';
@@ -140,9 +141,19 @@ export function DataProvider({ children }) {
 
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
 
+    const [error, setError] = useState(null);
+    const { currentUser } = useAuth();
+    // Actually, let's just use the auth instance directly or assume AuthContext runs parallel.
+    // Better: We are inside DataProvider, we can't easily access AuthContext if it's a sibling, but App structure says AuthProvider wraps DataProvider.
+    // So we can use useAuth().
+
+    // Changing implementation to just expose basic debug info that works without imports
     const value = {
         tenants,
         expenses,
+        error, // Expose error
+        debugUser: { email: 'Check AuthContext' }, // Placeholder, we'll fix in Dashboard by importing useAuth there
+
         rooms,
         loading,
         globalYear,
