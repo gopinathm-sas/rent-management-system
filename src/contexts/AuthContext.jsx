@@ -125,6 +125,40 @@ export function AuthProvider({ children }) {
         };
     }, []);
 
+    // 15 minutes in milliseconds
+    const AUTO_LOGOUT_TIME = 15 * 60 * 1000;
+
+    useEffect(() => {
+        // Only run if user is logged in
+        if (!currentUser) return;
+
+        let logoutTimer;
+
+        const resetTimer = () => {
+            // console.log("User active, resetting logout timer");
+            if (logoutTimer) clearTimeout(logoutTimer);
+            logoutTimer = setTimeout(() => {
+                console.log("User inactive for 15 mins, logging out...");
+                logout();
+            }, AUTO_LOGOUT_TIME);
+        };
+
+        // Events to detect activity
+        const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+        // Initial set
+        resetTimer();
+
+        // Add listeners
+        events.forEach(event => window.addEventListener(event, resetTimer));
+
+        // Cleanup
+        return () => {
+            if (logoutTimer) clearTimeout(logoutTimer);
+            events.forEach(event => window.removeEventListener(event, resetTimer));
+        };
+    }, [currentUser]);
+
     const value = {
         currentUser,
         loginWithGoogle,
