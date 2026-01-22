@@ -238,7 +238,8 @@ export default function TenantUpload() {
                 </div>
 
                 <div className="space-y-6">
-                    {tenant.tenantType === 'Bachelors' ? (
+                    {/* Render Multiple Occupant Layout for Bachelors OR if specifically set to > 1 for Family */}
+                    {(tenant.tenantType === 'Bachelors' || (tenant.occupantCount && tenant.occupantCount > 1)) ? (
                         Array.from({ length: tenant.occupantCount || 1 }).map((_, i) => (
                             <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
                                 <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex justify-between items-center">

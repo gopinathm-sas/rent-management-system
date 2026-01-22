@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
@@ -95,7 +95,7 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
         try {
             await updateDoc(doc(db, 'properties', tenant.id), {
                 tenantType,
-                occupantCount: tenantType === 'Bachelors' ? occupantCount : 1
+                occupantCount: occupantCount || 1
             });
             showToast("Tenant details updated", "success");
             onClose();
@@ -160,19 +160,18 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
                                 </div>
                             </div>
 
-                            {tenantType === 'Bachelors' && (
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1">No. of Occupants</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="10"
-                                        className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                        value={occupantCount}
-                                        onChange={(e) => setOccupantCount(Number(e.target.value))}
-                                    />
-                                </div>
-                            )}
+                            {/* Allow Occupant Count for all types */}
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">No. of Occupants</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    value={occupantCount}
+                                    onChange={(e) => setOccupantCount(Number(e.target.value))}
+                                />
+                            </div>
 
                             {/* Document Vault */}
                             <div className="pt-4 border-t border-slate-100">
@@ -305,7 +304,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 onClick={generateLink}
                                 className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition"
                             >
-                                Generate Link
+                                generate Link
                             </button>
                         )}
                         <p className="text-[9px] text-slate-400 mt-2">
@@ -315,7 +314,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
 
                     {/* Documents List */}
                     <div className="space-y-6">
-                        {tenantType === 'Bachelors' ? (
+                        {(tenantType === 'Bachelors' || occupantCount > 1) ? (
                             <div className="space-y-3">
                                 {Array.from({ length: occupantCount || 1 }).map((_, i) => {
                                     const isActive = activeOccupant === i;
@@ -394,34 +393,49 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
 }
 
 function DocItem({ title, docUrl, onDelete }) {
+    const isPdf = docUrl?.toLowerCase().includes('.pdf');
+    // If no docUrl, show typical pending state. If docUrl, check type.
+
     return (
-        <div className="flex items-center justify-between p-2 border border-slate-100 rounded-xl hover:bg-slate-50 transition">
-            <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg ${docUrl ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {docUrl ? <Check size={14} /> : <User size={14} />}
+        <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition group">
+            <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${docUrl ? (isPdf ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600') : 'bg-slate-100 text-slate-400'}`}>
+                    {docUrl ? (isPdf ? <FileText size={16} /> : <Check size={16} />) : <User size={16} />}
                 </div>
                 <div>
                     <div className="font-bold text-xs text-slate-700">{title}</div>
-                    <div className="text-[9px] text-slate-400">{docUrl ? 'Uploaded' : 'Pending'}</div>
+                    <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        {docUrl ? (
+                            <>
+                                <span>Uploaded</span>
+                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                <span className="uppercase">{isPdf ? 'PDF' : 'IMG'}</span>
+                            </>
+                        ) : 'Pending'}
+                    </div>
                 </div>
             </div>
             {docUrl && (
-                <div className="flex gap-1">
+                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <a
                         href={docUrl}
                         target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        title="View"
+                        rel="noopener noreferrer"
+                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition"
+                        title="View Document"
                     >
-                        <ExternalLink size={14} />
+                        <ExternalLink size={16} />
                     </a>
                     <button
-                        onClick={onDelete}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                        title="Remove"
+                        onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this document?")) {
+                                onDelete();
+                            }
+                        }}
+                        className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition"
+                        title="Delete Document"
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             )}
