@@ -19,7 +19,7 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
         console.log("Starting Gemini analysis...");
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
         const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
             method: "POST",
