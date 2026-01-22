@@ -191,7 +191,7 @@ export default function WaterBill() {
                                 {MONTHS.map(m => (
                                     <th key={m} className="px-2 py-3 w-24">{m}</th>
                                 ))}
-                                <th className="px-2 py-3 w-16 sticky right-0 bg-slate-50 z-10 border-l border-slate-200">Scan</th>
+
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -272,29 +272,7 @@ export default function WaterBill() {
                                             );
                                         })}
 
-                                        {/* Quick Scan Action Column */}
-                                        <td className="px-2 py-2 h-16 align-middle sticky right-0 bg-white z-10 border-l border-slate-100">
-                                            {(() => {
-                                                const currentMonthIndex = new Date().getMonth();
-                                                const isCurrentYear = year === new Date().getFullYear();
 
-                                                if (!isCurrentYear) return <span className="text-slate-200">-</span>;
-
-                                                return (
-                                                    <label className="flex items-center justify-center size-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all cursor-pointer mx-auto">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            capture="environment"
-                                                            className="hidden"
-                                                            onChange={(e) => handleImageUpload(e, currentMonthIndex, room)}
-                                                            disabled={isAnalyzing}
-                                                        />
-                                                        {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-                                                    </label>
-                                                );
-                                            })()}
-                                        </td>
                                     </tr>
                                 );
                             })}
