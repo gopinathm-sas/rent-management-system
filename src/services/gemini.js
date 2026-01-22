@@ -30,7 +30,7 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
                 contents: [{
                     parts: [
                         {
-                            text: "Analyze this image of a water meter. Extract the numeric reading shown on the counter. Return ONLY the number as a plain integer or float. Ignore any units or leading zeros if they are not part of the value. If you cannot clearly see a number, return 'ERROR'."
+                            text: "Analyze this image of a water meter. Extract the numeric reading shown on the counter. Return ONLY the number. Do not assume the last digit is a decimal. Only use a decimal point if there is a clearly visible period (.) or comma (,) on the meter face. Otherwise, return the full integer. Ignore units or leading zeros. If you cannot clearly see a number, return 'ERROR'."
                         },
                         {
                             inline_data: {
