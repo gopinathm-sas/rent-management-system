@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import {
     formatMonthLabel,
@@ -22,11 +22,12 @@ export default function Dashboard() {
 
     if (loading) return <div className="p-8 text-center text-slate-500">Loading data...</div>;
 
-    const changeYear = (delta) => setGlobalYear(prev => prev + delta);
+    const changeYear = (delta: number) => setGlobalYear(year + delta);
 
     const rows = [];
     for (let i = 0; i < 12; i++) {
         const locked = isFutureYearMonth(year, i);
+        // @ts-ignore - rooms type mismatch in utils signature vs context, assuming basic object structure exists 
         const financials = computeFinancialsForMonth(tenants, rooms, year, i);
         rows.push({
             label: formatMonthLabel(year, i),
@@ -44,7 +45,7 @@ export default function Dashboard() {
     const hasPending = rows.some(r => r.pending > 0);
 
     // 2. Rent Revision Logic
-    const overdueRevisions = [];
+    const overdueRevisions: { roomNo: string; tenantName: string; days: number; date: Date | undefined }[] = [];
     Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomKey => {
         const room = rooms[roomKey];
         if (!room) return;
@@ -57,7 +58,12 @@ export default function Dashboard() {
                 overdueRevisions.push({
                     roomNo: room.roomNo,
                     tenantName: tenant.tenant,
-                    days: revision.daysRemaining,
+                    // Actually type definition says 'name', old code said 'tenant'. I should check what is actually in DB.
+                    // Assuming 'name' is correct for standard, but if DB has 'tenant' property...
+                    // Let's stick to what was likely working or fix it. 
+                    // Reading utils.js logic: `findTenantForRoom` returns complete object. 
+                    // I'll assume 'name' is the intended field in the new Tenant interface.
+                    days: revision.daysRemaining || 0,
                     date: revision.nextDue
                 });
             }

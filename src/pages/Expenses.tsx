@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
-import { ChevronLeft, ChevronRight, Trash2, Plus, Calendar, Tag, FileText, IndianRupee } from 'lucide-react';
-import { getMonthKey, MONTHS } from '../lib/utils';
+import { Trash2, Plus, Calendar, Tag, FileText, IndianRupee } from 'lucide-react';
+import { getMonthKey } from '../lib/utils';
+import ReceiptScanner from '../components/ReceiptScanner';
+
 
 const EXPENSE_CATEGORIES = [
     "House Keeping Salary",
@@ -25,7 +27,7 @@ export default function Expenses() {
     const [note, setNote] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         if (!date || !category || !amount || Number(amount) <= 0) {
             showToast("Please fill in all required fields with valid values.", 'warning');
@@ -51,7 +53,7 @@ export default function Expenses() {
             setNote('');
             setCategory(EXPENSE_CATEGORIES[0]);
             showToast("Expense added successfully", 'success');
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
             showToast("Failed to add expense: " + error.message, 'error');
         } finally {
@@ -59,7 +61,7 @@ export default function Expenses() {
         }
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (id: string) => {
         const isConfirmed = await confirm({
             title: 'Delete Expense?',
             message: "Are you sure you want to delete this expense? This action cannot be undone.",
@@ -71,7 +73,7 @@ export default function Expenses() {
             try {
                 await deleteExpense(id);
                 showToast("Expense deleted successfully", 'success');
-            } catch (e) {
+            } catch (e: any) {
                 showToast("Failed to delete: " + e.message, 'error');
             }
         }
@@ -105,9 +107,21 @@ export default function Expenses() {
 
             {/* Add Expense Form */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <Plus className="text-blue-600" size={20} /> New Expense
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Plus className="text-blue-600" size={20} /> New Expense
+                    </h3>
+                    <ReceiptScanner onScanComplete={(data) => {
+                        if (data.date) setDate(data.date);
+                        if (data.amount) setAmount(data.amount);
+                        if (data.note) setNote(data.note);
+                        if (data.category && EXPENSE_CATEGORIES.includes(data.category)) {
+                            setCategory(data.category);
+                        } else {
+                            setCategory("Other");
+                        }
+                    }} />
+                </div>
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <div className="md:col-span-2">
                         <label className="block text-xs font-semibold text-slate-500 mb-1">Date</label>
@@ -193,7 +207,7 @@ export default function Expenses() {
                         <tbody className="divide-y divide-slate-100">
                             {filteredExpenses.length === 0 ? (
                                 <tr>
-                                    <td colspan="5" className="px-6 py-12 text-center text-slate-400 italic">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
                                         No expenses recorded for {year}.
                                     </td>
                                 </tr>

@@ -79,3 +79,54 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
         throw error;
     }
 }
+
+/**
+ * Analyze a receipt image to extract expense details.
+ * @param {string} base64Image - Base64 string of the image
+ * @param {string} mimeType - MIME type of the image
+ * @returns {Promise<{date: string, amount: number, category: string, note: string}>}
+ */
+export async function analyzeReceipt(base64Image, mimeType = "image/jpeg") {
+    try {
+        if (!GEMINI_API_KEY) {
+            throw new Error("Gemini API Key is missing.");
+        }
+
+        const prompt = `
+        Analyze this receipt or bill. Extract the following fields and return as a JSON object:
+        - date: The date of the transaction in YYYY-MM-DD format (use today if missing).
+        - amount: The total amount paid (number only).
+        - note: The merchant name or a brief description of items.
+        - category: Classify into one of these: "House Keeping Salary", "Electricity Bill", "Internet Bill", "Painting", "Room Maintenance", "Other".
+
+        Return ONLY raw JSON. No markdown formatting.
+        `;
+
+        const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: mimeType, data: base64Image } }
+                    ]
+                }],
+                generationConfig: { temperature: 0.2 }
+            })
+        });
+
+        if (!response.ok) throw new Error("Gemini API request failed");
+
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        // Remove potential markdown code blocks
+        const jsonStr = text.replace(/```json|```/g, "").trim();
+
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error("Receipt analysis failed:", error);
+        throw error;
+    }
+}

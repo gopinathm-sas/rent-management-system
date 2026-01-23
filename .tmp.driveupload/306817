@@ -1,0 +1,40 @@
+[debug] [2026-01-23T06:04:22.512Z] ----------------------------------------------------------------------
+[debug] [2026-01-23T06:04:22.516Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy
+[debug] [2026-01-23T06:04:22.517Z] CLI Version:   15.2.1
+[debug] [2026-01-23T06:04:22.517Z] Platform:      darwin
+[debug] [2026-01-23T06:04:22.517Z] Node Version:  v24.12.0
+[debug] [2026-01-23T06:04:22.517Z] Time:          Fri Jan 23 2026 11:34:22 GMT+0530 (India Standard Time)
+[debug] [2026-01-23T06:04:22.517Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-01-23T06:04:24.588Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-01-23T06:04:24.588Z] > authorizing via signed-in user (gopinath.clinsas@gmail.com)
+[debug] [2026-01-23T06:04:24.589Z] [iam] checking project munirathnam-illam for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]
+[debug] [2026-01-23T06:04:24.590Z] Checked if tokens are valid: false, expires at: 1769106406423
+[debug] [2026-01-23T06:04:24.590Z] Checked if tokens are valid: false, expires at: 1769106406423
+[debug] [2026-01-23T06:04:24.591Z] > refreshing access token with scopes: []
+[debug] [2026-01-23T06:04:24.593Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-01-23T06:04:24.593Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-01-23T06:04:24.978Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-01-23T06:04:24.979Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-01-23T06:04:25.026Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/munirathnam-illam:testIamPermissions [none]
+[debug] [2026-01-23T06:04:25.026Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/munirathnam-illam:testIamPermissions x-goog-quota-user=projects/munirathnam-illam
+[debug] [2026-01-23T06:04:25.026Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/munirathnam-illam:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[debug] [2026-01-23T06:04:26.439Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/munirathnam-illam:testIamPermissions 200
+[debug] [2026-01-23T06:04:26.439Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/munirathnam-illam:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[debug] [2026-01-23T06:04:26.440Z] Checked if tokens are valid: true, expires at: 1769151863979
+[debug] [2026-01-23T06:04:26.440Z] Checked if tokens are valid: true, expires at: 1769151863979
+[debug] [2026-01-23T06:04:26.440Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/munirathnam-illam [none]
+[debug] [2026-01-23T06:04:27.105Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/munirathnam-illam 200
+[debug] [2026-01-23T06:04:27.106Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/munirathnam-illam {"projectId":"munirathnam-illam","projectNumber":"852272424128","displayName":"Munirathnam Illam","name":"projects/munirathnam-illam","resources":{"hostingSite":"munirathnam-illam"},"state":"ACTIVE","etag":"1_12a3fcd6-26a7-416a-8fe5-54a587e16c75"}
+[info] 
+[info] === Deploying to 'munirathnam-illam'...
+[info] 
+[info] i  deploying storage, firestore, hosting 
+[info] i  storage: ensuring required API firebasestorage.googleapis.com is enabled... 
+[debug] [2026-01-23T06:04:27.109Z] Checked if tokens are valid: true, expires at: 1769151863979
+[debug] [2026-01-23T06:04:27.109Z] Checked if tokens are valid: true, expires at: 1769151863979
+[debug] [2026-01-23T06:04:27.109Z] >>> [apiv2][query] GET https://firebasestorage.googleapis.com/v1alpha/projects/munirathnam-illam/defaultBucket [none]
+[debug] [2026-01-23T06:04:28.044Z] <<< [apiv2][status] GET https://firebasestorage.googleapis.com/v1alpha/projects/munirathnam-illam/defaultBucket 404
+[debug] [2026-01-23T06:04:28.044Z] <<< [apiv2][body] GET https://firebasestorage.googleapis.com/v1alpha/projects/munirathnam-illam/defaultBucket {"error":{"code":404,"message":"Requested entity was not found.","status":"NOT_FOUND"}}
+[error] 
+[error] Error: Firebase Storage has not been set up on project 'munirathnam-illam'. Go to https://console.firebase.google.com/project/munirathnam-illam/storage and click 'Get Started' to set up Firebase Storage.

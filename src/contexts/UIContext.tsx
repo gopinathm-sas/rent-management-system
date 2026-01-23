@@ -1,29 +1,59 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { X, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 
-const UIContext = createContext();
+type ToastType = 'info' | 'success' | 'warning' | 'error' | 'confirm' | 'danger';
 
-export function useUI() {
-    return useContext(UIContext);
+interface Toast {
+    id: number;
+    message: string;
+    type: ToastType;
 }
 
-export function UIProvider({ children }) {
+interface ConfirmOptions {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'confirm' | 'danger';
+}
+
+interface ConfirmState extends ConfirmOptions {
+    isOpen: boolean;
+    resolve: ((value: boolean) => void) | null;
+}
+
+interface UIContextType {
+    showToast: (message: string, type?: ToastType) => void;
+    confirm: (options: ConfirmOptions) => Promise<boolean>;
+}
+
+const UIContext = createContext<UIContextType | undefined>(undefined);
+
+export function useUI() {
+    const context = useContext(UIContext);
+    if (!context) {
+        throw new Error('useUI must be used within a UIProvider');
+    }
+    return context;
+}
+
+export function UIProvider({ children }: { children: ReactNode }) {
     // --- Toast State ---
-    const [toasts, setToasts] = useState([]);
+    const [toasts, setToasts] = useState<Toast[]>([]);
 
     // --- Confirm Dialog State ---
-    const [confirmState, setConfirmState] = useState({
+    const [confirmState, setConfirmState] = useState<ConfirmState>({
         isOpen: false,
         title: '',
         message: '',
         confirmText: 'Confirm',
         cancelText: 'Cancel',
-        type: 'confirm', // 'confirm' | 'danger'
+        type: 'confirm',
         resolve: null
     });
 
     // --- Toast Logic ---
-    const showToast = useCallback((message, type = 'info') => {
+    const showToast = useCallback((message: string, type: ToastType = 'info') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
 
@@ -33,12 +63,12 @@ export function UIProvider({ children }) {
         }, 3000);
     }, []);
 
-    const removeToast = (id) => {
+    const removeToast = (id: number) => {
         setToasts(prev => prev.filter(t => t.id !== id));
     };
 
     // --- Confirm Logic ---
-    const confirm = useCallback(({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'confirm' }) => {
+    const confirm = useCallback(({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'confirm' }: ConfirmOptions): Promise<boolean> => {
         return new Promise((resolve) => {
             setConfirmState({
                 isOpen: true,
@@ -72,9 +102,9 @@ export function UIProvider({ children }) {
                     <div
                         key={toast.id}
                         className={`pointer-events-auto flex items-center gap-3 px-6 py-3 rounded-2xl shadow-xl border animate-in slide-in-from-bottom-5 fade-in duration-300 min-w-[300px] justify-between ${toast.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-700' :
-                                toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
-                                    toast.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-700' :
-                                        'bg-slate-50 border-slate-200 text-slate-700'
+                            toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
+                                toast.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                    'bg-slate-50 border-slate-200 text-slate-700'
                             }`}
                     >
                         <div className="flex items-center gap-3">
@@ -119,8 +149,8 @@ export function UIProvider({ children }) {
                             <button
                                 onClick={handleConfirm}
                                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 active:scale-95 ${confirmState.type === 'danger'
-                                        ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-200'
-                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                                    ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-200'
+                                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
                                     }`}
                             >
                                 {confirmState.confirmText}

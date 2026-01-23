@@ -19,7 +19,7 @@ import BiometricLock from './components/BiometricLock';
 import Login from './pages/Login';
 
 // Protected Route Wrapper
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { currentUser, loading } = useAuth();
     if (loading) return <div>Loading...</div>;
     if (!currentUser) return <Navigate to="/login" />;
@@ -27,8 +27,9 @@ function ProtectedRoute({ children }) {
 }
 
 // Component to handle global app locking
+// Component to handle global app locking
 function GlobalLock() {
-    const { isAppLocked, unlockApp, currentUser } = useAuth();
+    const { isAppLocked, currentUser } = useAuth();
 
     // Only lock if user is logged in
     if (currentUser && isAppLocked) {

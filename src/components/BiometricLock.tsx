@@ -6,8 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function BiometricLock() {
     const { unlockWithBiometrics } = useAuth(); // Use the context function
-    const [error, setError] = useState(null);
-    const [isAvailable, setIsAvailable] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [_isAvailable, setIsAvailable] = useState(false);
 
     useEffect(() => {
         checkAvailability();
@@ -29,6 +29,7 @@ export default function BiometricLock() {
         try {
             await unlockWithBiometrics();
         } catch (err) {
+            console.error(err);
             setError("Authentication failed.");
         }
     };

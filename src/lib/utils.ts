@@ -7,6 +7,7 @@ import {
     IMMUTABLE_ROOMS_DATA,
     RENT_WATER_SERVICE_CHARGE
 } from './constants';
+import { Tenant, Expense } from '../types';
 
 export const MONTHS = CONST_MONTHS;
 export {
@@ -18,15 +19,15 @@ export {
     RENT_WATER_SERVICE_CHARGE
 };
 
-export function getMonthKey(year, monthIndex) {
+export function getMonthKey(year: number, monthIndex: number): string {
     return `${year}-${MONTHS[monthIndex]}`;
 }
 
-export function formatMonthLabel(year, monthIndex) {
+export function formatMonthLabel(year: number, monthIndex: number): string {
     return `${MONTHS[monthIndex]} ${year}`;
 }
 
-export function isFutureYearMonth(year, monthIndex, now = new Date()) {
+export function isFutureYearMonth(year: number, monthIndex: number, now: Date = new Date()): boolean {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
     if (year > currentYear) return true;
@@ -34,7 +35,7 @@ export function isFutureYearMonth(year, monthIndex, now = new Date()) {
     return false;
 }
 
-export function findTenantForRoom(tenants, roomId) {
+export function findTenantForRoom(tenants: Tenant[] | Record<string, Tenant> | null, roomId: string | null): Tenant | null {
     if (!tenants || !roomId) return null;
     const list = Array.isArray(tenants) ? tenants : Object.values(tenants);
     return list.find(t =>
@@ -43,14 +44,14 @@ export function findTenantForRoom(tenants, roomId) {
     ) || null;
 }
 
-export function isOccupiedRecord(record) {
+export function isOccupiedRecord(record: any): boolean {
     if (!record) return false;
     const st = String(record.status || '').trim();
     return st === 'Occupied';
 }
 
 // Helper to check if a specific month is covered by Eviction Notice (Zero Payment)
-export function isEvictionMonth(tenant, year, monthIndex) {
+export function isEvictionMonth(tenant: Tenant | null, year: number, monthIndex: number): boolean {
     if (!tenant || !tenant.isEvictionConfirmed || !tenant.evictionNoticeDate) return false;
     const nDate = new Date(tenant.evictionNoticeDate);
     const cellDate = new Date(year, monthIndex, 1);
@@ -58,7 +59,7 @@ export function isEvictionMonth(tenant, year, monthIndex) {
     return cellDate >= noticeMonthStart;
 }
 
-export function getEffectiveRent(tenantData, year, monthIndex) {
+export function getEffectiveRent(tenantData: Tenant | null, year: number, monthIndex: number): number {
     if (!tenantData) return 0;
 
     // 1. Check Global Eviction Rule
@@ -81,7 +82,7 @@ export function getEffectiveRent(tenantData, year, monthIndex) {
     return rent;
 }
 
-export function computeRentCollectedForMonth(tenants, rooms, year, monthIndex) {
+export function computeRentCollectedForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): number {
     const key = getMonthKey(year, monthIndex);
     let total = 0;
 
@@ -118,7 +119,7 @@ export function computeRentCollectedForMonth(tenants, rooms, year, monthIndex) {
     return total;
 }
 
-export function computePendingRentForMonth(tenants, rooms, year, monthIndex) {
+export function computePendingRentForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): number {
     const key = getMonthKey(year, monthIndex);
     let total = 0;
 
@@ -149,7 +150,7 @@ export function computePendingRentForMonth(tenants, rooms, year, monthIndex) {
     return total;
 }
 
-export function computeFinancialsForMonth(tenants, rooms, year, monthIndex) {
+export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): { rent: number; water: number; total: number; pending: number } {
     const key = getMonthKey(year, monthIndex);
     let data = { rent: 0, water: 0, total: 0, pending: 0 };
 
@@ -163,12 +164,10 @@ export function computeFinancialsForMonth(tenants, rooms, year, monthIndex) {
         if (isEvictionMonth(tenantData, year, monthIndex)) return;
 
         const history = tenantData.paymentHistory || {};
-        const storedTotals = tenantData.paymentTotals || {};
         const status = history[key] || null;
 
         const archived = tenantData.archivedTenant || null;
         const archivedHistory = archived?.paymentHistory || {};
-        const archivedTotals = archived?.paymentTotals || {};
         const archivedStatus = archivedHistory?.[key] || null;
 
         const useArchived = (!status || status === 'None') && archivedStatus;
@@ -200,7 +199,7 @@ export function computeFinancialsForMonth(tenants, rooms, year, monthIndex) {
     return data;
 }
 
-export function sumExpensesForMonth(expenses, year, monthIndex) {
+export function sumExpensesForMonth(expenses: Expense[] | null, year: number, monthIndex: number): number {
     const key = getMonthKey(year, monthIndex);
     if (!expenses || !Array.isArray(expenses)) return 0;
     return expenses
@@ -210,22 +209,22 @@ export function sumExpensesForMonth(expenses, year, monthIndex) {
 
 // WATER CALCULATIONS
 
-export function getDefaultWaterRateForRoom(roomNo) {
+export function getDefaultWaterRateForRoom(roomNo: string | null): number {
     const room = String(roomNo || '').trim();
     if (DISCOUNTED_WATER_ROOMS.includes(room)) return DISCOUNTED_WATER_RATE;
     return DEFAULT_WATER_RATE;
 }
 
-export function getWaterMonthKey(year, monthIndex) {
+export function getWaterMonthKey(year: number, monthIndex: number): string {
     return `${year}-${MONTHS[monthIndex]}`;
 }
 
-export function getPrevYearMonth(year, monthIndex) {
+export function getPrevYearMonth(year: number, monthIndex: number): { year: number; monthIndex: number } {
     if (monthIndex > 0) return { year, monthIndex: monthIndex - 1 };
     return { year: year - 1, monthIndex: 11 };
 }
 
-export function computeWaterForMonth(tenantData, year, monthIndex, waterRate) {
+export function computeWaterForMonth(tenantData: Tenant | null, year: number, monthIndex: number, waterRate: number): { currentReading: number | null; units: number | null; amount: number | null; meterReset: boolean } {
     const readings = tenantData?.waterReadings || {};
     const resetMap = tenantData?.waterMeterReset || {};
     const currentKey = getWaterMonthKey(year, monthIndex);
@@ -267,7 +266,7 @@ export function computeWaterForMonth(tenantData, year, monthIndex, waterRate) {
 // RENT REVISION LOGIC
 export const RENT_REVISION_WINDOW_DAYS = 15;
 
-export function getRentRevisionDetails(tenantData, today = new Date()) {
+export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = new Date()): { isDue: boolean; daysRemaining?: number; nextDue?: Date; baseDate?: Date; isOverdue?: boolean; reason?: string } {
     if (!tenantData) return { isDue: false };
 
     // 1. Check if disabled
@@ -282,7 +281,7 @@ export function getRentRevisionDetails(tenantData, today = new Date()) {
     const joinDateStr = tenantData?.joinDate;
 
     // Helper to safely parse YYYY-MM-DD
-    const parse = (d) => (d ? new Date(d) : null);
+    const parse = (d: string | undefined): Date | null => (d ? new Date(d) : null);
 
     const lastRev = parse(lastRevStr);
     const joinDate = parse(joinDateStr);
@@ -299,7 +298,7 @@ export function getRentRevisionDetails(tenantData, today = new Date()) {
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const nextDueMidnight = new Date(nextDue.getFullYear(), nextDue.getMonth(), nextDue.getDate());
 
-    const diffTime = nextDueMidnight - todayMidnight;
+    const diffTime = nextDueMidnight.getTime() - todayMidnight.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     // 5. Determine Check Status

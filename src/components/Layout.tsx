@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -9,17 +9,21 @@ import {
     Droplet,
     Wallet,
     LogOut,
-    User,
+    User as UserIcon,
     Database
 } from 'lucide-react';
 
-export default function Layout({ children }) {
+interface LayoutProps {
+    children: ReactNode;
+}
+
+export default function Layout({ children }: LayoutProps) {
     const { currentUser, logout } = useAuth();
     const location = useLocation();
 
-    const isActive = (path) => location.pathname === path;
+    const isActive = (path: string) => location.pathname === path;
 
-    const NavItem = ({ to, icon: Icon, label, mobile = false }) => (
+    const NavItem = ({ to, icon: Icon, label, mobile = false }: { to: string; icon: any; label: string; mobile?: boolean }) => (
         <Link
             to={to}
             className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${isActive(to)
@@ -56,7 +60,7 @@ export default function Layout({ children }) {
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
                     <div className="h-px bg-stone-100 my-2"></div>
-                    <NavItem to="/admin" icon={User} label="Admin" />
+                    <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
                 </nav>
 
@@ -65,10 +69,10 @@ export default function Layout({ children }) {
                         {currentUser && (
                             <>
                                 <img
-                                    src={currentUser.photoURL}
+                                    src={currentUser.photoURL || ''}
                                     alt="User"
                                     className="w-9 h-9 rounded-full border border-stone-200 bg-stone-50"
-                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                    onError={(e: any) => { e.target.style.display = 'none'; }}
                                 />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold text-slate-700 truncate">{currentUser.displayName}</p>
@@ -102,7 +106,7 @@ export default function Layout({ children }) {
                     </div>
                     <div className="flex items-center gap-2">
                         {currentUser && (
-                            <img src={currentUser.photoURL} className="w-8 h-8 rounded-full border border-stone-200 shadow-sm" />
+                            <img src={currentUser.photoURL || ''} className="w-8 h-8 rounded-full border border-stone-200 shadow-sm" />
                         )}
                     </div>
                 </header>

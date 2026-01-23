@@ -1,4 +1,6 @@
-export const IMMUTABLE_ROOMS_DATA = {
+import { RoomData } from '../types';
+
+export const IMMUTABLE_ROOMS_DATA: Record<string, RoomData> = {
     '01': { roomNo: '01', roomId: 'G01', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
     '02': { roomNo: '02', roomId: 'G02', keyNo: '153', ebServNo: '19778', ebAcNo: '5097781' },
     '04': { roomNo: '04', roomId: '102', keyNo: '76', ebServNo: '19780', ebAcNo: '5097783' },

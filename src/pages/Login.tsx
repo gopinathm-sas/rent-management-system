@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Building, Shield, ChevronRight } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
+import { Building, Shield } from 'lucide-react';
 
 export default function Login() {
     const { loginWithGoogle, currentUser } = useAuth();

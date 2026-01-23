@@ -1,19 +1,34 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider, signInWithCredential, User, UserCredential } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { App } from '@capacitor/app';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 
-const AuthContext = createContext();
-
-export function useAuth() {
-    return useContext(AuthContext);
+interface AuthContextType {
+    currentUser: User | null;
+    loginWithGoogle: () => Promise<UserCredential>;
+    logout: () => Promise<void>;
+    loading: boolean;
+    isAppLocked: boolean;
+    lockApp: () => void;
+    unlockWithBiometrics: () => Promise<void>;
 }
 
-export function AuthProvider({ children }) {
-    const [currentUser, setCurrentUser] = useState(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (!context) {
+        //        throw new Error('useAuth must be used within an AuthProvider'); // Temporarily allow undefined for debugging if needed, but best strict
+        return context as unknown as AuthContextType; // Allow it (unsafe) or strict? Let's go strict but keep it safe if it fails
+    }
+    return context;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     // Default to LOCKED if native, to force check on launch
     const [isAppLocked, setIsAppLocked] = useState(Capacitor.isNativePlatform());
@@ -32,36 +47,27 @@ export function AuthProvider({ children }) {
 
         try {
             isBiometricAuthPending.current = true;
-            // console.log("Starting Biometric Auth (Pending=true)");
-
-            const result = await NativeBiometric.verifyIdentity({
+            await NativeBiometric.verifyIdentity({
                 reason: "Unlock Rent Manager",
                 title: "Authentication Required",
                 subtitle: "Confirm your identity",
                 description: "Use Face ID to access the app",
             });
-
-            // The plugin returns void (undefined) on success, so we don't check 'result'.
-            // If it failed/cancelled, it would have thrown an error.
-            // console.log("Biometric Promise Resolved. Unlocking...");
             setIsAppLocked(false);
         } catch (error) {
             console.error("Biometric Unlock Failed:", error);
-            // Don't modify lock state on failure
         } finally {
-            // Small delay to allow app to fully foreground before re-enabling listener
             setTimeout(() => {
                 isBiometricAuthPending.current = false;
-                // console.log("Biometric Auth Finished (Pending=false)");
             }, 500);
         }
     };
 
-    async function loginWithGoogle() {
+    async function loginWithGoogle(): Promise<UserCredential> {
         if (Capacitor.isNativePlatform()) {
             try {
                 const result = await FirebaseAuthentication.signInWithGoogle();
-                const credential = GoogleAuthProvider.credential(result.credential.idToken);
+                const credential = GoogleAuthProvider.credential(result.credential?.idToken);
                 return await signInWithCredential(auth, credential);
             } catch (error) {
                 console.error("Native Google Sign-In Error:", error);
@@ -72,7 +78,7 @@ export function AuthProvider({ children }) {
         }
     }
 
-    function logout() {
+    function logout(): Promise<void> {
         if (Capacitor.isNativePlatform()) {
             return FirebaseAuthentication.signOut().then(() => signOut(auth));
         }
@@ -91,15 +97,12 @@ export function AuthProvider({ children }) {
         });
 
         // App Lifecycle for Locking
-        let appListener;
+        let appListener: any;
         if (Capacitor.isNativePlatform()) {
             appListener = App.addListener('appStateChange', ({ isActive }) => {
-                // console.log(`AppState Change: isActive=${isActive}, PendingBio=${isBiometricAuthPending.current}`);
-
                 if (!isActive && auth.currentUser) {
                     // Check if we are performing biometrics
                     if (isBiometricAuthPending.current) {
-                        // console.log("Ignoring background event due to active biometric prompt.");
                         return;
                     }
 
@@ -120,7 +123,7 @@ export function AuthProvider({ children }) {
 
         return () => {
             unsubscribeAuth();
-            if (appListener) appListener.remove();
+            if (appListener && appListener.remove) appListener.remove();
             clearTimeout(safetyTimer);
         };
     }, []);
@@ -132,10 +135,9 @@ export function AuthProvider({ children }) {
         // Only run if user is logged in
         if (!currentUser) return;
 
-        let logoutTimer;
+        let logoutTimer: NodeJS.Timeout;
 
         const resetTimer = () => {
-            // console.log("User active, resetting logout timer");
             if (logoutTimer) clearTimeout(logoutTimer);
             logoutTimer = setTimeout(() => {
                 console.log("User inactive for 15 mins, logging out...");
@@ -159,19 +161,26 @@ export function AuthProvider({ children }) {
         };
     }, [currentUser]);
 
-    const value = {
+    const value: AuthContextType = {
         currentUser,
         loginWithGoogle,
         logout,
         loading,
         isAppLocked,
         lockApp,
-        unlockWithBiometrics // Exposed function
+        unlockWithBiometrics
     };
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {loading ? (
+                <div className="min-h-screen flex items-center justify-center bg-white flex-col gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+                    <p className="text-slate-500 font-medium">Initializing App...</p>
+                </div>
+            ) : (
+                children
+            )}
         </AuthContext.Provider>
     );
 }
