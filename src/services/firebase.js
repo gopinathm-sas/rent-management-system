@@ -5,12 +5,12 @@ import { getStorage } from "firebase/storage";
 import { Capacitor } from '@capacitor/core';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCH2Q18CquL9IGi9t6KovkSqQj3DYnXf9g",
-    authDomain: "munirathnam-illam.firebaseapp.com",
-    projectId: "munirathnam-illam",
-    storageBucket: "munirathnam-illam.firebasestorage.app",
-    messagingSenderId: "852272424128",
-    appId: "1:852272424128:web:e5400d3d2f512d7e477925"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
