@@ -296,6 +296,7 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
             onClose();
         } catch (error) {
             console.error("Eviction error:", error);
+            window.alert(`Eviction Failed:\n${error.message}\n\nCheck console for details.`);
             showToast("Failed to finalize eviction: " + error.message, "error");
         } finally {
             setIsSaving(false);

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { useUI } from './UIContext';
+
 
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -47,7 +49,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     // Subscriptions
     const { currentUser } = useAuth();
+    const { showToast } = useUI();
+
     useEffect(() => {
+
         if (!currentUser) return;
 
         // Tenants Subscription
@@ -60,10 +65,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
             setTenants(data);
             setLoadingState(prev => ({ ...prev, tenants: false }));
+            setLoadingState(prev => ({ ...prev, tenants: false }));
         }, (error) => {
             console.error("Error fetching tenants:", error);
+            showToast(`Error fetching tenants: ${error.message}`, 'error');
             setLoadingState(prev => ({ ...prev, tenants: false }));
         });
+
 
         // Expenses Subscription
         const qExpenses = query(collection(db, 'expenses'), orderBy('date', 'desc'));
@@ -74,10 +82,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
             setExpenses(list);
             setLoadingState(prev => ({ ...prev, expenses: false }));
+            setLoadingState(prev => ({ ...prev, expenses: false }));
         }, (error) => {
             console.error("Error fetching expenses:", error);
+            showToast(`Error fetching expenses: ${error.message}`, 'error');
             setLoadingState(prev => ({ ...prev, expenses: false }));
         });
+
 
         // Rooms Subscription (Dynamic with Fallback)
         const qRooms = query(collection(db, 'rooms'));
@@ -107,11 +118,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
             }
             setLoadingState(prev => ({ ...prev, rooms: false }));
+            setLoadingState(prev => ({ ...prev, rooms: false }));
         }, (error) => {
             console.error("Error fetching rooms:", error);
+            // Rooms might fail if collection doesn't exist, warn but maybe simple toast
+            showToast(`Error fetching rooms: ${error.message}`, 'warning');
             setRooms(IMMUTABLE_ROOMS_DATA);
             setLoadingState(prev => ({ ...prev, rooms: false }));
         });
+
 
         return () => {
             unsubTenants();
