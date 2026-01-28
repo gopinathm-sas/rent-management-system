@@ -14,7 +14,8 @@ import {
 export default function RoomDetailsModal({ room, tenant, onClose }) {
     if (!room) return null;
     const { updateTenant, createTenant } = useData();
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
+
 
     // Local Status State
     const initialStatus = tenant?.status || 'Vacant';
@@ -268,8 +269,15 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
     };
 
     const handleFinalizeEviction = async () => {
+        const isConfirmed = await confirm({
+            title: 'Finalize Eviction?',
+            message: 'Are you sure you want to finalize this eviction? This will clear tenant data and mark the room as Vacant.',
+            confirmText: 'Yes, Evict & Vacate',
+            type: 'danger'
+        });
 
-        if (!confirm("Are you sure you want to finalize this eviction? This will mark the room as Vacant.")) return;
+        if (!isConfirmed) return;
+
 
         setIsSaving(true);
         try {
@@ -296,15 +304,23 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
             onClose();
         } catch (error) {
             console.error("Eviction error:", error);
-            window.alert(`Eviction Failed:\n${error.message}\n\nCheck console for details.`);
             showToast("Failed to finalize eviction: " + error.message, "error");
         } finally {
+
             setIsSaving(false);
         }
     };
 
     const handleMarkVacant = async () => {
-        if (!confirm("Mark room as Vacant? Ensure all dues are cleared.")) return;
+        const isConfirmed = await confirm({
+            title: 'Mark Room Vacant?',
+            message: 'This will remove the current tenant status. Ensure all dues are cleared before proceeding.',
+            confirmText: 'Mark Vacant',
+            type: 'danger'
+        });
+
+        if (!isConfirmed) return;
+
 
         setIsSaving(true);
         try {
