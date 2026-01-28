@@ -254,6 +254,54 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         }
         setEditForm(prev => ({ ...prev, [fieldKey]: value }));
     };
+    const handleFinalizeEviction = async () => {
+        if (!confirm("Are you sure you want to finalize this eviction? This will mark the room as Vacant.")) return;
+
+        setIsSaving(true);
+        try {
+            const settlementSnapshot = {
+                ...settlementData,
+                vacatedDate: new Date().toISOString(),
+                noticeDate,
+                scheduledEvictionDate: evictionDate
+            };
+
+            const payload = {
+                status: 'Vacant',
+                isEvictionConfirmed: false,
+                evictionNoticeDate: null,
+                evictionDate: null,
+                lastSettlement: settlementSnapshot,
+            };
+
+            await updateTenant(tenant.id, payload);
+            showToast("Eviction finalized & room marked vacant", "success");
+            onClose();
+        } catch (error) {
+            console.error("Eviction error:", error);
+            showToast("Failed to finalize eviction: " + error.message, "error");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleMarkVacant = async () => {
+        if (!confirm("Mark room as Vacant? Ensure all dues are cleared.")) return;
+
+        setIsSaving(true);
+        try {
+            await updateTenant(tenant.id, {
+                status: 'Vacant',
+                isEvictionConfirmed: false
+            });
+            showToast("Room marked vacant", "success");
+            onClose();
+        } catch (error) {
+            showToast("Failed to mark vacant", "error");
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -530,8 +578,12 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                                                 : "⚠️ Some water readings are missing. Please update them in Water Bill section."}
                                         </p>
 
-                                        <button className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm shadow-rose-200 transition">
-                                            Finalize Settlement & Mark Vacant
+                                        <button
+                                            onClick={handleFinalizeEviction}
+                                            disabled={isSaving}
+                                            className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm shadow-rose-200 transition disabled:opacity-50"
+                                        >
+                                            {isSaving ? 'Processing...' : 'Finalize Settlement & Mark Vacant'}
                                         </button>
                                     </>
                                 )}
@@ -546,7 +598,10 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                         </button>
 
                         <div className="flex items-center gap-2">
-                            <button className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-sm shadow-rose-200 transition">
+                            <button
+                                onClick={handleMarkVacant}
+                                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-sm shadow-rose-200 transition"
+                            >
                                 Mark Vacant
                             </button>
                             <button

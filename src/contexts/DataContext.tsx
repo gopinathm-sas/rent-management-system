@@ -34,8 +34,14 @@ export function useData() {
 export function DataProvider({ children }: { children: ReactNode }) {
     const [tenants, setTenants] = useState<Record<string, Tenant>>({}); // This maps to 'properties' collection
     const [expenses, setExpenses] = useState<Expense[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingState, setLoadingState] = useState({
+        tenants: true,
+        expenses: true,
+        rooms: true
+    });
+    const loading = Object.values(loadingState).some(v => v);
     const [rooms, setRooms] = useState<Record<string, RoomData>>(IMMUTABLE_ROOMS_DATA);
+
 
     // Subscriptions
     useEffect(() => {
@@ -47,8 +53,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 data[doc.id] = { id: doc.id, ...doc.data() } as Tenant;
             });
             setTenants(data);
+            setLoadingState(prev => ({ ...prev, tenants: false }));
         }, (error) => {
             console.error("Error fetching tenants:", error);
+            setLoadingState(prev => ({ ...prev, tenants: false }));
         });
 
         // Expenses Subscription
@@ -59,8 +67,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 list.push({ id: doc.id, ...doc.data() } as Expense);
             });
             setExpenses(list);
+            setLoadingState(prev => ({ ...prev, expenses: false }));
         }, (error) => {
             console.error("Error fetching expenses:", error);
+            setLoadingState(prev => ({ ...prev, expenses: false }));
         });
 
         // Rooms Subscription (Dynamic with Fallback)
@@ -88,12 +98,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 sortedKeys.forEach(k => sortedRooms[k] = roomData[k]);
 
                 setRooms(sortedRooms);
+
             }
-            setLoading(false);
+            setLoadingState(prev => ({ ...prev, rooms: false }));
         }, (error) => {
             console.error("Error fetching rooms:", error);
             setRooms(IMMUTABLE_ROOMS_DATA);
-            setLoading(false);
+            setLoadingState(prev => ({ ...prev, rooms: false }));
         });
 
         return () => {
