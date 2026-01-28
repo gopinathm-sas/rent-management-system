@@ -254,7 +254,21 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         }
         setEditForm(prev => ({ ...prev, [fieldKey]: value }));
     };
+    const sanitizePayload = (obj) => {
+        return Object.entries(obj).reduce((acc, [key, value]) => {
+            if (value === undefined) {
+                acc[key] = null;
+            } else if (value && typeof value === 'object' && !(value instanceof Date)) {
+                acc[key] = sanitizePayload(value);
+            } else {
+                acc[key] = value;
+            }
+            return acc;
+        }, {});
+    };
+
     const handleFinalizeEviction = async () => {
+
         if (!confirm("Are you sure you want to finalize this eviction? This will mark the room as Vacant.")) return;
 
         setIsSaving(true);
@@ -274,7 +288,10 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                 lastSettlement: settlementSnapshot,
             };
 
-            await updateTenant(tenant.id, payload);
+            const sanitizedPayload = sanitizePayload(payload);
+
+            await updateTenant(tenant.id, sanitizedPayload);
+
             showToast("Eviction finalized & room marked vacant", "success");
             onClose();
         } catch (error) {

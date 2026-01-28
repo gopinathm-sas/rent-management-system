@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE } from '../lib/constants';
@@ -44,8 +46,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
 
     // Subscriptions
+    const { currentUser } = useAuth();
     useEffect(() => {
+        if (!currentUser) return;
+
         // Tenants Subscription
+
         const qTenants = query(collection(db, 'properties'));
         const unsubTenants = onSnapshot(qTenants, (snapshot) => {
             const data: Record<string, Tenant> = {};
@@ -112,7 +118,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             unsubExpenses();
             unsubRooms();
         };
-    }, []);
+    }, [currentUser]);
 
     const updateRentStatus = async (_roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number) => {
         let newStatus = 'Pending';
