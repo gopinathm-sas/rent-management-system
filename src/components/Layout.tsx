@@ -64,10 +64,6 @@ export default function Layout({ children }: LayoutProps) {
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
                 </nav>
 
-                <div className="px-6 pb-2">
-                    <p className="text-[10px] font-mono text-slate-300">v1.0.5-debug</p>
-                </div>
-
                 <div className="pt-6 border-t border-stone-100">
                     <div className="flex items-center gap-3 px-2 py-2">
                         {currentUser && (
