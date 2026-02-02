@@ -36,6 +36,7 @@ export default function Dashboard() {
             total: locked ? 0 : financials.total,
             expenses: sumExpensesForMonth(expenses, year, i),
             pending: locked ? 0 : financials.pending,
+            expectedRent: locked ? 0 : financials.expectedRent,
             locked
         });
     }
@@ -157,6 +158,7 @@ export default function Dashboard() {
                                 <th className="px-5 py-4 text-right font-semibold">Expenses</th>
                                 <th className="px-5 py-4 text-right font-semibold">Water Charges</th>
                                 <th className="px-5 py-4 text-right font-semibold">Pending Rent</th>
+                                <th className="px-5 py-4 text-right font-semibold">Total Rent</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -174,6 +176,9 @@ export default function Dashboard() {
                                     </td>
                                     <td className="px-5 py-4 text-right font-medium text-amber-800">
                                         {row.locked ? '₹0' : `₹${row.pending.toLocaleString('en-IN')}`}
+                                    </td>
+                                    <td className="px-5 py-4 text-right font-medium text-slate-600">
+                                        {row.locked ? '₹0' : `₹${(row.expectedRent || 0).toLocaleString('en-IN')}`}
                                     </td>
                                 </tr>
                             ))}
