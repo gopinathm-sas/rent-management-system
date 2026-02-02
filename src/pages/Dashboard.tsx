@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import {
     formatMonthLabel,
+    computeRentCollectedForMonth,
+    computePendingRentForMonth,
     computeFinancialsForMonth,
     sumExpensesForMonth,
     isFutureYearMonth,
@@ -22,21 +24,28 @@ export default function Dashboard() {
 
     const changeYear = (delta: number) => setGlobalYear(year + delta);
 
-    const rows = [];
-    for (let i = 0; i < 12; i++) {
-        const locked = isFutureYearMonth(year, i);
-        // @ts-ignore - rooms type mismatch in utils signature vs context, assuming basic object structure exists 
-        const financials = computeFinancialsForMonth(tenants, rooms, year, i);
-        rows.push({
-            label: formatMonthLabel(year, i),
-            rent: locked ? 0 : financials.rent,
-            water: locked ? 0 : financials.water,
-            total: locked ? 0 : financials.total,
-            expenses: sumExpensesForMonth(expenses, year, i),
-            pending: locked ? 0 : financials.pending,
-            expectedRent: locked ? 0 : financials.expectedRent,
-            locked
-        });
+    let rows = [];
+    try {
+        for (let i = 0; i < 12; i++) {
+            const locked = isFutureYearMonth(year, i);
+            // @ts-ignore - rooms type mismatch in utils signature vs context, assuming basic object structure exists 
+            const financials = computeFinancialsForMonth(tenants, rooms, year, i);
+            rows.push({
+                label: formatMonthLabel(year, i),
+                rent: locked ? 0 : financials.rent,
+                water: locked ? 0 : financials.water,
+                total: locked ? 0 : financials.total,
+                expenses: sumExpensesForMonth(expenses, year, i),
+                pending: locked ? 0 : financials.pending,
+                expectedRent: locked ? 0 : financials.expectedRent,
+                locked
+            });
+        }
+    } catch (e: any) {
+        console.error("Dashboard calculation error:", e);
+        return <div className="p-8 text-red-600 bg-red-50 rounded-lg border border-red-200">
+            Error loading dashboard data: {e?.message || "Unknown error"}
+        </div>;
     }
 
     // -- ALERT LOGIC --
