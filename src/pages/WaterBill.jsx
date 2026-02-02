@@ -205,7 +205,7 @@ export default function WaterBill() {
                                 return (
                                     <tr key={room.roomId} className="hover:bg-slate-50/50">
                                         <td className="px-4 py-3 border-r border-slate-100 sticky left-0 bg-white z-10 text-left">
-                                            <div className="font-bold text-blue-600">{room.roomNo}</div>
+                                            <div className="font-bold text-blue-600">{room.roomId}</div>
                                             <div className="text-xs text-slate-500 truncate max-w-[120px]">{displayName}</div>
                                         </td>
                                         {MONTHS.map((month, idx) => {
@@ -289,7 +289,7 @@ export default function WaterBill() {
                         <div className="bg-white px-6 pt-6 pb-2">
                             <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Water meter reading</h3>
                             <p className="text-sm font-medium text-slate-400 mt-1">
-                                Room {editingCell.room.roomNo} • {MONTHS[editingCell.monthIndex]} {year}
+                                Room {editingCell.room.roomId} • {MONTHS[editingCell.monthIndex]} {year}
                             </p>
                         </div>
 
