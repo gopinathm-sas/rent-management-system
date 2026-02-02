@@ -150,9 +150,9 @@ export function computePendingRentForMonth(tenants: Tenant[] | Record<string, Te
     return total;
 }
 
-export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): { rent: number; water: number; total: number; pending: number; expectedRent: number } {
+export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): { rent: number; water: number; total: number; pending: number } {
     const key = getMonthKey(year, monthIndex);
-    let data = { rent: 0, water: 0, total: 0, pending: 0, expectedRent: 0 };
+    let data = { rent: 0, water: 0, total: 0, pending: 0 };
 
     Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
         const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
@@ -173,12 +173,6 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         const useArchived = (!status || status === 'None') && archivedStatus;
         const effectiveStatus = useArchived ? archivedStatus : status;
         const tData = useArchived ? archived : tenantData;
-
-        // Calculate Expected Rent for this room
-        // We include it if it's occupied OR if we are using an archived record (which implies occupancy at that time)
-        if (isOccupiedRecord(tenantData) || useArchived) {
-            data.expectedRent += getEffectiveRent(tData, year, monthIndex);
-        }
 
         // Pending Calculation
         if (effectiveStatus === 'Pending') {

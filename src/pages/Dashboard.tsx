@@ -36,7 +36,6 @@ export default function Dashboard() {
             total: locked ? 0 : financials.total,
             expenses: sumExpensesForMonth(expenses, year, i),
             pending: locked ? 0 : financials.pending,
-            expectedRent: locked ? 0 : financials.expectedRent,
             locked
         });
     }
@@ -178,7 +177,7 @@ export default function Dashboard() {
                                         {row.locked ? '₹0' : `₹${row.pending.toLocaleString('en-IN')}`}
                                     </td>
                                     <td className="px-5 py-4 text-right font-medium text-slate-600">
-                                        {row.locked ? '₹0' : `₹${(row.expectedRent || 0).toLocaleString('en-IN')}`}
+                                        {row.locked ? '₹0' : `₹${row.total.toLocaleString('en-IN')}`}
                                     </td>
                                 </tr>
                             ))}
