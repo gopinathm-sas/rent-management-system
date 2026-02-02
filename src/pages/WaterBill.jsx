@@ -277,6 +277,28 @@ export default function WaterBill() {
                                 );
                             })}
                         </tbody>
+                        <tfoot className="bg-slate-100 font-bold text-slate-700 border-t-2 border-slate-200">
+                            <tr>
+                                <td className="px-4 py-3 border-r border-slate-200 sticky left-0 bg-slate-100 z-10 text-left">
+                                    Total
+                                </td>
+                                {MONTHS.map((_, idx) => {
+                                    const totalAmount = roomList.reduce((sum, room) => {
+                                        const tenant = findTenantForRoom(tenants, room.roomId);
+                                        const rate = Number(tenant?.waterRate);
+                                        const effectiveRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(room.roomNo);
+                                        const result = computeWaterForMonth(tenant, year, idx, effectiveRate);
+                                        return sum + (result.amount || 0);
+                                    }, 0);
+
+                                    return (
+                                        <td key={idx} className="px-2 py-3 border-r border-slate-200 text-blue-800">
+                                            {totalAmount > 0 ? `₹${totalAmount}` : '-'}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
