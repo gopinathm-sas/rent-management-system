@@ -49,8 +49,8 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         const newStatus = e.target.value;
         setStatus(newStatus);
 
-        if (newStatus === 'Occupied' && !tenant) {
-            // Switching Vacant -> Occupied (New Tenant)
+        if (newStatus === 'Occupied' && (!tenant || tenant.status === 'Vacant')) {
+            // Switching Vacant -> Occupied (New Tenant or Re-occupying vacated room)
             setIsEditing(true);
             setEditForm({
                 tenant: '',
@@ -60,11 +60,13 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                 waterRate: '0.25',
                 advance: '',
                 lastRevision: '',
+                lastRent: '',
                 joinDate: new Date().toISOString().split('T')[0],
                 status: 'Occupied',
                 roomNo: room.roomNo,
                 roomId: room.roomId
             });
+            setNoRevision(false);
             setExpandedSection('tenant');
         } else if (newStatus === 'Vacant' && tenant) {
             // Reverting to Vacant (handled by Mark Vacant usually)
