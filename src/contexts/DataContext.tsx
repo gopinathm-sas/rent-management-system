@@ -20,6 +20,7 @@ interface DataContextType {
     setGlobalYear: (year: number) => void;
     updateRentStatus: (roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number, deductionDays?: number) => Promise<void>;
     addExpense: (expenseData: Omit<Expense, 'id'>) => Promise<void>;
+    updateExpense: (id: string, data: Partial<Expense>) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
     updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
     createTenant: (data: Omit<Tenant, 'id'>) => Promise<void>;
@@ -188,6 +189,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await deleteDoc(doc(db, 'expenses', id));
     };
 
+    const updateExpenseHandler = async (id: string, data: Partial<Expense>) => {
+        await updateDoc(doc(db, 'expenses', id), data);
+    };
+
     const updateTenantHandler = async (id: string, data: Partial<Tenant>) => {
         await updateDoc(doc(db, 'properties', id), data);
     };
@@ -210,6 +215,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setGlobalYear,
         updateRentStatus,
         addExpense: addExpenseHandler,
+        updateExpense: updateExpenseHandler,
         deleteExpense: deleteExpenseHandler,
         updateTenant: updateTenantHandler,
         createTenant: createTenantHandler
