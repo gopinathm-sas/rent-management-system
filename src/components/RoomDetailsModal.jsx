@@ -497,6 +497,7 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                                 </div>
                                 <Field label="Room Number" value={room.roomNo} />
                                 <Field label="EB Service No" value={room.ebServNo} />
+                                <Field label="EB A/C No" value={room.ebAcNo} />
                             </div>
                         </AccordionItem>
                     </div>

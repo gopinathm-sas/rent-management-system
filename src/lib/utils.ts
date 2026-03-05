@@ -59,6 +59,28 @@ export function isEvictionMonth(tenant: Tenant | null, year: number, monthIndex:
     return cellDate >= noticeMonthStart;
 }
 
+// Check if a given month is the tenant's first month of occupancy
+export function isFirstOccupancyMonth(tenantData: Tenant | null, year: number, monthIndex: number): boolean {
+    if (!tenantData?.joinDate) return false;
+    const joinDate = new Date(tenantData.joinDate);
+    return joinDate.getFullYear() === year && joinDate.getMonth() === monthIndex;
+}
+
+// Get the number of days in a given month
+export function getDaysInMonth(year: number, monthIndex: number): number {
+    return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+// Calculate prorated rent for the first month of occupancy
+// Formula: (rent / daysInMonth) * billableDays
+// billableDays = daysInMonth - (joinDay - 1) - deductionDays
+export function getProratedRent(rent: number, joinDate: string, year: number, monthIndex: number, deductionDays: number = 0): number {
+    const daysInMonth = getDaysInMonth(year, monthIndex);
+    const joinDay = new Date(joinDate).getDate();
+    const billableDays = Math.max(0, daysInMonth - (joinDay - 1) - deductionDays);
+    return Math.round((rent / daysInMonth) * billableDays);
+}
+
 export function getEffectiveRent(tenantData: Tenant | null, year: number, monthIndex: number): number {
     if (!tenantData) return 0;
 
@@ -76,6 +98,15 @@ export function getEffectiveRent(tenantData: Tenant | null, year: number, monthI
         // If cell month is BEFORE revision month, use lastRent
         if (cellDate < revisionMonthStart) {
             rent = Number(tenantData.lastRent) || rent;
+        }
+    }
+
+    // 3. Prorate rent for first month of occupancy (joined mid-month)
+    if (isFirstOccupancyMonth(tenantData, year, monthIndex)) {
+        const joinDate = new Date(tenantData.joinDate!);
+        // Only prorate if tenant didn't join on the 1st
+        if (joinDate.getDate() > 1) {
+            rent = getProratedRent(rent, tenantData.joinDate!, year, monthIndex, 0);
         }
     }
 

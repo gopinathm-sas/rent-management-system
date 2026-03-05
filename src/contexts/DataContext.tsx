@@ -6,7 +6,7 @@ import { useUI } from './UIContext';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE } from '../lib/constants';
-import { computeWaterForMonth, getDefaultWaterRateForRoom } from '../lib/utils';
+import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent } from '../lib/utils';
 import { Tenant, Expense, RoomData } from '../types';
 
 interface DataContextType {
@@ -18,7 +18,7 @@ interface DataContextType {
     loading: boolean;
     globalYear: number;
     setGlobalYear: (year: number) => void;
-    updateRentStatus: (roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number) => Promise<void>;
+    updateRentStatus: (roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number, deductionDays?: number) => Promise<void>;
     addExpense: (expenseData: Omit<Expense, 'id'>) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
     updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
@@ -135,7 +135,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         };
     }, [currentUser]);
 
-    const updateRentStatus = async (_roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number) => {
+    const updateRentStatus = async (_roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number, deductionDays?: number) => {
         let newStatus = 'Pending';
         if (currentStatus === 'Pending') newStatus = 'Rent Only';
         else if (currentStatus === 'Rent Only') newStatus = 'Paid';
@@ -144,7 +144,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const updatePayload: Record<string, any> = {};
 
         if (newStatus === 'Paid') {
-            const rent = Number(tenantData?.rent) || 0;
+            let rent = Number(tenantData?.rent) || 0;
+
+            // Prorate rent for first month of occupancy (joined mid-month)
+            if (isFirstOccupancyMonth(tenantData, year, monthIndex) && tenantData?.joinDate) {
+                const joinDay = new Date(tenantData.joinDate).getDate();
+                if (joinDay > 1) {
+                    rent = getProratedRent(rent, tenantData.joinDate, year, monthIndex, deductionDays || 0);
+                }
+            }
+
             const waterRate = (tenantData?.waterRate !== null && tenantData?.waterRate !== undefined && String(tenantData?.waterRate).trim() !== '') ? Number(tenantData?.waterRate) : getDefaultWaterRateForRoom(tenantData?.roomNo);
             const water = computeWaterForMonth(tenantData, year, monthIndex, waterRate);
 
