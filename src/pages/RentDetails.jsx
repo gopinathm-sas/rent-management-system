@@ -78,7 +78,21 @@ export default function RentDetails() {
         try {
             await updateRentStatus(roomData.roomId, key, currentStatus, tenantData, year, monthIndex);
         } catch (e) {
-            showToast(e.message, 'error');
+            // If the error is a water-reading validation error (thrown when attempting to
+            // mark 'Paid' without meter readings), show a warning but still advance the
+            // cycle to 'None' so the user is never trapped in the current status.
+            if (nextStatus === 'Paid') {
+                showToast('Water readings missing — skipped to None. Enter readings on the Water Bill page to mark Paid.', 'warning');
+                try {
+                    // Advance from the would-be 'Paid' state → 'None'
+                    await updateRentStatus(roomData.roomId, key, 'Paid', tenantData, year, monthIndex);
+                } catch {
+                    // 'Paid' → 'None' never requires validation, so this should not throw.
+                    // Silently ignore in case of any unexpected edge case.
+                }
+            } else {
+                showToast(e.message, 'error');
+            }
         }
     };
 
@@ -90,7 +104,13 @@ export default function RentDetails() {
             await updateRentStatus(roomData.roomId, key, currentStatus, tenantData, y, mi, deductionDays);
             showToast('Prorated rent marked as Paid', 'success');
         } catch (e) {
-            showToast(e.message, 'error');
+            // Same fallback: if water readings are missing, don't trap user at Rent Only
+            showToast('Water readings missing — skipped to None. Enter readings on the Water Bill page to mark Paid.', 'warning');
+            try {
+                await updateRentStatus(roomData.roomId, key, 'Paid', tenantData, y, mi);
+            } catch {
+                // Silently ignore — Paid → None never requires water validation
+            }
         }
     };
 
