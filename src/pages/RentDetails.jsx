@@ -6,6 +6,7 @@ import {
     isOccupiedRecord,
     MONTHS,
     isFutureYearMonth,
+    isMonthBeforeJoinDate,
     getMonthKey,
     formatMonthLabel,
     DEFAULT_WATER_RATE,
@@ -39,6 +40,10 @@ export default function RentDetails() {
         if (!isOccupiedRecord(tenantData)) return;
 
         const key = getMonthKey(year, monthIndex);
+
+        // Do not allow editing months before the tenant's join month
+        if (isMonthBeforeJoinDate(key, tenantData?.joinDate)) return;
+
         const currentD = new Date();
         const isCurrentOrFuture = isFutureYearMonth(year, monthIndex) || (year === currentD.getFullYear() && monthIndex === currentD.getMonth());
 
@@ -162,12 +167,17 @@ export default function RentDetails() {
                                                 const currentD = new Date();
                                                 const isCurrentMonth = year === currentD.getFullYear() && idx === currentD.getMonth();
                                                 const isFuture = isFutureYearMonth(year, idx) || isCurrentMonth;
+                                                const isBeforeJoin = isOccupied && isMonthBeforeJoinDate(key, tenant?.joinDate);
 
                                                 let cellContent = <Minus size={14} className="mx-auto text-slate-300" />;
                                                 let cellClass = "cursor-not-allowed bg-slate-100/50";
 
                                                 if (isOccupied) {
-                                                    if (isFuture) {
+                                                    if (isBeforeJoin) {
+                                                        // Month predates the tenant's join — show neutral locked cell
+                                                        cellContent = <Minus size={14} className="mx-auto text-slate-200" />;
+                                                        cellClass = "cursor-not-allowed bg-slate-50";
+                                                    } else if (isFuture) {
                                                         cellContent = <Minus size={14} className="mx-auto text-slate-300" />;
                                                         cellClass = "cursor-not-allowed bg-slate-50";
                                                     } else {
@@ -209,7 +219,7 @@ export default function RentDetails() {
                                                         key={key}
                                                         className={`px-1 py-4 border-r border-slate-100 text-center transition-colors ${cellClass}`}
                                                         onClick={() => handleCellClick(room, idx, status)}
-                                                        title={isOccupied ? (isFuture ? 'Locked' : status) : 'Vacant'}
+                                                        title={isOccupied ? (isBeforeJoin ? 'Before join date' : isFuture ? 'Locked' : status) : 'Vacant'}
                                                     >
                                                         {cellContent}
                                                     </td>

@@ -35,6 +35,29 @@ export function isFutureYearMonth(year: number, monthIndex: number, now: Date = 
     return false;
 }
 
+/**
+ * Returns true if the given monthKey ("YYYY-Mon", e.g. "2026-Jan") falls entirely
+ * BEFORE the month in which the tenant joined.
+ * months equal to the join month are NOT before it (tenant was present for part of it).
+ */
+export function isMonthBeforeJoinDate(monthKey: string, joinDate: string | null | undefined): boolean {
+    if (!joinDate) return false;
+    const joinDateObj = new Date(joinDate);
+    if (isNaN(joinDateObj.getTime())) return false;
+    const joinYear = joinDateObj.getFullYear();
+    const joinMonthIndex = joinDateObj.getMonth(); // 0-based
+
+    // Parse monthKey: "2026-Jan" → year=2026, monthIndex=0
+    const [yearStr, monStr] = monthKey.split('-');
+    const cellYear = parseInt(yearStr, 10);
+    const cellMonthIndex = CONST_MONTHS.indexOf(monStr); // 0-based
+    if (isNaN(cellYear) || cellMonthIndex === -1) return false;
+
+    if (cellYear < joinYear) return true;
+    if (cellYear === joinYear && cellMonthIndex < joinMonthIndex) return true;
+    return false;
+}
+
 export function findTenantForRoom(tenants: Tenant[] | Record<string, Tenant> | null, roomId: string | null): Tenant | null {
     if (!tenants || !roomId) return null;
     const list = Array.isArray(tenants) ? tenants : Object.values(tenants);
