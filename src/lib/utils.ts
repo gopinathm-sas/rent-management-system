@@ -42,10 +42,14 @@ export function isFutureYearMonth(year: number, monthIndex: number, now: Date = 
  */
 export function isMonthBeforeJoinDate(monthKey: string, joinDate: string | null | undefined): boolean {
     if (!joinDate) return false;
-    const joinDateObj = new Date(joinDate);
-    if (isNaN(joinDateObj.getTime())) return false;
-    const joinYear = joinDateObj.getFullYear();
-    const joinMonthIndex = joinDateObj.getMonth(); // 0-based
+
+    // Parse joinDate parts directly from "YYYY-MM-DD" string to avoid UTC midnight
+    // timezone shift (new Date("YYYY-MM-DD") is UTC, which on IST +5:30 rolls back one day).
+    const joinParts = joinDate.split('-');
+    if (joinParts.length < 2) return false;
+    const joinYear = parseInt(joinParts[0], 10);
+    const joinMonthIndex = parseInt(joinParts[1], 10) - 1; // convert 1-based month to 0-based
+    if (isNaN(joinYear) || isNaN(joinMonthIndex)) return false;
 
     // Parse monthKey: "2026-Jan" → year=2026, monthIndex=0
     const [yearStr, monStr] = monthKey.split('-');
