@@ -1,6 +1,6 @@
 import React from 'react';
 import { useData } from '../contexts/DataContext';
-import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel } from '../lib/utils';
+import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel, isMonthBeforeJoinDate } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
 import RoomCard from '../components/RoomCard';
 import { Home, AlertTriangle, CheckCircle2, CircleDollarSign } from 'lucide-react';
@@ -77,11 +77,13 @@ export default function RoomDetails() {
         const room = rooms[roomNo] || IMMUTABLE_ROOMS_DATA[roomNo];
         const tenant = findTenantForRoom(tenants, room.roomId);
         if (tenant && tenant.status === 'Occupied' && !tenant.isEvictionConfirmed) {
+            // Skip months that predate the tenant's join month — they were not resident then
+            if (isMonthBeforeJoinDate(prevKey, tenant.joinDate)) return;
             const status = tenant.paymentHistory?.[prevKey];
             if (status === 'Pending') {
                 pendingList.push({
                     roomNo: room.roomNo,
-                    amount: tenant.rent, // Assuming full rent pending
+                    amount: tenant.rent,
                     tenantName: tenant.tenant
                 });
             }
@@ -149,9 +151,13 @@ export default function RoomDetails() {
                                     if (tenant && tenant.status === 'Occupied') {
                                         if (tenant.isEvictionConfirmed) {
                                             rentStatus = 'Adjusted';
+                                        } else if (isMonthBeforeJoinDate(prevKey, tenant.joinDate)) {
+                                            // Previous month is before this tenant's join month — show no status
+                                            rentStatus = null;
                                         } else {
-                                            // Show Previous Month Status as rent is collected in following month
-                                            rentStatus = tenant.paymentHistory?.[prevKey] || 'Pending';
+                                            // Show Previous Month Status; only fall back to Pending if there IS a history entry
+                                            const prevStatus = tenant.paymentHistory?.[prevKey];
+                                            rentStatus = prevStatus || 'Pending';
                                         }
                                     }
 
