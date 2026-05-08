@@ -189,6 +189,9 @@ export function computePendingRentForMonth(tenants: Tenant[] | Record<string, Te
         // EVICTION CHECK: Strictly Exclude from All Financials
         if (isEvictionMonth(tenantData, year, monthIndex)) return;
 
+        // JOIN DATE CHECK: Skip months before tenant's move-in month
+        if (isMonthBeforeJoinDate(key, tenantData.joinDate)) return;
+
         const history = tenantData.paymentHistory || {};
         const status = history[key] || null;
 
@@ -220,6 +223,9 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         // EVICTION CHECK: Strictly Exclude from All Financials
         // Returns 0 for rent, water, and total.
         if (isEvictionMonth(tenantData, year, monthIndex)) return;
+
+        // JOIN DATE CHECK: Skip months before tenant's move-in month
+        if (isMonthBeforeJoinDate(key, tenantData.joinDate)) return;
 
         const history = tenantData.paymentHistory || {};
         const status = history[key] || null;

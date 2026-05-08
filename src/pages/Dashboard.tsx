@@ -11,6 +11,7 @@ import {
     findTenantForRoom,
     getMonthKey,
     isEvictionMonth,
+    isMonthBeforeJoinDate,
     getEffectiveRent,
     computeWaterForMonth,
     MONTHS
@@ -86,6 +87,9 @@ export default function Dashboard() {
                 if (isEvictionMonth(tenantData, year, i)) continue;
 
                 const key = getMonthKey(year, i);
+
+                // Skip months before this tenant's move-in month
+                if (isMonthBeforeJoinDate(key, tenantData.joinDate)) continue;
                 const history = tenantData.paymentHistory || {};
                 const status = history[key] || null;
 
