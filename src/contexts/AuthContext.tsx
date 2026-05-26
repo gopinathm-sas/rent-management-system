@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider, signInWithCredential, User, UserCredential } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, GoogleAuthProvider, signInWithCredential, User, UserCredential } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -8,7 +8,7 @@ import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 
 interface AuthContextType {
     currentUser: User | null;
-    loginWithGoogle: () => Promise<UserCredential>;
+    loginWithGoogle: () => Promise<UserCredential | void>;
     logout: () => Promise<void>;
     loading: boolean;
     isAppLocked: boolean;
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    async function loginWithGoogle(): Promise<UserCredential> {
+    async function loginWithGoogle(): Promise<UserCredential | void> {
         if (Capacitor.isNativePlatform()) {
             try {
                 const result = await FirebaseAuthentication.signInWithGoogle();
@@ -73,8 +73,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.error("Native Google Sign-In Error:", error);
                 throw error;
             }
-        } else {
-            return signInWithPopup(auth, googleProvider);
+        }
+
+        try {
+            return await signInWithPopup(auth, googleProvider);
+        } catch (error: any) {
+            const popupFallbackCodes = new Set([
+                'auth/popup-blocked',
+                'auth/popup-closed-by-user',
+                'auth/cancelled-popup-request',
+                'auth/operation-not-supported-in-this-environment'
+            ]);
+
+            if (popupFallbackCodes.has(error?.code)) {
+                await signInWithRedirect(auth, googleProvider);
+                return;
+            }
+
+            throw error;
         }
     }
 

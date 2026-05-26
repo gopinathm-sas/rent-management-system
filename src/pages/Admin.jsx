@@ -7,6 +7,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import RoomCard from '../components/RoomCard'; // Reusing RoomCard for consistent layout
+import { getClearedDocumentUploadFields, hasActiveDocumentUploadData } from '../lib/tenantDocuments';
 
 export default function Admin() {
     const { rooms, tenants, loading } = useData();
@@ -214,6 +215,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
     const [activeOccupant, setActiveOccupant] = useState(0);
     const documents = tenant?.documents || {};
     const bachelorDetails = tenant?.bachelorDetails || [];
+    const hasDocumentUploadData = hasActiveDocumentUploadData(tenant);
 
     const generateLink = async () => {
         const token = crypto.randomUUID();
@@ -250,6 +252,20 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
             showToast("Document removed", "success");
         } catch (e) {
             showToast("Failed to remove document", "error");
+        }
+    };
+
+    const resetDocumentSection = async () => {
+        const isConfirmed = window.confirm(
+            "Clear this tenant's document section?\n\nThis only removes document links and old occupant/contact fields from the app. It will not delete any uploaded files from Cloudinary."
+        );
+        if (!isConfirmed) return;
+
+        try {
+            await updateTenant(tenant.id, getClearedDocumentUploadFields());
+            showToast("Document section reset. Cloudinary files were not deleted.", "success");
+        } catch (e) {
+            showToast("Failed to reset document section", "error");
         }
     };
 
@@ -311,6 +327,25 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                             Link expires in 24 hours.
                         </p>
                     </div>
+
+                    {hasDocumentUploadData && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <h5 className="text-xs font-bold text-amber-900 uppercase">Reset document section</h5>
+                                    <p className="text-[10px] text-amber-700 mt-1 leading-relaxed">
+                                        Clears old document links and occupant details from this tenant record only.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={resetDocumentSection}
+                                    className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold transition"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Documents List */}
                     <div className="space-y-6">

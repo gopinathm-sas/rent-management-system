@@ -10,6 +10,7 @@ import {
     getMonthKey,
     getPrevYearMonth
 } from '../lib/utils';
+import { getClearedDocumentUploadFields, hasTenantIdentityChanged } from '../lib/tenantDocuments';
 
 export default function RoomDetailsModal({ room, tenant, onClose }) {
     if (!room) return null;
@@ -115,10 +116,22 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                 payload.waterRate = '0.25'; // Default fallback
             }
 
+            const isNewTenantForRoom = status === 'Occupied' && (!tenant || tenant.status !== 'Occupied');
+            const tenantIdentityChanged = status === 'Occupied' && hasTenantIdentityChanged(tenant, payload);
+            const shouldResetDocumentUploadFields = isNewTenantForRoom || tenantIdentityChanged;
+            if (shouldResetDocumentUploadFields) {
+                Object.assign(payload, getClearedDocumentUploadFields());
+            }
+
             if (tenant?.id) {
                 // Update existing
                 await updateTenant(tenant.id, payload);
-                showToast("Tenant details updated successfully", "success");
+                showToast(
+                    shouldResetDocumentUploadFields
+                        ? "Tenant details updated and document section reset"
+                        : "Tenant details updated successfully",
+                    "success"
+                );
             } else {
                 // Create new tenant
                 if (!room.roomId) throw new Error("Room ID missing");
@@ -296,6 +309,7 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                 evictionNoticeDate: null,
                 evictionDate: null,
                 lastSettlement: settlementSnapshot,
+                ...getClearedDocumentUploadFields()
             };
 
             const sanitizedPayload = sanitizePayload(payload);
@@ -328,7 +342,8 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         try {
             await updateTenant(tenant.id, {
                 status: 'Vacant',
-                isEvictionConfirmed: false
+                isEvictionConfirmed: false,
+                ...getClearedDocumentUploadFields()
             });
             showToast("Room marked vacant", "success");
             onClose();

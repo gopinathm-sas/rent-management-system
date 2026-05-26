@@ -405,6 +405,11 @@ exports.scheduledAutoVacateEvictions = functions.pubsub
         paymentHistory: data.paymentHistory ?? {},
         paymentTotals: data.paymentTotals ?? {},
         waterReadings: data.waterReadings ?? {},
+        documents: data.documents ?? {},
+        bachelorDetails: data.bachelorDetails ?? [],
+        familyMembers: data.familyMembers ?? null,
+        tenantType: data.tenantType ?? null,
+        occupantCount: data.occupantCount ?? null,
         unRevisedRent: data.unRevisedRent ?? null,
         unRevisedRentCapturedAt: data.unRevisedRentCapturedAt ?? null
       };
@@ -430,6 +435,13 @@ exports.scheduledAutoVacateEvictions = functions.pubsub
         paymentHistory: {},
         paymentTotals: {},
         waterReadings: {},
+        documents: {},
+        uploadToken: null,
+        uploadTokenCreatedAt: null,
+        bachelorDetails: [],
+        familyMembers: '',
+        tenantType: null,
+        occupantCount: null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedBy: 'scheduled-auto-vacate'
       });

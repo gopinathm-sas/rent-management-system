@@ -3,6 +3,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Building, Shield } from 'lucide-react';
 
+function getLoginErrorMessage(error: unknown) {
+    const err = error as { code?: string; message?: string };
+    const code = err?.code || 'unknown';
+
+    if (code === 'auth/unauthorized-domain') {
+        return `Login failed: this local domain is not authorized in Firebase Auth.\n\nTry http://localhost:5173 instead of 127.0.0.1, or add the current host in Firebase Console > Authentication > Settings > Authorized domains.`;
+    }
+
+    if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        return 'Login popup was blocked or closed. Please try again; the app will use redirect login if the browser blocks popups.';
+    }
+
+    return `Login failed (${code}). ${err?.message || 'Please try again.'}`;
+}
+
 export default function Login() {
     const { loginWithGoogle, currentUser } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -15,7 +30,7 @@ export default function Login() {
             await loginWithGoogle();
         } catch (error) {
             console.error("Login failed:", error);
-            alert("Login failed. Please try again.");
+            alert(getLoginErrorMessage(error));
             setLoading(false);
         }
     };
