@@ -3,5 +3,21 @@
     "default": "munirathnam-illam",
     "live": "munirathnam-illam",
     "test": "munirathnam-illam-test"
+  },
+  "targets": {
+    "munirathnam-illam": {
+      "hosting": {
+        "app": [
+          "munirathnam-illam"
+        ]
+      }
+    },
+    "munirathnam-illam-test": {
+      "hosting": {
+        "app": [
+          "munirathnam-illam-test"
+        ]
+      }
+    }
   }
 }
