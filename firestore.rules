@@ -73,6 +73,11 @@ service cloud.firestore {
       allow read, write: if isAdminUser();
     }
 
+    // Personal budgeting stats
+    match /budgetStats/{docId} {
+      allow read, write: if isAdminUser();
+    }
+
     // Main app data
     match /properties/{propertyId} {
       allow read: if isStaffOrViewer();

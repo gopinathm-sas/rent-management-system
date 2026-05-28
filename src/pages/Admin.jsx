@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
-import { findTenantForRoom, isOccupiedRecord } from '../lib/utils';
+import { findTenantForRoom, isOccupiedRecord, computeFinancialsForMonth } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText, ChevronLeft, ChevronRight, Plus, Sparkles, Clipboard } from 'lucide-react';
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
 import RoomCard from '../components/RoomCard'; // Reusing RoomCard for consistent layout
 import { getClearedDocumentUploadFields, hasActiveDocumentUploadData } from '../lib/tenantDocuments';
+import { analyzeBudgetSpreadsheet } from '../services/gemini';
 
 export default function Admin() {
     const { rooms, tenants, loading } = useData();
     const { showToast } = useUI();
     const [selectedRoom, setSelectedRoom] = useState(null);
+    const [activeTab, setActiveTab] = useState('rooms'); // 'rooms' or 'stats'
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading admin panel...</div>;
 
@@ -30,51 +32,989 @@ export default function Admin() {
 
     return (
         <div className="space-y-8 pb-12">
-            <h2 className="text-3xl font-extrabold text-slate-900">Admin</h2>
-
-            {/* Room Layout Grid */}
-            <div className="space-y-8 bg-stone-50/50 p-6 rounded-3xl border border-stone-100">
-                {floors.map((floor) => (
-                    <div key={floor.name} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-1 flex items-center">
-                            <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">{floor.name}</span>
-                        </div>
-                        <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            {floor.rooms.map(roomNo => {
-                                const room = rooms[roomNo];
-                                const tenant = findTenantForRoom(tenants, room?.roomId);
-                                return (
-                                    <RoomCard
-                                        key={roomNo}
-                                        roomNo={roomNo}
-                                        roomData={room}
-                                        tenantData={tenant}
-                                        rentStatus={null}
-                                        isPlaceholder={!room}
-                                        onClick={() => handleRoomClick(room, tenant)}
-                                        showStatus={false} // Don't show rent status tags
-                                    />
-                                )
-                            })}
-                            {/* Fillers for alignment */}
-                            {Array.from({ length: 3 - floor.rooms.length }).map((_, i) => (
-                                <RoomCard key={`placeholder-${i}`} isPlaceholder={true} />
-                            ))}
-                        </div>
-                    </div>
-                ))}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <h2 className="text-3xl font-extrabold text-slate-900">Admin</h2>
+                <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl self-start sm:self-auto">
+                    <button
+                        onClick={() => setActiveTab('rooms')}
+                        className={`px-5 py-2.5 font-bold text-sm rounded-xl transition-all ${
+                            activeTab === 'rooms'
+                                ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-100'
+                                : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        Rooms
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('stats')}
+                        className={`px-5 py-2.5 font-bold text-sm rounded-xl transition-all ${
+                            activeTab === 'stats'
+                                ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-100'
+                                : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        Stats (Budgeting)
+                    </button>
+                </div>
             </div>
 
-            {/* Simplified Admin Modal */}
-            {selectedRoom && (
-                <AdminRoomModal
-                    room={selectedRoom.room}
-                    tenant={findTenantForRoom(tenants, selectedRoom.room?.roomId)}
-                    onClose={() => setSelectedRoom(null)}
-                    showToast={showToast}
-                    updateTenant={useData().updateTenant}
+            {activeTab === 'rooms' ? (
+                <>
+                    {/* Room Layout Grid */}
+                    <div className="space-y-8 bg-stone-50/50 p-6 rounded-3xl border border-stone-100 animate-in fade-in duration-350">
+                        {floors.map((floor) => (
+                            <div key={floor.name} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="md:col-span-1 flex items-center">
+                                    <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">{floor.name}</span>
+                                </div>
+                                <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {floor.rooms.map(roomNo => {
+                                        const room = rooms[roomNo];
+                                        const tenant = findTenantForRoom(tenants, room?.roomId);
+                                        return (
+                                            <RoomCard
+                                                key={roomNo}
+                                                roomNo={roomNo}
+                                                roomData={room}
+                                                tenantData={tenant}
+                                                rentStatus={null}
+                                                isPlaceholder={!room}
+                                                onClick={() => handleRoomClick(room, tenant)}
+                                                showStatus={false} // Don't show rent status tags
+                                            />
+                                        )
+                                    })}
+                                    {/* Fillers for alignment */}
+                                    {Array.from({ length: 3 - floor.rooms.length }).map((_, i) => (
+                                        <RoomCard key={`placeholder-${i}`} isPlaceholder={true} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Simplified Admin Modal */}
+                    {selectedRoom && (
+                        <AdminRoomModal
+                            room={selectedRoom.room}
+                            tenant={findTenantForRoom(tenants, selectedRoom.room?.roomId)}
+                            onClose={() => setSelectedRoom(null)}
+                            showToast={showToast}
+                            updateTenant={useData().updateTenant}
+                        />
+                    )}
+                </>
+            ) : (
+                <div className="animate-in fade-in duration-350">
+                    <BudgetStatsTab tenants={tenants} rooms={rooms} showToast={showToast} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Stats / Personal Budgeting Helper Components
+// Stats / Personal Budgeting Helper Components
+const TableHeader = ({ title }) => (
+    <>
+        <colgroup>
+            <col className="w-[58%]" />
+            <col className="w-[42%]" />
+        </colgroup>
+        <thead className="bg-blue-600 text-white font-extrabold text-xs select-none">
+            <tr>
+                <th className="p-2 text-left tracking-wide rounded-tl-xl">{title}</th>
+                <th className="p-2 text-right tracking-wide rounded-tr-xl">Amount (₹)</th>
+            </tr>
+        </thead>
+    </>
+);
+
+const SpreadsheetRow = ({ label, value, onChange, isFormula = false }) => (
+    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+        <td className="p-1.5 text-slate-700 font-bold text-xs select-none pl-3 truncate">{label}</td>
+        <td className="p-0.5 text-right">
+            {isFormula ? (
+                <span className="font-mono font-bold text-xs text-slate-800 pr-3 block">
+                    {Number(value || 0).toLocaleString('en-IN')}
+                </span>
+            ) : (
+                <input
+                    type="number"
+                    value={value === 0 ? '' : value}
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    className="w-full bg-transparent font-mono text-right pr-3 font-bold text-xs text-slate-800 focus:outline-none focus:bg-blue-50/50 focus:ring-1 focus:ring-blue-400 rounded py-1 transition-all"
+                    placeholder="0"
                 />
             )}
+        </td>
+    </tr>
+);
+
+const EditableSpreadsheetRow = ({ label, onLabelChange, value, onValueChange, onDelete, isFormula = false }) => (
+    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+        <td className="p-0.5 text-left flex items-center gap-1">
+            {onDelete && (
+                <button
+                    onClick={onDelete}
+                    className="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded transition-all shrink-0"
+                    title="Delete Row"
+                >
+                    <Trash2 size={12} />
+                </button>
+            )}
+            {onLabelChange ? (
+                <input
+                    type="text"
+                    value={label}
+                    onChange={(e) => onLabelChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    className="w-full bg-transparent font-bold text-xs text-slate-700 focus:outline-none focus:bg-blue-50/50 focus:ring-1 focus:ring-blue-400 rounded py-1 px-1.5 transition-all"
+                    placeholder="Enter description"
+                />
+            ) : (
+                <span className="p-1.5 font-bold text-xs text-slate-700 select-none pl-2 truncate">{label}</span>
+            )}
+        </td>
+        <td className="p-0.5 text-right">
+            {isFormula ? (
+                <span className="font-mono font-bold text-xs text-slate-800 pr-3 block">
+                    {Number(value || 0).toLocaleString('en-IN')}
+                </span>
+            ) : (
+                <input
+                    type="number"
+                    value={value === 0 ? '' : value}
+                    onChange={(e) => onValueChange(Number(e.target.value))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    className="w-full bg-transparent font-mono text-right pr-3 font-bold text-xs text-slate-800 focus:outline-none focus:bg-blue-50/50 focus:ring-1 focus:ring-blue-400 rounded py-1 transition-all"
+                    placeholder="0"
+                />
+            )}
+        </td>
+    </tr>
+);
+
+const AddRowButton = ({ onClick }) => (
+    <tr>
+        <td colSpan="2" className="p-0">
+            <button
+                onClick={onClick}
+                className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition border-t border-slate-100 select-none"
+            >
+                <Plus size={14} /> Add Row
+            </button>
+        </td>
+    </tr>
+);
+
+function BudgetStatsTab({ tenants, rooms, showToast }) {
+    const MONTHS_ARRAY = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const currentMonthIndex = new Date().getMonth();
+
+    const [year, setYear] = useState(currentYear);
+    const [monthIndex, setMonthIndex] = useState(currentMonthIndex);
+    const [loadingData, setLoadingData] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [showImportMenu, setShowImportMenu] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const monthKey = `${year}-${MONTHS_ARRAY[monthIndex]}`;
+
+    const createId = () => Math.random().toString(36).substring(2, 9);
+
+    const getDefaultOtherCredits = () => [
+        { id: createId(), label: "1 RK Advance", value: 0 }
+    ];
+
+    const getDefaultDebits = () => [
+        { id: createId(), label: "Housing Loan", value: 0 },
+        { id: createId(), label: "Fullerton PL", value: 0 },
+        { id: createId(), label: "Amma's PL", value: 0 },
+        { id: createId(), label: "MF's", value: 0 },
+        { id: createId(), label: "PPF", value: 0 },
+        { id: createId(), label: "10 L", value: 0 },
+        { id: createId(), label: "Other", value: 0 },
+        { id: createId(), label: "Gold SIP", value: 0 },
+        { id: createId(), label: "SizeU Payback", value: 0 },
+        { id: createId(), label: "Ramya's Payback", value: 0 }
+    ];
+
+    const getDefaultCcBills = () => [
+        { id: createId(), label: "HDFC Credit Card", value: 0 },
+        { id: createId(), label: "HDFC UPI", value: 0 },
+        { id: createId(), label: "IDFC 54", value: 0 },
+        { id: createId(), label: "IDFC 97", value: 0 },
+        { id: createId(), label: "Axis ACE", value: 0 },
+        { id: createId(), label: "Indus Ind", value: 0 },
+        { id: createId(), label: "Indus Ind Legend", value: 0 },
+        { id: createId(), label: "Kotak 59", value: 0 },
+        { id: createId(), label: "Kotak 74", value: 0 },
+        { id: createId(), label: "Jupiter", value: 0 },
+        { id: createId(), label: "Axis RuPay 6700", value: 0 },
+        { id: createId(), label: "ICICI", value: 0 },
+        { id: createId(), label: "Axis Neo", value: 0 }
+    ];
+
+    const getDefaultOtherDebits = () => [
+        { id: createId(), label: "Vanitha Pay", value: 0 }
+    ];
+
+    const [credits, setCredits] = useState({
+        rents: 0,
+        waterGarbage: 0,
+        freelance: 0,
+        sal: 0,
+        othersCredits: 0
+    });
+
+    const [otherCredits, setOtherCredits] = useState([]);
+    const [debits, setDebits] = useState([]);
+    const [ccBills, setCcBills] = useState([]);
+    const [otherDebits, setOtherDebits] = useState([]);
+
+    const autoFinancials = computeFinancialsForMonth(tenants, rooms, year, monthIndex);
+    const autoRents = autoFinancials.rent;
+    const autoWater = autoFinancials.water;
+
+    useEffect(() => {
+        const fetchBudgetData = async () => {
+            setLoadingData(true);
+            try {
+                const docRef = doc(db, 'budgetStats', monthKey);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setCredits(prev => ({ ...prev, ...data.credits }));
+
+                    if (Array.isArray(data.otherCreditsNew)) {
+                        setOtherCredits(data.otherCreditsNew);
+                    } else if (data.otherCreditLabel !== undefined) {
+                        setOtherCredits([{ id: createId(), label: data.otherCreditLabel, value: data.otherCreditVal || 0 }]);
+                    } else if (data.otherCredits?.oneRkAdvance !== undefined) {
+                        setOtherCredits([{ id: createId(), label: "1 RK Advance", value: data.otherCredits.oneRkAdvance }]);
+                    } else {
+                        setOtherCredits(getDefaultOtherCredits());
+                    }
+
+                    if (Array.isArray(data.debitsNew)) {
+                        setDebits(data.debitsNew);
+                    } else if (data.debits) {
+                        const cleanDebits = [];
+                        Object.entries(data.debits)
+                            .filter(([k]) => k !== 'creditCardBills' && k !== 'other')
+                            .forEach(([k, v]) => {
+                                cleanDebits.push({
+                                    id: createId(),
+                                    label: k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                                    value: Number(v) || 0
+                                });
+                            });
+                        cleanDebits.push({
+                            id: createId(),
+                            label: data.debitOtherLabel || "Other",
+                            value: data.debitOtherVal !== undefined ? data.debitOtherVal : (Number(data.debits.other) || 0)
+                        });
+                        setDebits(cleanDebits);
+                    } else {
+                        setDebits(getDefaultDebits());
+                    }
+
+                    if (Array.isArray(data.ccBillsNew)) {
+                        setCcBills(data.ccBillsNew);
+                    } else if (data.ccBills) {
+                        const cleanCc = Object.entries(data.ccBills).map(([k, v]) => ({
+                            id: createId(),
+                            label: k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                            value: Number(v) || 0
+                        }));
+                        setCcBills(cleanCc);
+                    } else {
+                        setCcBills(getDefaultCcBills());
+                    }
+
+                    if (Array.isArray(data.otherDebitsNew)) {
+                        setOtherDebits(data.otherDebitsNew);
+                    } else if (data.otherDebitLabel !== undefined) {
+                        setOtherDebits([{ id: createId(), label: data.otherDebitLabel, value: data.otherDebitVal || 0 }]);
+                    } else if (data.otherDebits?.vanithaPay !== undefined) {
+                        setOtherDebits([{ id: createId(), label: "Vanitha Pay", value: data.otherDebits.vanithaPay }]);
+                    } else {
+                        setOtherDebits(getDefaultOtherDebits());
+                    }
+                } else {
+                    setCredits({
+                        rents: autoRents,
+                        waterGarbage: autoWater,
+                        freelance: 0,
+                        sal: 0,
+                        othersCredits: 0
+                    });
+                    setOtherCredits(getDefaultOtherCredits());
+                    setDebits(getDefaultDebits());
+                    setCcBills(getDefaultCcBills());
+                    setOtherDebits(getDefaultOtherDebits());
+                }
+                setIsDirty(false);
+            } catch (err) {
+                console.error("Error loading budget data:", err);
+                showToast("Failed to load budget data", "error");
+            } finally {
+                setLoadingData(false);
+            }
+        };
+
+        fetchBudgetData();
+    }, [monthKey, tenants, rooms]);
+
+    useEffect(() => {
+        const handlePaste = async (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    if (!file) continue;
+
+                    setIsScanning(true);
+                    try {
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                            try {
+                                const base64Data = reader.result.split(',')[1];
+                                const result = await analyzeBudgetSpreadsheet(base64Data, file.type);
+                                if (result) {
+                                    if (result.credits) {
+                                        setCredits(prev => ({ ...prev, ...result.credits }));
+                                    }
+                                    if (Array.isArray(result.otherCreditsNew)) {
+                                        setOtherCredits(result.otherCreditsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.debitsNew)) {
+                                        setDebits(result.debitsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.ccBillsNew)) {
+                                        setCcBills(result.ccBillsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.otherDebitsNew)) {
+                                        setOtherDebits(result.otherDebitsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+
+                                    setIsDirty(true);
+                                    showToast("Clipboard screenshot scanned and populated!", "success");
+                                } else {
+                                    showToast("Failed to parse data from pasted image", "error");
+                                }
+                            } catch (err) {
+                                console.error(err);
+                                showToast("Failed to parse pasted image: " + err.message, "error");
+                            } finally {
+                                setIsScanning(false);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    } catch (err) {
+                        console.error(err);
+                        setIsScanning(false);
+                    }
+                    break;
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => {
+            window.removeEventListener('paste', handlePaste);
+        };
+    }, [tenants, rooms, monthKey]);
+
+    const handlePasteFromClipboard = async () => {
+        try {
+            const clipboardItems = await navigator.clipboard.read();
+            for (const item of clipboardItems) {
+                for (const type of item.types) {
+                    if (type.startsWith('image/')) {
+                        const blob = await item.getType(type);
+                        setIsScanning(true);
+
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                            try {
+                                const base64Data = reader.result.split(',')[1];
+                                const result = await analyzeBudgetSpreadsheet(base64Data, type);
+                                if (result) {
+                                    if (result.credits) {
+                                        setCredits(prev => ({ ...prev, ...result.credits }));
+                                    }
+                                    if (Array.isArray(result.otherCreditsNew)) {
+                                        setOtherCredits(result.otherCreditsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.debitsNew)) {
+                                        setDebits(result.debitsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.ccBillsNew)) {
+                                        setCcBills(result.ccBillsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+                                    if (Array.isArray(result.otherDebitsNew)) {
+                                        setOtherDebits(result.otherDebitsNew.map(item => ({ ...item, id: createId() })));
+                                    }
+
+                                    setIsDirty(true);
+                                    showToast("Clipboard screenshot scanned and populated!", "success");
+                                } else {
+                                    showToast("Failed to parse data from clipboard image", "error");
+                                }
+                            } catch (err) {
+                                console.error(err);
+                                showToast("Failed to parse clipboard image: " + err.message, "error");
+                            } finally {
+                                setIsScanning(false);
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+            }
+            showToast("No image found in clipboard. Copy a screenshot first!", "warning");
+        } catch (err) {
+            console.error("Clipboard read failed", err);
+            showToast("Clipboard access denied. Try using Cmd+V / Ctrl+V to paste directly.", "warning");
+        }
+    };
+
+    const addRow = (setter) => {
+        setter(prev => [...prev, { id: createId(), label: "", value: 0 }]);
+        setIsDirty(true);
+    };
+
+    const deleteRow = (setter, id) => {
+        setter(prev => prev.filter(item => item.id !== id));
+        setIsDirty(true);
+    };
+
+    const updateRowField = (setter, id, field, val) => {
+        setter(prev => prev.map(item => item.id === id ? { ...item, [field]: val } : item));
+        setIsDirty(true);
+    };
+
+    const totalCcBills = ccBills.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+    const totalOtherDebits = otherDebits.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+    const totalOtherCredits = otherCredits.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+
+    const totalCredits = 
+        (Number(credits.rents) || 0) +
+        (Number(credits.waterGarbage) || 0) +
+        (Number(credits.freelance) || 0) +
+        (Number(credits.sal) || 0) +
+        totalOtherCredits;
+
+    const totalDebits = 
+        debits.reduce((sum, item) => sum + (Number(item.value) || 0), 0) + 
+        totalCcBills + 
+        totalOtherDebits;
+
+    const currentMonthBalance = totalCredits - totalDebits;
+    const netBalance = totalCredits - totalDebits;
+    const netBalanceWithoutCc = totalCredits - (totalDebits - totalCcBills);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const docRef = doc(db, 'budgetStats', monthKey);
+            await setDoc(docRef, {
+                monthKey,
+                credits,
+                otherCreditsNew: otherCredits,
+                debitsNew: debits,
+                ccBillsNew: ccBills,
+                otherDebitsNew: otherDebits
+            }, { merge: true });
+            setIsDirty(false);
+            showToast("Budget saved successfully", "success");
+        } catch (err) {
+            console.error("Error saving budget:", err);
+            showToast("Failed to save budget settings", "error");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handlePrevMonth = () => {
+        if (monthIndex === 0) {
+            setMonthIndex(11);
+            setYear(year - 1);
+        } else {
+            setMonthIndex(monthIndex - 1);
+        }
+    };
+
+    const handleNextMonth = () => {
+        if (monthIndex === 11) {
+            setMonthIndex(0);
+            setYear(year + 1);
+        } else {
+            setMonthIndex(monthIndex + 1);
+        }
+    };
+
+    const updateCreditField = (field, value) => {
+        setCredits(prev => ({ ...prev, [field]: value }));
+        setIsDirty(true);
+    };
+
+    const handleCopyFromPrevMonth = async () => {
+        let prevMonthIndex = monthIndex - 1;
+        let prevYear = year;
+        if (prevMonthIndex < 0) {
+            prevMonthIndex = 11;
+            prevYear = year - 1;
+        }
+        const prevMonthKey = `${prevYear}-${MONTHS_ARRAY[prevMonthIndex]}`;
+
+        try {
+            const docRef = doc(db, 'budgetStats', prevMonthKey);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                
+                // Copy freelance, sal, othersCredits but keep current month's auto rents and water
+                setCredits(prev => ({
+                    ...prev,
+                    freelance: data.credits?.freelance || 0,
+                    sal: data.credits?.sal || 0,
+                    othersCredits: data.credits?.othersCredits || 0
+                }));
+
+                // Copy arrays mapping with new unique IDs to prevent React key collision
+                if (Array.isArray(data.otherCreditsNew)) {
+                    setOtherCredits(data.otherCreditsNew.map(item => ({ ...item, id: createId() })));
+                } else if (data.otherCreditLabel !== undefined) {
+                    setOtherCredits([{ id: createId(), label: data.otherCreditLabel, value: data.otherCreditVal || 0 }]);
+                }
+                
+                if (Array.isArray(data.debitsNew)) {
+                    setDebits(data.debitsNew.map(item => ({ ...item, id: createId() })));
+                } else if (data.debits) {
+                    const cleanDebits = [];
+                    Object.entries(data.debits)
+                        .filter(([k]) => k !== 'creditCardBills' && k !== 'other')
+                        .forEach(([k, v]) => {
+                            cleanDebits.push({
+                                id: createId(),
+                                label: k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                                value: Number(v) || 0
+                            });
+                        });
+                    cleanDebits.push({
+                        id: createId(),
+                        label: data.debitOtherLabel || "Other",
+                        value: data.debitOtherVal !== undefined ? data.debitOtherVal : (Number(data.debits.other) || 0)
+                    });
+                    setDebits(cleanDebits);
+                }
+                
+                if (Array.isArray(data.ccBillsNew)) {
+                    setCcBills(data.ccBillsNew.map(item => ({ ...item, id: createId() })));
+                } else if (data.ccBills) {
+                    const cleanCc = Object.entries(data.ccBills).map(([k, v]) => ({
+                        id: createId(),
+                        label: k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                        value: Number(v) || 0
+                    }));
+                    setCcBills(cleanCc);
+                }
+                
+                if (Array.isArray(data.otherDebitsNew)) {
+                    setOtherDebits(data.otherDebitsNew.map(item => ({ ...item, id: createId() })));
+                } else if (data.otherDebitLabel !== undefined) {
+                    setOtherDebits([{ id: createId(), label: data.otherDebitLabel, value: data.otherDebitVal || 0 }]);
+                }
+
+                setIsDirty(true);
+                showToast(`Carried forward values from ${MONTHS_ARRAY[prevMonthIndex]} - ${prevYear}`, "success");
+            } else {
+                showToast(`No budget data found for ${MONTHS_ARRAY[prevMonthIndex]} - ${prevYear} to copy`, "warning");
+            }
+        } catch (err) {
+            console.error("Error copying from prev month:", err);
+            showToast("Failed to copy previous month's data", "error");
+        }
+    };
+
+    const handleClearData = () => {
+        if (window.confirm("Are you sure you want to clear all data for this month? This will reset all credits, debits, and CC bills to zero/empty list. Rents and Water bills will fall back to their auto-computed values.")) {
+            setCredits({
+                rents: autoRents,
+                waterGarbage: autoWater,
+                freelance: 0,
+                sal: 0,
+                othersCredits: 0
+            });
+            setOtherCredits(getDefaultOtherCredits());
+            setDebits(getDefaultDebits());
+            setCcBills(getDefaultCcBills());
+            setOtherDebits(getDefaultOtherDebits());
+            setIsDirty(true);
+            showToast("Sheet data cleared. Remember to Save changes.", "info");
+        }
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                try {
+                    const base64Data = reader.result.split(',')[1];
+                    const result = await analyzeBudgetSpreadsheet(base64Data, file.type);
+                    if (result) {
+                        if (result.credits) {
+                            setCredits(prev => ({
+                                ...prev,
+                                ...result.credits
+                            }));
+                        }
+                        if (Array.isArray(result.otherCreditsNew)) {
+                            setOtherCredits(result.otherCreditsNew.map(item => ({ ...item, id: createId() })));
+                        }
+                        if (Array.isArray(result.debitsNew)) {
+                            setDebits(result.debitsNew.map(item => ({ ...item, id: createId() })));
+                        }
+                        if (Array.isArray(result.ccBillsNew)) {
+                            setCcBills(result.ccBillsNew.map(item => ({ ...item, id: createId() })));
+                        }
+                        if (Array.isArray(result.otherDebitsNew)) {
+                            setOtherDebits(result.otherDebitsNew.map(item => ({ ...item, id: createId() })));
+                        }
+
+                        setIsDirty(true);
+                        showToast("Spreadsheet scanned and populated!", "success");
+                    } else {
+                        showToast("Failed to parse data from image", "error");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Failed to parse image: " + err.message, "error");
+                } finally {
+                    setIsScanning(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to read file", "error");
+            setIsScanning(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    if (loadingData || isScanning) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                <p className="text-slate-400 font-bold text-sm">
+                    {isScanning ? "Scanning spreadsheet with AI..." : "Loading budget stats..."}
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Header Navigation Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-slate-150 p-4 rounded-3xl shadow-sm">
+                <div className="flex items-center gap-3 select-none">
+                    <select
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                        className="bg-white border border-slate-200 text-slate-800 font-extrabold text-xs sm:text-sm rounded-xl py-2 px-2.5 sm:px-3 focus:outline-none focus:ring-2 focus:ring-blue-550 cursor-pointer shadow-sm"
+                    >
+                        {Array.from({ length: 7 }, (_, i) => currentYear - 3 + i).map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={monthIndex}
+                        onChange={(e) => setMonthIndex(Number(e.target.value))}
+                        className="bg-white border border-slate-200 text-slate-800 font-extrabold text-xs sm:text-sm rounded-xl py-2 px-2.5 sm:px-3 focus:outline-none focus:ring-2 focus:ring-blue-550 cursor-pointer shadow-sm"
+                    >
+                        {MONTHS_ARRAY.map((m, idx) => (
+                            <option key={m} value={idx}>
+                                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][idx]}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {isDirty && (
+                        <span className="text-xs text-amber-600 font-bold bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100 animate-pulse font-sans">
+                            Unsaved Changes
+                        </span>
+                    )}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*"
+                        className="hidden"
+                    />
+                    <div 
+                        className="relative"
+                        onMouseEnter={() => setShowImportMenu(true)}
+                        onMouseLeave={() => setShowImportMenu(false)}
+                    >
+                        <button
+                            onClick={() => setShowImportMenu(!showImportMenu)}
+                            disabled={isScanning}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all active:scale-95 text-xs font-sans shadow-sm"
+                        >
+                            <Sparkles size={14} className={isScanning ? "animate-spin" : ""} />
+                            Import Excel
+                        </button>
+                        
+                        {showImportMenu && (
+                            <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2.5 space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-1 select-none">AI Screenshot Sync</p>
+                                
+                                <button
+                                    onClick={() => {
+                                        setShowImportMenu(false);
+                                        fileInputRef.current?.click();
+                                    }}
+                                    className="w-full flex items-center gap-3 p-2 hover:bg-indigo-50 hover:text-indigo-700 text-left text-xs font-bold text-slate-700 rounded-xl transition-all"
+                                >
+                                    <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg shrink-0">
+                                        <Sparkles size={14} />
+                                    </div>
+                                    <div>
+                                        <p className="font-extrabold text-slate-800 text-xs">Scan Screenshot</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Upload image from device</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setShowImportMenu(false);
+                                        handlePasteFromClipboard();
+                                    }}
+                                    className="w-full flex items-center gap-3 p-2 hover:bg-violet-50 hover:text-violet-700 text-left text-xs font-bold text-slate-700 rounded-xl transition-all"
+                                >
+                                    <div className="p-1.5 bg-violet-100 text-violet-600 rounded-lg shrink-0">
+                                        <Clipboard size={14} />
+                                    </div>
+                                    <div>
+                                        <p className="font-extrabold text-slate-800 text-xs">Paste Screenshot</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Read from clipboard</p>
+                                    </div>
+                                </button>
+
+                                <div className="border-t border-slate-100 my-1"></div>
+                                <button
+                                    onClick={() => {
+                                        setShowImportMenu(false);
+                                        handleClearData();
+                                    }}
+                                    className="w-full flex items-center gap-3 p-2 hover:bg-rose-50 hover:text-rose-700 text-left text-xs font-bold text-rose-600 rounded-xl transition-all"
+                                >
+                                    <div className="p-1.5 bg-rose-100 text-rose-600 rounded-lg shrink-0">
+                                        <Trash2 size={14} />
+                                    </div>
+                                    <div>
+                                        <p className="font-extrabold text-xs">Clear Sheet Data</p>
+                                        <p className="text-[10px] text-rose-450 font-medium">Reset all values to zero/default</p>
+                                    </div>
+                                </button>
+                                
+                                <div className="border-t border-slate-100 pt-2 pb-1 text-center select-none">
+                                    <p className="text-[9px] text-slate-400 font-bold">
+                                        Tip: Press <kbd className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-600">Cmd+V</kbd> anywhere to paste
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={handleCopyFromPrevMonth}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all active:scale-95 text-xs font-sans"
+                    >
+                        Copy From Prev Month
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold rounded-2xl transition-all active:scale-95 shadow-sm font-sans text-sm"
+                    >
+                        <Save size={18} />
+                        {isSaving ? "Saving..." : "Save Sheet"}
+                    </button>
+                </div>
+            </div>
+
+            {/* Grid Layout mimicking Excel Columns */}
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+                
+                {/* Column 1: Credits & Summary */}
+                <div className="space-y-6">
+                    <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                        <table className="w-full border-collapse">
+                            <TableHeader title="Credits" />
+                            <tbody>
+                                <SpreadsheetRow
+                                    label="Rent's"
+                                    value={credits.rents}
+                                    onChange={(val) => updateCreditField('rents', val)}
+                                />
+                                <SpreadsheetRow
+                                    label="Water & Garbage Bill"
+                                    value={credits.waterGarbage}
+                                    onChange={(val) => updateCreditField('waterGarbage', val)}
+                                />
+                                <SpreadsheetRow
+                                    label="Freelance"
+                                    value={credits.freelance}
+                                    onChange={(val) => updateCreditField('freelance', val)}
+                                />
+                                <SpreadsheetRow
+                                    label="Sal"
+                                    value={credits.sal}
+                                    onChange={(val) => updateCreditField('sal', val)}
+                                />
+                                <SpreadsheetRow
+                                    label="Others Credits"
+                                    value={totalOtherCredits}
+                                    isFormula={true}
+                                />
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Left Column Summary Cards */}
+                    <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-4">
+                        <h4 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider mb-2 select-none">Monthly Summary</h4>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center text-sm font-bold text-slate-600">
+                                <span className="select-none">Tot Credit</span>
+                                <span className="font-mono text-slate-800">₹{totalCredits.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm font-bold text-slate-600">
+                                <span className="select-none">Tot Debit</span>
+                                <span className="font-mono text-slate-800">₹{totalDebits.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="h-px bg-slate-200 my-2"></div>
+                            <div className="flex justify-between items-center text-sm font-black text-slate-800">
+                                <span className="select-none">Net Bal</span>
+                                <span className={`font-mono ${netBalance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                    ₹{netBalance.toLocaleString('en-IN')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 2: Other Credits */}
+                <div>
+                    <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                        <table className="w-full border-collapse">
+                            <TableHeader title="Other Credits" />
+                            <tbody>
+                                {otherCredits.map(item => (
+                                    <EditableSpreadsheetRow
+                                        key={item.id}
+                                        label={item.label}
+                                        onLabelChange={(val) => updateRowField(setOtherCredits, item.id, 'label', val)}
+                                        value={item.value}
+                                        onValueChange={(val) => updateRowField(setOtherCredits, item.id, 'value', val)}
+                                        onDelete={() => deleteRow(setOtherCredits, item.id)}
+                                    />
+                                ))}
+                                <AddRowButton onClick={() => addRow(setOtherCredits)} />
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Column 3: Debits */}
+                <div>
+                    <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                        <table className="w-full border-collapse">
+                            <TableHeader title="Debits" />
+                            <tbody>
+                                <SpreadsheetRow
+                                    label="Credit Card Bills"
+                                    value={totalCcBills}
+                                    isFormula={true}
+                                />
+                                {debits.map(item => (
+                                    <EditableSpreadsheetRow
+                                        key={item.id}
+                                        label={item.label}
+                                        onLabelChange={(val) => updateRowField(setDebits, item.id, 'label', val)}
+                                        value={item.value}
+                                        onValueChange={(val) => updateRowField(setDebits, item.id, 'value', val)}
+                                        onDelete={() => deleteRow(setDebits, item.id)}
+                                    />
+                                ))}
+                                <AddRowButton onClick={() => addRow(setDebits)} />
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Column 4: CC Bills & Other Debits */}
+                <div className="space-y-6">
+                    <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                        <table className="w-full border-collapse">
+                            <TableHeader title="CC Bills" />
+                            <tbody>
+                                {ccBills.map(item => (
+                                    <EditableSpreadsheetRow
+                                        key={item.id}
+                                        label={item.label}
+                                        onLabelChange={(val) => updateRowField(setCcBills, item.id, 'label', val)}
+                                        value={item.value}
+                                        onValueChange={(val) => updateRowField(setCcBills, item.id, 'value', val)}
+                                        onDelete={() => deleteRow(setCcBills, item.id)}
+                                    />
+                                ))}
+                                <AddRowButton onClick={() => addRow(setCcBills)} />
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                        <table className="w-full border-collapse">
+                            <TableHeader title="Other Debits" />
+                            <tbody>
+                                {otherDebits.map(item => (
+                                    <EditableSpreadsheetRow
+                                        key={item.id}
+                                        label={item.label}
+                                        onLabelChange={(val) => updateRowField(setOtherDebits, item.id, 'label', val)}
+                                        value={item.value}
+                                        onValueChange={(val) => updateRowField(setOtherDebits, item.id, 'value', val)}
+                                        onDelete={() => deleteRow(setOtherDebits, item.id)}
+                                    />
+                                ))}
+                                <AddRowButton onClick={() => addRow(setOtherDebits)} />
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
         </div>
     );
 }

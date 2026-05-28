@@ -130,3 +130,63 @@ export async function analyzeReceipt(base64Image, mimeType = "image/jpeg") {
         throw error;
     }
 }
+
+/**
+ * Analyze a budget spreadsheet screenshot to extract credit and debit lists.
+ * @param {string} base64Image - Base64 string of the image
+ * @param {string} mimeType - MIME type of the image
+ * @returns {Promise<{credits: object, otherCreditsNew: array, debitsNew: array, ccBillsNew: array, otherDebitsNew: array}>}
+ */
+export async function analyzeBudgetSpreadsheet(base64Image, mimeType = "image/jpeg") {
+    try {
+        if (!GEMINI_API_KEY) {
+            throw new Error("Gemini API Key is missing.");
+        }
+
+        const prompt = `
+        Analyze this spreadsheet image of a monthly budget. Extract all the categories, descriptions, and their corresponding amounts.
+        Please structure the response as a JSON object with these sections matching the table groups:
+        - credits: An object with keys "rents", "waterGarbage", "freelance", "sal", "othersCredits" (map these to the numbers extracted under the main "Credits" section).
+        - otherCreditsNew: An array of objects with fields "label" and "value" (for items in "Other Credits" section, e.g. "1 RK Advance" and its amount).
+        - debitsNew: An array of objects with fields "label" and "value" (for items in the "Debits" section. Note: do NOT include "Credit Card Bills" in debitsNew since it is a formula total).
+        - ccBillsNew: An array of objects with fields "label" and "value" (for items in "CC Bills" section like HDFC Credit Card, Axis ACE, IDFC, Indus Ind, etc.).
+        - otherDebitsNew: An array of objects with fields "label" and "value" (for items in "Other Debits" section like Vanitha Pay, etc.).
+
+        Guidelines:
+        1. Extract the values carefully, ignoring currency symbols (₹) and commas. Only parse numbers.
+        2. Make sure labels are human-readable (e.g. "Fullerton PL", "Vanitha Pay").
+        3. Return ONLY raw JSON, with no markdown code blocks or additional text.
+        `;
+
+        const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: mimeType, data: base64Image } }
+                    ]
+                }],
+                generationConfig: { temperature: 0.1 }
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Gemini API Error Body:", errorText);
+            throw new Error(`Gemini API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        // Remove potential markdown code blocks
+        const jsonStr = text.replace(/```json|```/g, "").trim();
+
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error("Budget spreadsheet analysis failed:", error);
+        throw error;
+    }
+}
