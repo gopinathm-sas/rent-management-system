@@ -322,6 +322,38 @@ export default function Dashboard() {
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot className="border-t-2 border-emerald-200 bg-emerald-50/80">
+                            <tr>
+                                <td className="px-5 py-4 text-xs font-bold text-emerald-800 uppercase tracking-wide">
+                                    Year Total
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                    <span className="text-sm font-bold text-emerald-700">
+                                        ₹{rows.reduce((s, r) => s + r.rent, 0).toLocaleString('en-IN')}
+                                    </span>
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                    <span className="text-sm font-bold text-rose-700">
+                                        ₹{rows.reduce((s, r) => s + r.expenses, 0).toLocaleString('en-IN')}
+                                    </span>
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                    <span className="text-sm font-bold text-blue-600">
+                                        ₹{rows.reduce((s, r) => s + r.water, 0).toLocaleString('en-IN')}
+                                    </span>
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                    <span className="text-sm font-bold text-amber-800">
+                                        ₹{rows.reduce((s, r) => s + r.pending, 0).toLocaleString('en-IN')}
+                                    </span>
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                    <span className="text-sm font-bold text-slate-800">
+                                        ₹{rows.reduce((s, r) => s + r.total, 0).toLocaleString('en-IN')}
+                                    </span>
+                                </td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
                 <div className="p-4 bg-emerald-50/50 text-[10px] text-slate-500 text-center border-t border-emerald-100">
