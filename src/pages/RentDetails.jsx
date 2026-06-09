@@ -119,6 +119,17 @@ export default function RentDetails() {
         }
     };
 
+    // Per-month totals: sum paymentTotals for every tenant whose status is 'Paid'
+    const monthlyTotals = MONTHS.map((_, idx) => {
+        const key = getMonthKey(year, idx);
+        return Object.values(tenants).reduce((sum, t) => {
+            if ((t.paymentHistory?.[key] === 'Paid') && Number.isFinite(Number(t.paymentTotals?.[key]))) {
+                return sum + Number(t.paymentTotals[key]);
+            }
+            return sum;
+        }, 0);
+    });
+
     return (
         <>
             <div className="space-y-6">
@@ -333,6 +344,26 @@ export default function RentDetails() {
                                     )
                                 })}
                             </tbody>
+                            <tfoot className="border-t-2 border-emerald-200 bg-emerald-50">
+                                <tr>
+                                    <td className="px-2 py-3 sticky left-0 bg-emerald-50 z-10" />
+                                    <td className="px-2 py-3" />
+                                    <td className="px-4 py-3 text-xs font-bold text-emerald-700 uppercase tracking-wide border-r border-slate-100">
+                                        Total Collected
+                                    </td>
+                                    {monthlyTotals.map((total, idx) => (
+                                        <td key={idx} className="px-1 py-3 text-center border-r border-slate-50">
+                                            {total > 0 ? (
+                                                <span className="text-sm font-bold text-emerald-800">
+                                                    ₹{total.toLocaleString('en-IN')}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs">—</span>
+                                            )}
+                                        </td>
+                                    ))}
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
