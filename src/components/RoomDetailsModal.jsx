@@ -814,6 +814,11 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
         }
     };
 
+    // Determine layout: bachelors store docs under bachelor_N_* keys
+    const isBachelors = tenant?.tenantType === 'Bachelors' || (tenant?.occupantCount && tenant.occupantCount > 1);
+    const occupantCount = tenant?.occupantCount || 1;
+    const bachelorDetails = tenant?.bachelorDetails || [];
+
     return (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
             <button
@@ -862,20 +867,38 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                         </p>
                     </div>
 
-                    {/* Documents List */}
+                    {/* Documents List — layout depends on tenant type */}
                     <div className="space-y-3">
-                        {/* Family Members Display */}
-                        {tenant.familyMembers && (
-                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4">
-                                <h4 className="text-xs font-bold text-amber-800 uppercase mb-1">Family Contacts</h4>
-                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{tenant.familyMembers}</p>
-                            </div>
+                        {isBachelors ? (
+                            // Bachelor / multi-occupant: docs stored under bachelor_N_* keys
+                            Array.from({ length: occupantCount }).map((_, i) => (
+                                <div key={i} className="border border-slate-100 rounded-xl overflow-hidden">
+                                    <div className="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        {bachelorDetails[i]?.name || `Occupant #${i + 1}`}
+                                    </div>
+                                    <div className="p-3 space-y-2">
+                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} />
+                                        <DocItem title="Aadhar Card" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
+                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
+                                        <DocItem title="Rental Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // Family layout — docs stored under photo/aadhar/pan/agreement keys
+                            <>
+                                {tenant.familyMembers && (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4">
+                                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-1">Family Contacts</h4>
+                                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{tenant.familyMembers}</p>
+                                    </div>
+                                )}
+                                <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
+                                <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
+                                <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
+                                <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+                            </>
                         )}
-
-                        <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
-                        <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
-                        <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
-                        <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
                     </div>
                 </div>
             )}
