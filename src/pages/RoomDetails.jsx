@@ -3,7 +3,7 @@ import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel, isMonthBeforeJoinDate, getEffectiveRent } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
 import RoomCard from '../components/RoomCard';
-import { Home, AlertTriangle, CheckCircle2, CircleDollarSign } from 'lucide-react';
+import { Home, AlertTriangle, CheckCircle2, IndianRupee } from 'lucide-react';
 import RoomDetailsModal from '../components/RoomDetailsModal';
 
 export default function RoomDetails() {
@@ -155,7 +155,7 @@ export default function RoomDetails() {
                         label="Projected Rent"
                         mainValue={`₹${projectedRent.toLocaleString('en-IN')}`}
                         subValue={`Month of ${formatMonthLabel(nextYear, nextMonthIndex)}`}
-                        icon={CircleDollarSign}
+                        icon={IndianRupee}
                         bgClass="bg-stone-50 border border-stone-100"
                         iconClass="bg-indigo-100 text-indigo-700"
                     />
