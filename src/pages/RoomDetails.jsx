@@ -1,6 +1,6 @@
 import React from 'react';
 import { useData } from '../contexts/DataContext';
-import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel, isMonthBeforeJoinDate } from '../lib/utils';
+import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel, isMonthBeforeJoinDate, getEffectiveRent } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
 import RoomCard from '../components/RoomCard';
 import { Home, AlertTriangle, CheckCircle2, CircleDollarSign } from 'lucide-react';
@@ -90,12 +90,34 @@ export default function RoomDetails() {
         }
     });
 
+    // Projected Rent calculation (Visible from 20th onwards)
+    const currentDay = new Date().getDate();
+    const showProjectedRent = currentDay >= 20;
+
+    let nextMonthIndex = currentMonth + 1;
+    let nextYear = currentYear;
+    if (nextMonthIndex > 11) {
+        nextMonthIndex = 0;
+        nextYear = currentYear + 1;
+    }
+
+    let projectedRent = 0;
+    if (showProjectedRent) {
+        Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+            const room = rooms[roomNo] || IMMUTABLE_ROOMS_DATA[roomNo];
+            const tenant = findTenantForRoom(tenants, room.roomId);
+            if (tenant && tenant.status === 'Occupied') {
+                projectedRent += getEffectiveRent(tenant, nextYear, nextMonthIndex);
+            }
+        });
+    }
+
     return (
         <div className="space-y-8 pb-12">
             <h2 className="text-3xl font-extrabold text-slate-900">Room Details</h2>
 
             {/* Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${showProjectedRent ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4'} gap-6`}>
                 <MetricCard
                     label="Occupied Rooms"
                     mainValue={occupiedCount}
@@ -128,6 +150,16 @@ export default function RoomDetails() {
                     bgClass="bg-stone-50 border border-stone-100"
                     iconClass="bg-amber-100 text-amber-600"
                 />
+                {showProjectedRent && (
+                    <MetricCard
+                        label="Projected Rent"
+                        mainValue={`₹${projectedRent.toLocaleString('en-IN')}`}
+                        subValue={`Month of ${formatMonthLabel(nextYear, nextMonthIndex)}`}
+                        icon={CircleDollarSign}
+                        bgClass="bg-stone-50 border border-stone-100"
+                        iconClass="bg-indigo-100 text-indigo-700"
+                    />
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
