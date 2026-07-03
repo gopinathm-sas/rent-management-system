@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord, computeFinancialsForMonth } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText, ChevronLeft, ChevronRight, Plus, Sparkles, Clipboard } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText, ChevronLeft, ChevronRight, Plus, Sparkles, Clipboard, Upload, Loader2 } from 'lucide-react';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
 import RoomCard from '../components/RoomCard'; // Reusing RoomCard for consistent layout
 import { getClearedDocumentUploadFields, hasActiveDocumentUploadData } from '../lib/tenantDocuments';
 import { analyzeBudgetSpreadsheet } from '../services/gemini';
+import { uploadToCloudinary } from '../services/cloudinary';
 
 export default function Admin() {
     const { rooms, tenants, loading } = useData();
@@ -1151,11 +1153,41 @@ function AdminRoomModal({ room, tenant, onClose, showToast, updateTenant }) {
 }
 
 function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCount }) {
+    const { currentUser } = useAuth();
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeOccupant, setActiveOccupant] = useState(0);
+    const [uploading, setUploading] = useState({});
     const documents = tenant?.documents || {};
     const bachelorDetails = tenant?.bachelorDetails || [];
     const hasDocumentUploadData = hasActiveDocumentUploadData(tenant);
+
+    const handleUpload = async (file, type) => {
+        if (!file || !tenant) return;
+        if (file.size > 10 * 1024 * 1024) {
+            showToast("File is too large. Max 10MB.", "error");
+            return;
+        }
+
+        setUploading(prev => ({ ...prev, [type]: true }));
+
+        try {
+            const url = await uploadToCloudinary(file);
+            const newDocs = { ...documents, [type]: url };
+
+            await updateTenant(tenant.id, {
+                documents: newDocs,
+                [`meta_${type}_uploadedBy`]: currentUser?.email || 'Admin',
+                [`meta_${type}_uploadedAt`]: new Date().toISOString()
+            });
+
+            showToast("Document uploaded successfully", "success");
+        } catch (error) {
+            console.error("Upload Error Details:", error);
+            showToast(`Upload failed: ${error.message}`, "error");
+        } finally {
+            setUploading(prev => ({ ...prev, [type]: false }));
+        }
+    };
 
     const generateLink = async () => {
         const token = crypto.randomUUID();
@@ -1334,10 +1366,10 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
 
                                                     {/* Docs */}
                                                     <div className="space-y-2">
-                                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} />
-                                                        <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
-                                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
-                                                        <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
+                                                        <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_photo`)} isUploading={uploading[`bachelor_${i}_photo`]} />
+                                                        <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_aadhar`)} isUploading={uploading[`bachelor_${i}_aadhar`]} />
+                                                        <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_pan`)} isUploading={uploading[`bachelor_${i}_pan`]} />
+                                                        <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_agreement`)} isUploading={uploading[`bachelor_${i}_agreement`]} />
                                                     </div>
                                                 </div>
                                             )}
@@ -1354,10 +1386,10 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                         <p className="text-sm text-slate-700 whitespace-pre-wrap">{tenant.familyMembers}</p>
                                     </div>
                                 )}
-                                <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} />
-                                <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
-                                <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
-                                <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+                                <DocItem title="Tenant Photo" docUrl={documents.photo} onDelete={() => deleteDoc('photo')} onUpload={(file) => handleUpload(file, 'photo')} isUploading={uploading.photo} />
+                                <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} onUpload={(file) => handleUpload(file, 'aadhar')} isUploading={uploading.aadhar} />
+                                <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} onUpload={(file) => handleUpload(file, 'pan')} isUploading={uploading.pan} />
+                                <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} onUpload={(file) => handleUpload(file, 'agreement')} isUploading={uploading.agreement} />
                             </div>
                         )}
                     </div>
@@ -1367,53 +1399,81 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
     );
 }
 
-function DocItem({ title, docUrl, onDelete }) {
+  function DocItem({ title, docUrl, onDelete, onUpload, isUploading }) {
     const isPdf = docUrl?.toLowerCase().includes('.pdf');
-    // If no docUrl, show typical pending state. If docUrl, check type.
 
     return (
         <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition group">
-            <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${docUrl ? (isPdf ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600') : 'bg-slate-100 text-slate-400'}`}>
-                    {docUrl ? (isPdf ? <FileText size={16} /> : <Check size={16} />) : <User size={16} />}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className={`p-2 rounded-lg shrink-0 ${docUrl ? (isPdf ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600') : 'bg-slate-100 text-slate-400'}`}>
+                    {isUploading ? (
+                        <Loader2 className="animate-spin" size={16} />
+                    ) : docUrl ? (
+                        isPdf ? <FileText size={16} /> : <Check size={16} />
+                    ) : (
+                        <User size={16} />
+                    )}
                 </div>
-                <div>
-                    <div className="font-bold text-xs text-slate-700">{title}</div>
+                <div className="min-w-0 flex-1">
+                    <div className="font-bold text-xs text-slate-700 truncate">{title}</div>
                     <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                        {docUrl ? (
+                        {isUploading ? (
+                            <span>Uploading...</span>
+                        ) : docUrl ? (
                             <>
                                 <span>Uploaded</span>
                                 <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                                 <span className="uppercase">{isPdf ? 'PDF' : 'IMG'}</span>
                             </>
-                        ) : 'Pending'}
+                        ) : (
+                            'Pending'
+                        )}
                     </div>
                 </div>
             </div>
-            {docUrl && (
-                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <a
-                        href={docUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition"
-                        title="View Document"
-                    >
-                        <ExternalLink size={16} />
-                    </a>
-                    <button
-                        onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this document?")) {
-                                onDelete();
-                            }
-                        }}
-                        className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition"
-                        title="Delete Document"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                </div>
-            )}
+            
+            <div className="flex items-center gap-1.5">
+                {/* Upload Button */}
+                {!isUploading && onUpload && (
+                    <label className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-55 transition cursor-pointer shrink-0" title={docUrl ? "Replace Document" : "Upload Document"}>
+                        <Upload size={16} />
+                        <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) onUpload(file);
+                            }}
+                        />
+                    </label>
+                )}
+
+                {docUrl && !isUploading && (
+                    <div className="flex gap-1">
+                        <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition shrink-0"
+                            title="View Document"
+                        >
+                            <ExternalLink size={16} />
+                        </a>
+                        <button
+                            onClick={() => {
+                                if (window.confirm("Are you sure you want to delete this document?")) {
+                                    onDelete();
+                                }
+                            }}
+                            className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg transition shrink-0"
+                            title="Delete Document"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
