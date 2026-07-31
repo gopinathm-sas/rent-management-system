@@ -8,7 +8,8 @@ import {
     MONTHS,
     formatMonthLabel,
     getMonthKey,
-    getPrevYearMonth
+    getPrevYearMonth,
+    getRentRevisionDetails
 } from '../lib/utils';
 import { getClearedDocumentUploadFields, hasTenantIdentityChanged } from '../lib/tenantDocuments';
 
@@ -354,6 +355,28 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         }
     };
 
+    const revisionDetails = useMemo(() => {
+        return getRentRevisionDetails(tenant);
+    }, [tenant]);
+
+    const handleMarkRentRevised = async () => {
+        if (!tenant?.id) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const payload = {
+            lastRevision: todayStr,
+            lastRent: tenant.rent || editForm.rent || 0
+        };
+        try {
+            setIsSaving(true);
+            await updateTenant(tenant.id, payload);
+            showToast("Rent revision marked as completed!", "success");
+        } catch (e) {
+            showToast("Failed to update rent revision: " + e.message, "error");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-stone-50 rounded-[2rem] shadow-2xl w-full max-w-lg h-[90vh] md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col">
@@ -483,6 +506,58 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                                     {tenant.lastRent && (
                                         <Field label="Last Recorded Rent" value={`₹${Number(tenant.lastRent).toLocaleString('en-IN')}`} />
                                     )}
+
+                                    {/* Rent Revision Checkbox Container */}
+                                    <div className="col-span-2 pt-3 border-t border-slate-100">
+                                        <label className={`flex items-start gap-3 p-3 rounded-2xl transition ${
+                                            revisionDetails.isDue
+                                                ? 'bg-amber-50/80 border border-amber-200/80 cursor-pointer hover:bg-amber-100/80'
+                                                : revisionDetails.isRecentlyCompleted
+                                                    ? 'bg-emerald-50/80 border border-emerald-200/80 cursor-not-allowed'
+                                                    : 'bg-slate-50 border border-slate-200/60 opacity-60 cursor-not-allowed'
+                                        }`}>
+                                            <div className="relative flex items-center mt-0.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={revisionDetails.isRecentlyCompleted}
+                                                    disabled={!revisionDetails.isDue || isSaving}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked && revisionDetails.isDue) {
+                                                            handleMarkRentRevised();
+                                                        }
+                                                    }}
+                                                    className="peer size-5 appearance-none rounded-md border-2 border-slate-300 checked:bg-emerald-500 checked:border-emerald-500 disabled:opacity-60 transition cursor-pointer"
+                                                />
+                                                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition" viewBox="0 0 14 14" fill="none">
+                                                    <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-xs font-bold text-slate-800 flex items-center justify-between gap-2">
+                                                    <span>Rent Revision Status</span>
+                                                    {revisionDetails.isDue && (
+                                                        <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-2 py-0.5 rounded-full uppercase shrink-0">
+                                                            {revisionDetails.isOverdue ? `${Math.abs(revisionDetails.daysRemaining)} days overdue` : `Due in ${revisionDetails.daysRemaining} days`}
+                                                        </span>
+                                                    )}
+                                                    {revisionDetails.isRecentlyCompleted && (
+                                                        <span className="text-[10px] bg-emerald-200 text-emerald-900 font-extrabold px-2 py-0.5 rounded-full uppercase shrink-0">
+                                                            Completed
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
+                                                    {revisionDetails.isDue ? (
+                                                        "Rent revision is due — check this box to mark completed for this year & remove from Dashboard alert."
+                                                    ) : revisionDetails.isRecentlyCompleted ? (
+                                                        `Rent revision marked completed on ${tenant.lastRevision || 'today'}. Will re-enable 1 month prior to next due date.`
+                                                    ) : (
+                                                        `Next revision due in ${revisionDetails.daysRemaining} days (${revisionDetails.nextDueFormatted}). Checkbox will enable 1 month prior.`
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-center py-4 text-slate-400 text-sm">No financial data.</div>
@@ -646,7 +721,15 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
 
                     {/* Bottom Actions - Sticky/Fixed usually, but inline here for now */}
                     <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-stone-100">
-                        <button className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm shadow-amber-200 transition">
+                        <button
+                            onClick={handleMarkRentRevised}
+                            disabled={!isOccupied || isSaving || revisionDetails.isRecentlyCompleted}
+                            className={`px-5 py-2.5 text-sm font-bold rounded-xl shadow-sm transition ${
+                                revisionDetails.isDue
+                                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200 cursor-pointer'
+                                    : 'bg-stone-200 text-slate-400 cursor-not-allowed opacity-60'
+                            }`}
+                        >
                             Mark Rent Revised
                         </button>
 

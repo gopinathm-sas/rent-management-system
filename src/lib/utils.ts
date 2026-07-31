@@ -277,9 +277,9 @@ export function computeWaterForMonth(tenantData: Tenant | null, year: number, mo
 }
 
 // RENT REVISION LOGIC
-export const RENT_REVISION_WINDOW_DAYS = 15;
+export const RENT_REVISION_WINDOW_DAYS = 30; // 1 month prior
 
-export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = new Date()): { isDue: boolean; daysRemaining?: number; nextDue?: Date; baseDate?: Date; isOverdue?: boolean; reason?: string } {
+export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = new Date()): { isDue: boolean; daysRemaining?: number; nextDue?: Date; nextDueFormatted?: string; baseDate?: Date; isOverdue?: boolean; isRecentlyCompleted?: boolean; reason?: string } {
     if (!tenantData) return { isDue: false };
 
     // 1. Check if disabled
@@ -293,7 +293,6 @@ export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = 
     const lastRevStr = tenantData?.lastRevision;
     const joinDateStr = tenantData?.joinDate;
 
-    // Helper to safely parse YYYY-MM-DD
     const parse = (d: string | undefined): Date | null => (d ? new Date(d) : null);
 
     const lastRev = parse(lastRevStr);
@@ -306,22 +305,33 @@ export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = 
     const nextDue = new Date(baseDate);
     nextDue.setFullYear(nextDue.getFullYear() + 1);
 
-    // 4. Calculate Days Remaining
-    // Reset hours to compare dates only
+    // 4. Calculate Days Remaining & Days Since Last Revision
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const nextDueMidnight = new Date(nextDue.getFullYear(), nextDue.getMonth(), nextDue.getDate());
 
     const diffTime = nextDueMidnight.getTime() - todayMidnight.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // 5. Determine Check Status
-    const isDue = daysRemaining <= RENT_REVISION_WINDOW_DAYS;
+    let isRecentlyCompleted = false;
+    if (lastRev) {
+        const lastRevMidnight = new Date(lastRev.getFullYear(), lastRev.getMonth(), lastRev.getDate());
+        const daysSinceLastRev = Math.floor((todayMidnight.getTime() - lastRevMidnight.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceLastRev >= 0 && daysSinceLastRev <= 30) {
+            isRecentlyCompleted = true;
+        }
+    }
+
+    // 5. Determine Check Status (Due if within 30 days prior or overdue, AND not recently completed)
+    const isDue = daysRemaining <= RENT_REVISION_WINDOW_DAYS && !isRecentlyCompleted;
+    const nextDueFormatted = `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`;
 
     return {
         isDue,
         daysRemaining,
         nextDue,
+        nextDueFormatted,
         baseDate,
-        isOverdue: daysRemaining < 0
+        isOverdue: daysRemaining < 0,
+        isRecentlyCompleted
     };
 }
