@@ -13,6 +13,7 @@ import {
     isFirstOccupancyMonth,
     computeWaterForMonth,
     getDefaultWaterRateForRoom,
+    computeFinancialsForMonth,
 } from '../lib/utils';
 import {
     IMMUTABLE_ROOMS_DATA,
@@ -119,15 +120,9 @@ export default function RentDetails() {
         }
     };
 
-    // Per-month totals: sum paymentTotals for every tenant whose status is 'Paid'
+    // Per-month totals: computed using computeFinancialsForMonth for exact parity across app
     const monthlyTotals = MONTHS.map((_, idx) => {
-        const key = getMonthKey(year, idx);
-        return Object.values(tenants).reduce((sum, t) => {
-            if ((t.paymentHistory?.[key] === 'Paid') && Number.isFinite(Number(t.paymentTotals?.[key]))) {
-                return sum + Number(t.paymentTotals[key]);
-            }
-            return sum;
-        }, 0);
+        return computeFinancialsForMonth(tenants, rooms, year, idx).total;
     });
 
     return (

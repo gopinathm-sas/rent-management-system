@@ -140,75 +140,12 @@ export function getEffectiveRent(tenantData: Tenant | null, year: number, monthI
     return rent;
 }
 
-export function computeRentCollectedForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): number {
-    const key = getMonthKey(year, monthIndex);
-    let total = 0;
-
-    Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
-        const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-        const tenantData = findTenantForRoom(tenants, roomData.roomId);
-        if (!tenantData) return;
-
-        // EVICTION CHECK: Strictly Exclude from All Financials (Rent Collected = 0)
-        // User requested: "none of his rent or water or charges should be included"
-        if (isEvictionMonth(tenantData, year, monthIndex)) return;
-
-        const history = tenantData.paymentHistory || {};
-        const status = history[key] || null;
-
-        const archived = tenantData.archivedTenant || null;
-        const archivedHistory = archived?.paymentHistory || {};
-        const archivedStatus = archivedHistory?.[key] || null;
-
-        const useArchived = (!status || status === 'None') && archivedStatus;
-        const effectiveStatus = useArchived ? archivedStatus : status;
-
-        if (effectiveStatus !== 'Paid') return;
-
-        const tData = useArchived ? archived : tenantData;
-
-        // Use consistent effective rent logic logic
-        const effectiveRent = getEffectiveRent(tData, year, monthIndex);
-
-        // We prioritize the calculated effective rent for consistency with Dashboard rules
-        total += effectiveRent;
-    });
-
-    return total;
+export function computeRentCollectedForMonth(tenants: Tenant[] | Record<string, Tenant> | null, rooms: any, year: number, monthIndex: number): number {
+    return computeFinancialsForMonth(tenants, rooms, year, monthIndex).rent;
 }
 
-export function computePendingRentForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): number {
-    const key = getMonthKey(year, monthIndex);
-    let total = 0;
-
-    Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
-        const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-        const tenantData = findTenantForRoom(tenants, roomData.roomId);
-        if (!tenantData) return;
-
-        // EVICTION CHECK: Strictly Exclude from All Financials
-        if (isEvictionMonth(tenantData, year, monthIndex)) return;
-
-        // JOIN DATE CHECK: Skip months before tenant's move-in month
-        if (isMonthBeforeJoinDate(key, tenantData.joinDate)) return;
-
-        const history = tenantData.paymentHistory || {};
-        const status = history[key] || null;
-
-        const archived = tenantData.archivedTenant || null;
-        const archivedHistory = archived?.paymentHistory || {};
-        const archivedStatus = archivedHistory?.[key] || null;
-
-        const useArchived = (!status || status === 'None') && archivedStatus;
-        const effectiveStatus = useArchived ? archivedStatus : status;
-
-        if (effectiveStatus !== 'Pending') return;
-
-        const tData = useArchived ? archived : tenantData;
-        total += getEffectiveRent(tData, year, monthIndex);
-    });
-
-    return total;
+export function computePendingRentForMonth(tenants: Tenant[] | Record<string, Tenant> | null, rooms: any, year: number, monthIndex: number): number {
+    return computeFinancialsForMonth(tenants, rooms, year, monthIndex).pending;
 }
 
 export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Tenant> | null, _rooms: any, year: number, monthIndex: number): { rent: number; water: number; total: number; pending: number } {
@@ -221,7 +158,6 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         if (!tenantData) return;
 
         // EVICTION CHECK: Strictly Exclude from All Financials
-        // Returns 0 for rent, water, and total.
         if (isEvictionMonth(tenantData, year, monthIndex)) return;
 
         // JOIN DATE CHECK: Skip months before tenant's move-in month
@@ -244,20 +180,31 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
             return;
         }
 
-        if (effectiveStatus !== 'Paid') return;
+        if (effectiveStatus !== 'Paid' && effectiveStatus !== 'Rent Only') return;
 
-        // Paid Calculation
-        const effectiveRent = getEffectiveRent(tData, year, monthIndex);
-
-        // Calculate Water Component
-        const waterRate = useArchived ? (archived?.waterRate || DEFAULT_WATER_RATE) : (tenantData?.waterRate || DEFAULT_WATER_RATE);
+        // Determine Water Rate and calculate Water Component
+        const waterRate = useArchived
+            ? (archived?.waterRate || getDefaultWaterRateForRoom(roomNo))
+            : (tenantData?.waterRate || getDefaultWaterRateForRoom(roomNo));
         const waterCalc = computeWaterForMonth(tData, year, monthIndex, waterRate);
-        const waterAmount = waterCalc.amount || 0;
-        const waterComponent = waterAmount + RENT_WATER_SERVICE_CHARGE;
+        const waterAmount = (Number.isFinite(waterCalc?.amount) && (waterCalc.amount || 0) > 0) ? waterCalc.amount || 0 : 0;
+        const waterComponent = (effectiveStatus === 'Paid') ? (waterAmount + RENT_WATER_SERVICE_CHARGE) : 0;
 
-        data.rent += effectiveRent;
+        const storedTotal = tData?.paymentTotals?.[key];
+        let roomRent = 0;
+        let roomTotal = 0;
+
+        if (effectiveStatus === 'Paid' && Number.isFinite(Number(storedTotal)) && Number(storedTotal) > 0) {
+            roomTotal = Number(storedTotal);
+            roomRent = Math.max(0, roomTotal - waterComponent);
+        } else {
+            roomRent = getEffectiveRent(tData, year, monthIndex);
+            roomTotal = roomRent + waterComponent;
+        }
+
+        data.rent += roomRent;
         data.water += waterComponent;
-        data.total += (effectiveRent + waterComponent);
+        data.total += roomTotal;
     });
 
     return data;
