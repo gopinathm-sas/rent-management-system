@@ -160,9 +160,6 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         // EVICTION CHECK: Strictly Exclude from All Financials
         if (isEvictionMonth(tenantData, year, monthIndex)) return;
 
-        // JOIN DATE CHECK: Skip months before tenant's move-in month
-        if (isMonthBeforeJoinDate(key, tenantData.joinDate)) return;
-
         const history = tenantData.paymentHistory || {};
         const status = history[key] || null;
 
@@ -174,6 +171,11 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         const effectiveStatus = useArchived ? archivedStatus : status;
         const tData = useArchived ? archived : tenantData;
 
+        // Skip months before tenant's move-in month UNLESS payment was recorded as Paid/Rent Only
+        if (effectiveStatus !== 'Paid' && effectiveStatus !== 'Rent Only') {
+            if (isMonthBeforeJoinDate(key, tenantData.joinDate)) return;
+        }
+
         // Pending Calculation
         if (effectiveStatus === 'Pending') {
             data.pending += getEffectiveRent(tData, year, monthIndex);
@@ -181,9 +183,6 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         }
 
         if (effectiveStatus !== 'Paid' && effectiveStatus !== 'Rent Only') return;
-
-        // Effective Rent (handles base rent, rent revisions, and first-month proration)
-        const roomRent = getEffectiveRent(tData, year, monthIndex);
 
         // Determine Water Rate and calculate Water Component
         const waterRate = useArchived
@@ -194,9 +193,16 @@ export function computeFinancialsForMonth(tenants: Tenant[] | Record<string, Ten
         const waterComponent = (effectiveStatus === 'Paid') ? (waterAmount + RENT_WATER_SERVICE_CHARGE) : 0;
 
         const storedTotal = tData?.paymentTotals?.[key];
-        const roomTotal = (effectiveStatus === 'Paid' && Number.isFinite(Number(storedTotal)) && Number(storedTotal) > 0)
-            ? Number(storedTotal)
-            : (roomRent + waterComponent);
+        let roomTotal = 0;
+        let roomRent = 0;
+
+        if (effectiveStatus === 'Paid' && Number.isFinite(Number(storedTotal)) && Number(storedTotal) > 0) {
+            roomTotal = Number(storedTotal);
+            roomRent = Math.max(0, roomTotal - waterComponent);
+        } else {
+            roomRent = getEffectiveRent(tData, year, monthIndex);
+            roomTotal = roomRent + waterComponent;
+        }
 
         data.rent += roomRent;
         data.water += waterComponent;
