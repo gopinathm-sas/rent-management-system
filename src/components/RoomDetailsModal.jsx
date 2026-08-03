@@ -359,6 +359,26 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
         return getRentRevisionDetails(tenant);
     }, [tenant]);
 
+    const rentRaiseInfo = useMemo(() => {
+        if (!tenant) return null;
+        const currentRent = Number(isEditing ? (editForm.rent ?? tenant.rent) : (tenant.rent || 0)) || 0;
+        const lastRent = Number(tenant.lastRent) || 0;
+        if (!lastRent || lastRent <= 0 || !currentRent || currentRent <= 0) return null;
+
+        const diff = currentRent - lastRent;
+        if (diff === 0) return { pct: '0%', diff: 0, isIncrease: false, isDecrease: false };
+
+        const pctVal = (diff / lastRent) * 100;
+        const formattedPct = Number.isInteger(pctVal) ? pctVal.toFixed(0) : pctVal.toFixed(1);
+        const sign = diff > 0 ? '+' : '';
+        return {
+            pct: `${sign}${formattedPct}%`,
+            diff,
+            isIncrease: diff > 0,
+            isDecrease: diff < 0
+        };
+    }, [tenant, editForm.rent, isEditing]);
+
     const handleMarkRentRevised = async () => {
         if (!tenant?.id) return;
         const todayStr = new Date().toISOString().split('T')[0];
@@ -482,7 +502,30 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                         >
                             {isOccupied ? (
                                 <div className="grid grid-cols-2 gap-y-5 gap-x-4">
-                                    <Field label="Monthly Rent" value={`₹${Number(tenant.rent || 0).toLocaleString('en-IN')}`} fieldKey="rent" type="number" isEditing={isEditing} editForm={editForm} onChange={handleInputChange} />
+                                    <Field
+                                        label="Monthly Rent"
+                                        value={
+                                            <span className="flex items-center gap-1.5 flex-wrap">
+                                                <span>₹{Number(isEditing ? (editForm.rent ?? tenant.rent) : (tenant.rent || 0)).toLocaleString('en-IN')}</span>
+                                                {rentRaiseInfo && (
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                                        rentRaiseInfo.isIncrease
+                                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                            : rentRaiseInfo.isDecrease
+                                                                ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                                                    }`}>
+                                                        {rentRaiseInfo.pct} raise
+                                                    </span>
+                                                )}
+                                            </span>
+                                        }
+                                        fieldKey="rent"
+                                        type="number"
+                                        isEditing={isEditing}
+                                        editForm={editForm}
+                                        onChange={handleInputChange}
+                                    />
                                     <Field label="Water Rate (₹/Unit)" value={tenant.waterRate || '0.25'} fieldKey="waterRate" type="number" step="0.01" isEditing={isEditing} editForm={editForm} onChange={handleInputChange} />
                                     <Field
                                         label={`Payment Status (${(() => {
@@ -505,6 +548,21 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
                                     <Field label="Last Rent Revision" value={tenant.lastRevision || 'N/A'} fieldKey="lastRevision" type="date" isEditing={isEditing} editForm={editForm} onChange={handleInputChange} />
                                     {tenant.lastRent && (
                                         <Field label="Last Recorded Rent" value={`₹${Number(tenant.lastRent).toLocaleString('en-IN')}`} />
+                                    )}
+                                    {rentRaiseInfo && (
+                                        <Field
+                                            label="Revision Rent Increase"
+                                            value={
+                                                <div className="flex items-center gap-1 font-bold text-sm">
+                                                    <span className={rentRaiseInfo.isIncrease ? 'text-emerald-700 font-extrabold' : rentRaiseInfo.isDecrease ? 'text-rose-600 font-extrabold' : 'text-slate-700'}>
+                                                        {rentRaiseInfo.pct}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 font-semibold">
+                                                        ({rentRaiseInfo.isIncrease ? '+' : ''}₹{rentRaiseInfo.diff.toLocaleString('en-IN')})
+                                                    </span>
+                                                </div>
+                                            }
+                                        />
                                     )}
 
                                     {/* Rent Revision Checkbox Container */}
