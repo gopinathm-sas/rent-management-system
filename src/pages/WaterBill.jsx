@@ -11,7 +11,9 @@ import {
     computeWaterForMonth,
     getDefaultWaterRateForRoom,
     WATER_UNITS_MULTIPLIER,
-    getPrevYearMonth
+    getPrevYearMonth,
+    getEffectiveRent,
+    RENT_WATER_SERVICE_CHARGE
 } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
 import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2 } from 'lucide-react';
@@ -427,7 +429,12 @@ export default function WaterBill() {
                                         const amount = Math.round(units * effectiveRate);
 
                                         const monthLabel = `${MONTHS[editingCell.monthIndex]} ${year}`;
-                                        const msg = `Water Bill - ${monthLabel}\nNo of Ltrs - ${units}\nAmnt.        - ₹${amount}`;
+                                        const tenantName = tenant?.tenant || 'Tenant';
+                                        const rentAmount = getEffectiveRent(tenant, year, editingCell.monthIndex);
+                                        const garbageAmount = RENT_WATER_SERVICE_CHARGE;
+                                        const totalAmount = rentAmount + garbageAmount + amount;
+
+                                        const msg = `Hi ${tenantName},\n\nWater Bill - ${monthLabel}\nNo of Ltrs - ${units.toLocaleString('en-IN')}\n\nBreakdown:\n- Rent: ₹${rentAmount.toLocaleString('en-IN')}\n- Garbage Bill: ₹${garbageAmount.toLocaleString('en-IN')}\n- Water Bill: ₹${amount.toLocaleString('en-IN')}\n\n*Total Amount: ₹${totalAmount.toLocaleString('en-IN')}*\n\nPlease pay at the earliest.`;
 
                                         waLink = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
                                         isValidCalc = true;
