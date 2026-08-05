@@ -1337,20 +1337,45 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
         }
     };
 
-    const handleUpdateCustomText = async (target, fieldId, value) => {
+    const handleRenameCustomField = async (target, fieldId, currentTitle) => {
+        const newTitle = window.prompt("Rename section header:", currentTitle);
+        if (newTitle === null || !newTitle.trim() || newTitle.trim() === currentTitle) return;
+
         try {
             if (target === 'family') {
-                const updated = (tenant.customFields || []).map(f => f.id === fieldId ? { ...f, value } : f);
+                const updated = (tenant.customFields || []).map(f => f.id === fieldId ? { ...f, title: newTitle.trim() } : f);
                 await updateTenant(tenant.id, { customFields: updated });
             } else {
                 const newDetails = [...(tenant.bachelorDetails || [])];
                 if (newDetails[target]?.customFields) {
-                    newDetails[target].customFields = newDetails[target].customFields.map(f => f.id === fieldId ? { ...f, value } : f);
+                    newDetails[target].customFields = newDetails[target].customFields.map(f => f.id === fieldId ? { ...f, title: newTitle.trim() } : f);
+                }
+                await updateTenant(tenant.id, { bachelorDetails: newDetails });
+            }
+            showToast("Section title updated", "success");
+        } catch (e) {
+            showToast("Failed to rename section", "error");
+        }
+    };
+
+    const handleUpdateCustomSection = async (target, fieldId, newTitle, newValue) => {
+        if (!newTitle.trim()) {
+            showToast("Section title cannot be empty", "error");
+            return;
+        }
+        try {
+            if (target === 'family') {
+                const updated = (tenant.customFields || []).map(f => f.id === fieldId ? { ...f, title: newTitle.trim(), value: newValue } : f);
+                await updateTenant(tenant.id, { customFields: updated });
+            } else {
+                const newDetails = [...(tenant.bachelorDetails || [])];
+                if (newDetails[target]?.customFields) {
+                    newDetails[target].customFields = newDetails[target].customFields.map(f => f.id === fieldId ? { ...f, title: newTitle.trim(), value: newValue } : f);
                 }
                 await updateTenant(tenant.id, { bachelorDetails: newDetails });
             }
         } catch (e) {
-            console.error("Failed to update text field", e);
+            console.error("Failed to update section", e);
         }
     };
 
@@ -1565,7 +1590,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                                             <button
                                                                                 onClick={() => setTextModalField({ target: i, fieldId: cf.id, title: cf.title, value: cf.value || '' })}
                                                                                 className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-bold"
-                                                                                title="Edit text"
+                                                                                title="Edit section & text"
                                                                             >
                                                                                 <Edit3 size={15} />
                                                                             </button>
@@ -1589,6 +1614,13 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                                                 isUploading={uploading[cf.key]}
                                                                             />
                                                                         </div>
+                                                                        <button
+                                                                            onClick={() => handleRenameCustomField(i, cf.id, cf.title)}
+                                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                                            title={`Rename section "${cf.title}"`}
+                                                                        >
+                                                                            <Edit3 size={15} />
+                                                                        </button>
                                                                         <button
                                                                             onClick={() => handleRemoveCustomField(i, cf.id, cf.key)}
                                                                             className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
@@ -1647,7 +1679,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                     <button
                                                         onClick={() => setTextModalField({ target: 'family', fieldId: cf.id, title: cf.title, value: cf.value || '' })}
                                                         className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-bold"
-                                                        title="Edit text"
+                                                        title="Edit section & text"
                                                     >
                                                         <Edit3 size={15} />
                                                     </button>
@@ -1671,6 +1703,13 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                         isUploading={uploading[cf.key]}
                                                     />
                                                 </div>
+                                                <button
+                                                    onClick={() => handleRenameCustomField('family', cf.id, cf.title)}
+                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                    title={`Rename section "${cf.title}"`}
+                                                >
+                                                    <Edit3 size={15} />
+                                                </button>
                                                 <button
                                                     onClick={() => handleRemoveCustomField('family', cf.id, cf.key)}
                                                     className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
@@ -1697,13 +1736,13 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                     <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
                         {/* Header */}
                         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl">
+                            <div className="flex items-center gap-3 flex-1 mr-3">
+                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl shrink-0">
                                     <FileText size={20} />
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-base">{textModalField.title}</h3>
-                                    <p className="text-xs text-slate-500">Text Entry Section • Room {tenant?.roomNo}</p>
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-slate-800 text-sm">Edit Text Section</h3>
+                                    <p className="text-[10px] text-slate-500">Room {tenant?.roomNo}</p>
                                 </div>
                             </div>
                             <button
@@ -1715,18 +1754,32 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                         </div>
 
                         {/* Body */}
-                        <div className="p-6">
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                                Details & Notes
-                            </label>
-                            <textarea
-                                rows={6}
-                                autoFocus
-                                placeholder={`Enter text or details for ${textModalField.title}...`}
-                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition resize-none leading-relaxed"
-                                value={textModalField.value}
-                                onChange={(e) => setTextModalField(prev => ({ ...prev, value: e.target.value }))}
-                            />
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                    Section Header / Title
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Financial Confirmation, Workplace Address"
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition"
+                                    value={textModalField.title}
+                                    onChange={(e) => setTextModalField(prev => ({ ...prev, title: e.target.value }))}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                    Details & Notes
+                                </label>
+                                <textarea
+                                    rows={6}
+                                    placeholder={`Enter details for ${textModalField.title}...`}
+                                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition resize-none leading-relaxed"
+                                    value={textModalField.value}
+                                    onChange={(e) => setTextModalField(prev => ({ ...prev, value: e.target.value }))}
+                                />
+                            </div>
                         </div>
 
                         {/* Footer */}
@@ -1749,13 +1802,13 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 </button>
                                 <button
                                     onClick={() => {
-                                        handleUpdateCustomText(textModalField.target, textModalField.fieldId, textModalField.value);
+                                        handleUpdateCustomSection(textModalField.target, textModalField.fieldId, textModalField.title, textModalField.value);
                                         setTextModalField(null);
-                                        showToast(`Saved ${textModalField.title}`, "success");
+                                        showToast(`Saved section "${textModalField.title}"`, "success");
                                     }}
                                     className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5"
                                 >
-                                    <Check size={16} /> Save Details
+                                    <Check size={16} /> Save Changes
                                 </button>
                             </div>
                         </div>
