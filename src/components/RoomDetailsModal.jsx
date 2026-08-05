@@ -361,6 +361,11 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
 
     const rentRaiseInfo = useMemo(() => {
         if (!tenant) return null;
+
+        // Show % raise ONLY when rent revision is nearby/due (within 30 days or overdue) OR when editing rent
+        const shouldShowRaise = Boolean(revisionDetails?.isDue) || isEditing;
+        if (!shouldShowRaise) return null;
+
         const currentRent = Number(isEditing ? (editForm.rent ?? tenant.rent) : (tenant.rent || 0)) || 0;
         const lastRent = Number(tenant.lastRent) || 0;
         if (!lastRent || lastRent <= 0 || !currentRent || currentRent <= 0) return null;
@@ -377,7 +382,7 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
             isIncrease: diff > 0,
             isDecrease: diff < 0
         };
-    }, [tenant, editForm.rent, isEditing]);
+    }, [tenant, editForm.rent, isEditing, revisionDetails]);
 
     const handleMarkRentRevised = async () => {
         if (!tenant?.id) return;
