@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord, computeFinancialsForMonth } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText, ChevronLeft, ChevronRight, Plus, Sparkles, Clipboard, Upload, Loader2 } from 'lucide-react';
+import { Users, Save, X, Link as LinkIcon, ExternalLink, Copy, Check, Trash2, ChevronUp, ChevronDown, User, Mail, Send, FileText, ChevronLeft, ChevronRight, Plus, Sparkles, Clipboard, Upload, Loader2, Edit3 } from 'lucide-react';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useUI } from '../contexts/UIContext';
@@ -1163,6 +1163,9 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
     const [newFieldTitle, setNewFieldTitle] = useState('');
     const [newFieldType, setNewFieldType] = useState('document'); // 'document' | 'text'
 
+    // Custom Text Popup Modal State
+    const [textModalField, setTextModalField] = useState(null); // null | { target, fieldId, title, value }
+
     const documents = tenant?.documents || {};
     const bachelorDetails = tenant?.bachelorDetails || [];
     const hasDocumentUploadData = hasActiveDocumentUploadData(tenant);
@@ -1291,6 +1294,11 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
             showToast(`Added section "${newFieldTitle.trim()}"`, "success");
             setAddingCustomFor(null);
             setNewFieldTitle('');
+
+            // If it's a text field, immediately open the popup modal for convenience!
+            if (newFieldType === 'text') {
+                setTextModalField({ target, fieldId: newField.id, title: newField.title, value: '' });
+            }
         } catch (e) {
             showToast("Failed to add custom section", "error");
         }
@@ -1538,23 +1546,37 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                         {occupantCustomFields.map((cf) => (
                                                             <div key={cf.id} className="pt-1">
                                                                 {cf.type === 'text' ? (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="flex-1">
-                                                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
-                                                                            <input
-                                                                                placeholder={`Enter ${cf.title}`}
-                                                                                className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
-                                                                                value={cf.value || ''}
-                                                                                onChange={(e) => handleUpdateCustomText(i, cf.id, e.target.value)}
-                                                                            />
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => handleRemoveCustomField(i, cf.id, cf.key)}
-                                                                            className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition self-end mb-0.5"
-                                                                            title={`Delete section "${cf.title}"`}
+                                                                    <div className="flex items-center justify-between p-3 bg-white hover:bg-blue-50/50 border border-slate-200/90 rounded-xl transition shadow-xs group">
+                                                                        <div
+                                                                            className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                                                                            onClick={() => setTextModalField({ target: i, fieldId: cf.id, title: cf.title, value: cf.value || '' })}
                                                                         >
-                                                                            <Trash2 size={16} />
-                                                                        </button>
+                                                                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                                                <FileText size={16} />
+                                                                            </div>
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <h5 className="text-xs font-bold text-slate-800 tracking-tight">{cf.title}</h5>
+                                                                                <p className="text-[11px] text-slate-500 truncate font-medium mt-0.5">
+                                                                                    {cf.value ? cf.value : <span className="italic text-slate-400">Click to enter / view text</span>}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1 ml-2">
+                                                                            <button
+                                                                                onClick={() => setTextModalField({ target: i, fieldId: cf.id, title: cf.title, value: cf.value || '' })}
+                                                                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-bold"
+                                                                                title="Edit text"
+                                                                            >
+                                                                                <Edit3 size={15} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleRemoveCustomField(i, cf.id, cf.key)}
+                                                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                                                title={`Delete section "${cf.title}"`}
+                                                                            >
+                                                                                <Trash2 size={15} />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex items-center gap-2">
@@ -1606,23 +1628,37 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 {(tenant.customFields || []).map((cf) => (
                                     <div key={cf.id} className="pt-1">
                                         {cf.type === 'text' ? (
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex-1">
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
-                                                    <input
-                                                        placeholder={`Enter ${cf.title}`}
-                                                        className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
-                                                        value={cf.value || ''}
-                                                        onChange={(e) => handleUpdateCustomText('family', cf.id, e.target.value)}
-                                                    />
-                                                </div>
-                                                <button
-                                                    onClick={() => handleRemoveCustomField('family', cf.id, cf.key)}
-                                                    className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition self-end mb-0.5"
-                                                    title={`Delete section "${cf.title}"`}
+                                            <div className="flex items-center justify-between p-3 bg-white hover:bg-blue-50/50 border border-slate-200/90 rounded-xl transition shadow-xs group">
+                                                <div
+                                                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                                                    onClick={() => setTextModalField({ target: 'family', fieldId: cf.id, title: cf.title, value: cf.value || '' })}
                                                 >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h5 className="text-xs font-bold text-slate-800 tracking-tight">{cf.title}</h5>
+                                                        <p className="text-[11px] text-slate-500 truncate font-medium mt-0.5">
+                                                            {cf.value ? cf.value : <span className="italic text-slate-400">Click to enter / view text</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 ml-2">
+                                                    <button
+                                                        onClick={() => setTextModalField({ target: 'family', fieldId: cf.id, title: cf.title, value: cf.value || '' })}
+                                                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-bold"
+                                                        title="Edit text"
+                                                    >
+                                                        <Edit3 size={15} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRemoveCustomField('family', cf.id, cf.key)}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                        title={`Delete section "${cf.title}"`}
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-2">
@@ -1651,6 +1687,78 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 {renderAddCustomSectionUI('family')}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Text Entry Popup Modal */}
+            {textModalField && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl">
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-base">{textModalField.title}</h3>
+                                    <p className="text-xs text-slate-500">Text Entry Section • Room {tenant?.roomNo}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setTextModalField(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                Details & Notes
+                            </label>
+                            <textarea
+                                rows={6}
+                                autoFocus
+                                placeholder={`Enter text or details for ${textModalField.title}...`}
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition resize-none leading-relaxed"
+                                value={textModalField.value}
+                                onChange={(e) => setTextModalField(prev => ({ ...prev, value: e.target.value }))}
+                            />
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+                            <button
+                                onClick={() => {
+                                    handleRemoveCustomField(textModalField.target, textModalField.fieldId, null);
+                                    setTextModalField(null);
+                                }}
+                                className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-1.5"
+                            >
+                                <Trash2 size={15} /> Delete Section
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setTextModalField(null)}
+                                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleUpdateCustomText(textModalField.target, textModalField.fieldId, textModalField.value);
+                                        setTextModalField(null);
+                                        showToast(`Saved ${textModalField.title}`, "success");
+                                    }}
+                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5"
+                                >
+                                    <Check size={16} /> Save Details
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

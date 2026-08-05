@@ -4,7 +4,7 @@ import { db, auth, googleProvider } from '../services/firebase';
 import { uploadToCloudinary } from '../services/cloudinary';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
-import { Upload, FileText, Check, AlertTriangle, Loader2, Shield, LogOut, X, XCircle } from 'lucide-react';
+import { Upload, FileText, Check, AlertTriangle, Loader2, Shield, LogOut, X, XCircle, Edit3 } from 'lucide-react';
 
 export default function TenantUpload() {
     const { token } = useParams();
@@ -14,6 +14,7 @@ export default function TenantUpload() {
     const [uploading, setUploading] = useState({});
     const [documents, setDocuments] = useState({});
     const [errorMsg, setErrorMsg] = useState('');
+    const [textModalField, setTextModalField] = useState(null); // null | { target, fieldId, title, value }
 
     const showError = (msg) => {
         setErrorMsg(msg);
@@ -320,21 +321,24 @@ export default function TenantUpload() {
                                     {(tenant.bachelorDetails?.[i]?.customFields || []).map((cf) => (
                                         <div key={cf.id} className="pt-2">
                                             {cf.type === 'text' ? (
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
-                                                    <input
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                                        placeholder={`Enter ${cf.title}`}
-                                                        defaultValue={cf.value || ''}
-                                                        onBlur={(e) => {
-                                                            const val = e.target.value;
-                                                            const newDetails = [...(tenant.bachelorDetails || [])];
-                                                            if (!newDetails[i]) newDetails[i] = {};
-                                                            if (!newDetails[i].customFields) newDetails[i].customFields = [];
-                                                            newDetails[i].customFields = newDetails[i].customFields.map(f => f.id === cf.id ? { ...f, value: val } : f);
-                                                            updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
-                                                        }}
-                                                    />
+                                                <div
+                                                    onClick={() => setTextModalField({ target: i, fieldId: cf.id, title: cf.title, value: cf.value || '' })}
+                                                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition cursor-pointer flex items-center justify-between group"
+                                                >
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                            <FileText size={20} />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h4 className="text-sm font-bold text-slate-900">{cf.title}</h4>
+                                                            <p className="text-xs text-slate-500 truncate font-medium mt-0.5">
+                                                                {cf.value ? cf.value : <span className="italic text-slate-400">Click to enter / view details</span>}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition">
+                                                        {cf.value ? 'Edit' : 'Enter'}
+                                                    </span>
                                                 </div>
                                             ) : (
                                                 <UploadCard
@@ -391,18 +395,24 @@ export default function TenantUpload() {
                                 {(tenant.customFields || []).map((cf) => (
                                     <div key={cf.id} className="pt-2">
                                         {cf.type === 'text' ? (
-                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                                <label className="block text-sm font-bold text-slate-900 mb-2">{cf.title}</label>
-                                                <input
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
-                                                    placeholder={`Enter ${cf.title}`}
-                                                    defaultValue={cf.value || ''}
-                                                    onBlur={(e) => {
-                                                        const val = e.target.value;
-                                                        const updated = (tenant.customFields || []).map(f => f.id === cf.id ? { ...f, value: val } : f);
-                                                        updateDoc(doc(db, 'properties', tenant.id), { customFields: updated });
-                                                    }}
-                                                />
+                                            <div
+                                                onClick={() => setTextModalField({ target: 'family', fieldId: cf.id, title: cf.title, value: cf.value || '' })}
+                                                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition cursor-pointer flex items-center justify-between group"
+                                            >
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="text-sm font-bold text-slate-900">{cf.title}</h4>
+                                                        <p className="text-xs text-slate-500 truncate font-medium mt-0.5">
+                                                            {cf.value ? cf.value : <span className="italic text-slate-400">Click to enter / view details</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition">
+                                                    {cf.value ? 'Edit' : 'Enter'}
+                                                </span>
                                             </div>
                                         ) : (
                                             <UploadCard
@@ -422,6 +432,78 @@ export default function TenantUpload() {
                     <p>Files are securely stored in Munirathnam Illam Cloud.</p>
                 </div>
             </div>
+
+            {/* Custom Text Entry Popup Modal for Tenant */}
+            {textModalField && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl">
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-base">{textModalField.title}</h3>
+                                    <p className="text-xs text-slate-500">Room {tenant?.roomNo} Upload</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setTextModalField(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                Enter Details
+                            </label>
+                            <textarea
+                                rows={6}
+                                autoFocus
+                                placeholder={`Enter details for ${textModalField.title}...`}
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition resize-none leading-relaxed"
+                                value={textModalField.value}
+                                onChange={(e) => setTextModalField(prev => ({ ...prev, value: e.target.value }))}
+                            />
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <button
+                                onClick={() => setTextModalField(null)}
+                                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    const target = textModalField.target;
+                                    const val = textModalField.value;
+                                    if (target === 'family') {
+                                        const updated = (tenant.customFields || []).map(f => f.id === textModalField.fieldId ? { ...f, value: val } : f);
+                                        await updateDoc(doc(db, 'properties', tenant.id), { customFields: updated });
+                                    } else {
+                                        const newDetails = [...(tenant.bachelorDetails || [])];
+                                        if (!newDetails[target]) newDetails[target] = {};
+                                        if (!newDetails[target].customFields) newDetails[target].customFields = [];
+                                        newDetails[target].customFields = newDetails[target].customFields.map(f => f.id === textModalField.fieldId ? { ...f, value: val } : f);
+                                        await updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
+                                    }
+                                    setTextModalField(null);
+                                }}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5"
+                            >
+                                <Check size={16} /> Save Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {errorMsg && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
                     <div className="bg-rose-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm mx-4 border-2 border-rose-400/50">

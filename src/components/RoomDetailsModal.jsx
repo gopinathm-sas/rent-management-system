@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from 'react';
-import { X, ChevronDown, ChevronUp, User, CreditCard, Home, Edit2, Save, Link as LinkIcon, ExternalLink, Trash2, Copy, Check } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, User, CreditCard, Home, Edit2, Save, Link as LinkIcon, ExternalLink, Trash2, Copy, Check, FileText } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
 import {
@@ -17,6 +16,7 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
     if (!room) return null;
     const { updateTenant, createTenant } = useData();
     const { showToast, confirm } = useUI();
+    const [viewingTextModal, setViewingTextModal] = useState(null); // null | { title, value }
 
 
     // Local Status State
@@ -1032,9 +1032,24 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                                         {(bachelorDetails[i]?.customFields || []).map((cf) => (
                                             <div key={cf.id} className="pt-1">
                                                 {cf.type === 'text' ? (
-                                                    <div className="p-3 border border-slate-100 rounded-xl bg-white">
-                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">{cf.title}</div>
-                                                        <div className="text-sm font-bold text-slate-700 mt-0.5">{cf.value || 'N/A'}</div>
+                                                    <div
+                                                        onClick={() => setViewingTextModal({ title: cf.title, value: cf.value || '' })}
+                                                        className="flex items-center justify-between p-3 border border-slate-200/90 rounded-xl bg-white hover:bg-blue-50/50 cursor-pointer transition shadow-xs group"
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                                <FileText size={16} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="text-xs font-bold text-slate-800">{cf.title}</div>
+                                                                <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                                                                    {cf.value ? cf.value : <span className="italic text-slate-400">Click to view details</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition">
+                                                            View
+                                                        </span>
                                                     </div>
                                                 ) : (
                                                     <DocItem title={cf.title} docUrl={documents[cf.key]} onDelete={() => deleteDoc(cf.key)} />
@@ -1062,9 +1077,24 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                                 {(tenant.customFields || []).map((cf) => (
                                     <div key={cf.id} className="pt-1">
                                         {cf.type === 'text' ? (
-                                            <div className="p-3 border border-slate-100 rounded-xl bg-white">
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase">{cf.title}</div>
-                                                <div className="text-sm font-bold text-slate-700 mt-0.5">{cf.value || 'N/A'}</div>
+                                            <div
+                                                onClick={() => setViewingTextModal({ title: cf.title, value: cf.value || '' })}
+                                                className="flex items-center justify-between p-3 border border-slate-200/90 rounded-xl bg-white hover:bg-blue-50/50 cursor-pointer transition shadow-xs group"
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-xs font-bold text-slate-800">{cf.title}</div>
+                                                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                                                            {cf.value ? cf.value : <span className="italic text-slate-400">Click to view details</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition">
+                                                    View
+                                                </span>
                                             </div>
                                         ) : (
                                             <DocItem title={cf.title} docUrl={documents[cf.key]} onDelete={() => deleteDoc(cf.key)} />
@@ -1073,6 +1103,44 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                                 ))}
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Viewing Custom Text Modal */}
+            {viewingTextModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-2xl">
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-base">{viewingTextModal.title}</h3>
+                                    <p className="text-xs text-slate-500">Room {tenant?.roomNo} Details</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setViewingTextModal(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-sm font-medium text-slate-800 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+                                {viewingTextModal.value || <span className="italic text-slate-400">No details entered yet.</span>}
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex justify-end">
+                            <button
+                                onClick={() => setViewingTextModal(null)}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
