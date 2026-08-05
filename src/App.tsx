@@ -14,6 +14,7 @@ import Expenses from './pages/Expenses';
 import Admin from './pages/Admin';
 import AdminMigration from './pages/AdminMigration';
 import TenantUpload from './pages/TenantUpload';
+import Analytics from './pages/Analytics';
 
 import BiometricLock from './components/BiometricLock';
 import Login from './pages/Login';
@@ -71,6 +72,11 @@ function App() {
                             <Route path="/expenses" element={
                                 <ProtectedRoute>
                                     <Layout><Expenses /></Layout>
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/analytics" element={
+                                <ProtectedRoute>
+                                    <Layout><Analytics /></Layout>
                                 </ProtectedRoute>
                             } />
                             <Route path="/admin" element={

@@ -10,7 +10,8 @@ import {
     Wallet,
     LogOut,
     User as UserIcon,
-    Database
+    Database,
+    BarChart3
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -59,6 +60,7 @@ export default function Layout({ children }: LayoutProps) {
                     <NavItem to="/rent" icon={Receipt} label="Rent Status" />
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
+                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" />
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
@@ -118,12 +120,13 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Mobile Bottom Navigation */}
             <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white border-t border-stone-100 pb-safe">
-                <div className="grid grid-cols-5 gap-1 p-2">
+                <div className="grid grid-cols-6 gap-0.5 p-1.5">
                     <NavItem to="/" icon={LayoutDashboard} label="Dash" mobile />
                     <NavItem to="/rooms" icon={Home} label="Rooms" mobile />
                     <NavItem to="/rent" icon={Receipt} label="Rent" mobile />
                     <NavItem to="/water" icon={Droplet} label="Water" mobile />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" mobile />
+                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" mobile />
                 </div>
             </div>
         </div>
