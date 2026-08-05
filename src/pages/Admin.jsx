@@ -1157,6 +1157,12 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeOccupant, setActiveOccupant] = useState(0);
     const [uploading, setUploading] = useState({});
+
+    // Custom Section Creation State
+    const [addingCustomFor, setAddingCustomFor] = useState(null); // null | 'family' | number (occupant index)
+    const [newFieldTitle, setNewFieldTitle] = useState('');
+    const [newFieldType, setNewFieldType] = useState('document'); // 'document' | 'text'
+
     const documents = tenant?.documents || {};
     const bachelorDetails = tenant?.bachelorDetails || [];
     const hasDocumentUploadData = hasActiveDocumentUploadData(tenant);
@@ -1252,6 +1258,162 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
         }
     };
 
+    const handleAddCustomField = async (target) => {
+        if (!newFieldTitle.trim()) {
+            showToast("Please enter a section title", "error");
+            return;
+        }
+
+        const fieldId = 'cf_' + Date.now();
+        const docKey = newFieldType === 'document'
+            ? (target === 'family' ? `family_${fieldId}` : `bachelor_${target}_${fieldId}`)
+            : null;
+
+        const newField = {
+            id: fieldId,
+            title: newFieldTitle.trim(),
+            type: newFieldType,
+            key: docKey,
+            value: ''
+        };
+
+        try {
+            if (target === 'family') {
+                const currentCustom = tenant.customFields || [];
+                await updateTenant(tenant.id, { customFields: [...currentCustom, newField] });
+            } else {
+                const newDetails = [...(tenant.bachelorDetails || [])];
+                if (!newDetails[target]) newDetails[target] = {};
+                const currentCustom = newDetails[target].customFields || [];
+                newDetails[target].customFields = [...currentCustom, newField];
+                await updateTenant(tenant.id, { bachelorDetails: newDetails });
+            }
+            showToast(`Added section "${newFieldTitle.trim()}"`, "success");
+            setAddingCustomFor(null);
+            setNewFieldTitle('');
+        } catch (e) {
+            showToast("Failed to add custom section", "error");
+        }
+    };
+
+    const handleRemoveCustomField = async (target, fieldId, docKey) => {
+        const isConfirmed = window.confirm("Delete this custom section?");
+        if (!isConfirmed) return;
+
+        try {
+            if (target === 'family') {
+                const updated = (tenant.customFields || []).filter(f => f.id !== fieldId);
+                const updates = { customFields: updated };
+                if (docKey && documents[docKey]) {
+                    const newDocs = { ...documents };
+                    delete newDocs[docKey];
+                    updates.documents = newDocs;
+                }
+                await updateTenant(tenant.id, updates);
+            } else {
+                const newDetails = [...(tenant.bachelorDetails || [])];
+                if (newDetails[target]?.customFields) {
+                    newDetails[target].customFields = newDetails[target].customFields.filter(f => f.id !== fieldId);
+                }
+                const updates = { bachelorDetails: newDetails };
+                if (docKey && documents[docKey]) {
+                    const newDocs = { ...documents };
+                    delete newDocs[docKey];
+                    updates.documents = newDocs;
+                }
+                await updateTenant(tenant.id, updates);
+            }
+            showToast("Section removed", "info");
+        } catch (e) {
+            showToast("Failed to remove section", "error");
+        }
+    };
+
+    const handleUpdateCustomText = async (target, fieldId, value) => {
+        try {
+            if (target === 'family') {
+                const updated = (tenant.customFields || []).map(f => f.id === fieldId ? { ...f, value } : f);
+                await updateTenant(tenant.id, { customFields: updated });
+            } else {
+                const newDetails = [...(tenant.bachelorDetails || [])];
+                if (newDetails[target]?.customFields) {
+                    newDetails[target].customFields = newDetails[target].customFields.map(f => f.id === fieldId ? { ...f, value } : f);
+                }
+                await updateTenant(tenant.id, { bachelorDetails: newDetails });
+            }
+        } catch (e) {
+            console.error("Failed to update text field", e);
+        }
+    };
+
+    const renderAddCustomSectionUI = (target) => (
+        addingCustomFor === target ? (
+            <div className="p-3 bg-slate-100/90 border border-blue-200 rounded-xl space-y-3 mt-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">New Custom Section</span>
+                    <button onClick={() => setAddingCustomFor(null)} className="text-slate-400 hover:text-slate-600">
+                        <X size={16} />
+                    </button>
+                </div>
+                <input
+                    type="text"
+                    placeholder="Section Title (e.g. Workplace Address, Driving License, Passport, Vehicle No)"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 outline-none bg-white font-medium focus:ring-2 focus:ring-blue-500/20"
+                    value={newFieldTitle}
+                    onChange={(e) => setNewFieldTitle(e.target.value)}
+                />
+                <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer font-semibold">
+                        <input
+                            type="radio"
+                            name={`cf_type_${target}`}
+                            checked={newFieldType === 'document'}
+                            onChange={() => setNewFieldType('document')}
+                            className="accent-blue-600"
+                        />
+                        📄 Document Upload
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer font-semibold">
+                        <input
+                            type="radio"
+                            name={`cf_type_${target}`}
+                            checked={newFieldType === 'text'}
+                            onChange={() => setNewFieldType('text')}
+                            className="accent-blue-600"
+                        />
+                        📝 Text Entry
+                    </label>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                    <button
+                        onClick={() => setAddingCustomFor(null)}
+                        className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-200 rounded-lg transition"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => handleAddCustomField(target)}
+                        className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition shadow-sm"
+                    >
+                        Add Section
+                    </button>
+                </div>
+            </div>
+        ) : (
+            <button
+                onClick={() => {
+                    setAddingCustomFor(target);
+                    setNewFieldTitle('');
+                    setNewFieldType('document');
+                }}
+                className="w-full py-2.5 mt-3 border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 text-blue-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+            >
+                <Plus size={16} />
+                Add Custom Section
+            </button>
+        )
+    );
+
     return (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
             <button
@@ -1326,6 +1488,7 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 {Array.from({ length: occupantCount || 1 }).map((_, i) => {
                                     const isActive = activeOccupant === i;
                                     const name = bachelorDetails[i]?.name || `Occupant #${i + 1}`;
+                                    const occupantCustomFields = bachelorDetails[i]?.customFields || [];
 
                                     return (
                                         <div key={i} className={`rounded-xl border transition-all duration-200 overflow-hidden ${isActive ? 'bg-slate-50 border-blue-200 shadow-sm' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
@@ -1364,13 +1527,61 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                                         />
                                                     </div>
 
-                                                    {/* Docs */}
+                                                    {/* Standard Docs */}
                                                     <div className="space-y-2">
                                                         <DocItem title="Photo" docUrl={documents[`bachelor_${i}_photo`]} onDelete={() => deleteDoc(`bachelor_${i}_photo`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_photo`)} isUploading={uploading[`bachelor_${i}_photo`]} />
                                                         <DocItem title="Aadhar" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_aadhar`)} isUploading={uploading[`bachelor_${i}_aadhar`]} />
                                                         <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_pan`)} isUploading={uploading[`bachelor_${i}_pan`]} />
                                                         <DocItem title="Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} onUpload={(file) => handleUpload(file, `bachelor_${i}_agreement`)} isUploading={uploading[`bachelor_${i}_agreement`]} />
+
+                                                        {/* Dynamic Custom Fields / Sections */}
+                                                        {occupantCustomFields.map((cf) => (
+                                                            <div key={cf.id} className="pt-1">
+                                                                {cf.type === 'text' ? (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="flex-1">
+                                                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
+                                                                            <input
+                                                                                placeholder={`Enter ${cf.title}`}
+                                                                                className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                                                                                value={cf.value || ''}
+                                                                                onChange={(e) => handleUpdateCustomText(i, cf.id, e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleRemoveCustomField(i, cf.id, cf.key)}
+                                                                            className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition self-end mb-0.5"
+                                                                            title={`Delete section "${cf.title}"`}
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="flex-1">
+                                                                            <DocItem
+                                                                                title={cf.title}
+                                                                                docUrl={documents[cf.key]}
+                                                                                onDelete={() => deleteDoc(cf.key)}
+                                                                                onUpload={(file) => handleUpload(file, cf.key)}
+                                                                                isUploading={uploading[cf.key]}
+                                                                            />
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleRemoveCustomField(i, cf.id, cf.key)}
+                                                                            className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
+                                                                            title={`Delete section "${cf.title}"`}
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
                                                     </div>
+
+                                                    {/* Add Custom Section Button / Form */}
+                                                    {renderAddCustomSectionUI(i)}
                                                 </div>
                                             )}
                                         </div>
@@ -1390,6 +1601,54 @@ function DocumentVault({ tenant, updateTenant, showToast, tenantType, occupantCo
                                 <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} onUpload={(file) => handleUpload(file, 'aadhar')} isUploading={uploading.aadhar} />
                                 <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} onUpload={(file) => handleUpload(file, 'pan')} isUploading={uploading.pan} />
                                 <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} onUpload={(file) => handleUpload(file, 'agreement')} isUploading={uploading.agreement} />
+
+                                {/* Family Custom Fields */}
+                                {(tenant.customFields || []).map((cf) => (
+                                    <div key={cf.id} className="pt-1">
+                                        {cf.type === 'text' ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1">
+                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
+                                                    <input
+                                                        placeholder={`Enter ${cf.title}`}
+                                                        className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/20 outline-none font-medium"
+                                                        value={cf.value || ''}
+                                                        onChange={(e) => handleUpdateCustomText('family', cf.id, e.target.value)}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveCustomField('family', cf.id, cf.key)}
+                                                    className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition self-end mb-0.5"
+                                                    title={`Delete section "${cf.title}"`}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1">
+                                                    <DocItem
+                                                        title={cf.title}
+                                                        docUrl={documents[cf.key]}
+                                                        onDelete={() => deleteDoc(cf.key)}
+                                                        onUpload={(file) => handleUpload(file, cf.key)}
+                                                        isUploading={uploading[cf.key]}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveCustomField('family', cf.id, cf.key)}
+                                                    className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0"
+                                                    title={`Delete section "${cf.title}"`}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Add Custom Section Button / Form */}
+                                {renderAddCustomSectionUI('family')}
                             </div>
                         )}
                     </div>

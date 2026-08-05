@@ -24,6 +24,20 @@ export interface WaterReadings {
     [monthKey: string]: number | string;
 }
 
+export interface CustomField {
+    id: string;
+    title: string;
+    type: 'document' | 'text';
+    key?: string;
+    value?: string;
+}
+
+export interface BachelorDetail {
+    name?: string;
+    familyPhone?: string;
+    customFields?: CustomField[];
+}
+
 export interface Tenant {
     id: string;
     tenant: string; // The tenant's name (legacy field name in DB)
@@ -53,6 +67,15 @@ export interface Tenant {
 
     // Legacy / Archival
     archivedTenant?: Tenant;
+
+    // Document Vault & Custom Fields
+    documents?: Record<string, string>;
+    customFields?: CustomField[];
+    bachelorDetails?: BachelorDetail[];
+    tenantType?: 'Family' | 'Bachelors' | string;
+    occupantCount?: number;
+    uploadToken?: string;
+    uploadTokenCreatedAt?: string;
 
     // Optional
     email?: string;

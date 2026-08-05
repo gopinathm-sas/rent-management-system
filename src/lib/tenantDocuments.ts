@@ -8,7 +8,8 @@ export function getClearedDocumentUploadFields() {
         bachelorDetails: [],
         familyMembers: '',
         tenantType: null,
-        occupantCount: null
+        occupantCount: null,
+        customFields: []
     };
 }
 
@@ -44,5 +45,6 @@ export function hasActiveDocumentUploadData(tenant: any) {
         || tenant.uploadTokenCreatedAt
         || (Array.isArray(tenant.bachelorDetails) && tenant.bachelorDetails.length)
         || tenant.familyMembers
+        || (Array.isArray(tenant.customFields) && tenant.customFields.length)
     );
 }

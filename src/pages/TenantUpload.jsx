@@ -315,6 +315,36 @@ export default function TenantUpload() {
                                         type={`bachelor_${i}_agreement`}
                                         description="Page with signature."
                                     />
+
+                                    {/* Custom Sections / Fields for Occupant i */}
+                                    {(tenant.bachelorDetails?.[i]?.customFields || []).map((cf) => (
+                                        <div key={cf.id} className="pt-2">
+                                            {cf.type === 'text' ? (
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{cf.title}</label>
+                                                    <input
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                        placeholder={`Enter ${cf.title}`}
+                                                        defaultValue={cf.value || ''}
+                                                        onBlur={(e) => {
+                                                            const val = e.target.value;
+                                                            const newDetails = [...(tenant.bachelorDetails || [])];
+                                                            if (!newDetails[i]) newDetails[i] = {};
+                                                            if (!newDetails[i].customFields) newDetails[i].customFields = [];
+                                                            newDetails[i].customFields = newDetails[i].customFields.map(f => f.id === cf.id ? { ...f, value: val } : f);
+                                                            updateDoc(doc(db, 'properties', tenant.id), { bachelorDetails: newDetails });
+                                                        }}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <UploadCard
+                                                    title={cf.title}
+                                                    type={cf.key}
+                                                    description={`Upload file for ${cf.title}.`}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))
@@ -356,6 +386,33 @@ export default function TenantUpload() {
                                     type="agreement"
                                     description="Signed copy of the agreement."
                                 />
+
+                                {/* Family Custom Sections / Fields */}
+                                {(tenant.customFields || []).map((cf) => (
+                                    <div key={cf.id} className="pt-2">
+                                        {cf.type === 'text' ? (
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                                <label className="block text-sm font-bold text-slate-900 mb-2">{cf.title}</label>
+                                                <input
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                    placeholder={`Enter ${cf.title}`}
+                                                    defaultValue={cf.value || ''}
+                                                    onBlur={(e) => {
+                                                        const val = e.target.value;
+                                                        const updated = (tenant.customFields || []).map(f => f.id === cf.id ? { ...f, value: val } : f);
+                                                        updateDoc(doc(db, 'properties', tenant.id), { customFields: updated });
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <UploadCard
+                                                title={cf.title}
+                                                type={cf.key}
+                                                description={`Upload file for ${cf.title}.`}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </>
                     )}

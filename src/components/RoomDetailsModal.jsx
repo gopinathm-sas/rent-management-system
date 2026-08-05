@@ -1027,6 +1027,20 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                                         <DocItem title="Aadhar Card" docUrl={documents[`bachelor_${i}_aadhar`]} onDelete={() => deleteDoc(`bachelor_${i}_aadhar`)} />
                                         <DocItem title="ID Proof" docUrl={documents[`bachelor_${i}_pan`]} onDelete={() => deleteDoc(`bachelor_${i}_pan`)} />
                                         <DocItem title="Rental Agreement" docUrl={documents[`bachelor_${i}_agreement`]} onDelete={() => deleteDoc(`bachelor_${i}_agreement`)} />
+
+                                        {/* Custom Fields */}
+                                        {(bachelorDetails[i]?.customFields || []).map((cf) => (
+                                            <div key={cf.id} className="pt-1">
+                                                {cf.type === 'text' ? (
+                                                    <div className="p-3 border border-slate-100 rounded-xl bg-white">
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">{cf.title}</div>
+                                                        <div className="text-sm font-bold text-slate-700 mt-0.5">{cf.value || 'N/A'}</div>
+                                                    </div>
+                                                ) : (
+                                                    <DocItem title={cf.title} docUrl={documents[cf.key]} onDelete={() => deleteDoc(cf.key)} />
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             ))
@@ -1043,6 +1057,20 @@ function DocumentVaultSection({ tenant, updateTenant, showToast }) {
                                 <DocItem title="Aadhar Card" docUrl={documents.aadhar} onDelete={() => deleteDoc('aadhar')} />
                                 <DocItem title="ID Proof" docUrl={documents.pan} onDelete={() => deleteDoc('pan')} />
                                 <DocItem title="Rental Agreement" docUrl={documents.agreement} onDelete={() => deleteDoc('agreement')} />
+
+                                {/* Family Custom Fields */}
+                                {(tenant.customFields || []).map((cf) => (
+                                    <div key={cf.id} className="pt-1">
+                                        {cf.type === 'text' ? (
+                                            <div className="p-3 border border-slate-100 rounded-xl bg-white">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase">{cf.title}</div>
+                                                <div className="text-sm font-bold text-slate-700 mt-0.5">{cf.value || 'N/A'}</div>
+                                            </div>
+                                        ) : (
+                                            <DocItem title={cf.title} docUrl={documents[cf.key]} onDelete={() => deleteDoc(cf.key)} />
+                                        )}
+                                    </div>
+                                ))}
                             </>
                         )}
                     </div>
