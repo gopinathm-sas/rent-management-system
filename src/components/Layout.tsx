@@ -56,11 +56,11 @@ export default function Layout({ children }: LayoutProps) {
                 <nav className="space-y-2 flex-1">
                     <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Menu</div>
                     <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
+                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" />
                     <NavItem to="/rooms" icon={Home} label="Room Details" />
                     <NavItem to="/rent" icon={Receipt} label="Rent Status" />
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
-                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" />
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
@@ -122,11 +122,11 @@ export default function Layout({ children }: LayoutProps) {
             <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white border-t border-stone-100 pb-safe">
                 <div className="grid grid-cols-6 gap-0.5 p-1.5">
                     <NavItem to="/" icon={LayoutDashboard} label="Dash" mobile />
+                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" mobile />
                     <NavItem to="/rooms" icon={Home} label="Rooms" mobile />
                     <NavItem to="/rent" icon={Receipt} label="Rent" mobile />
                     <NavItem to="/water" icon={Droplet} label="Water" mobile />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" mobile />
-                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" mobile />
                 </div>
             </div>
         </div>
