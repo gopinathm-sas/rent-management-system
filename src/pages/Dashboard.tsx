@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
 import {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { findTenantForRoom, isOccupiedRecord, getMonthKey, computeRentCollectedForMonth, computePendingRentForMonth, getPrevYearMonth, formatMonthLabel, isMonthBeforeJoinDate, getEffectiveRent } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
@@ -8,7 +8,7 @@ import RoomDetailsModal from '../components/RoomDetailsModal';
 
 export default function RoomDetails() {
     const { rooms, tenants, loading } = useData();
-    const [selectedRoom, setSelectedRoom] = React.useState(null);
+    const [selectedRoom, setSelectedRoom] = useState(null);
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading rooms...</div>;
 
