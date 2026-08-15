@@ -8,7 +8,8 @@ function getLoginErrorMessage(error: unknown) {
     const code = err?.code || 'unknown';
 
     if (code === 'auth/unauthorized-domain') {
-        return `Login failed: this local domain is not authorized in Firebase Auth.\n\nTry http://localhost:5173 instead of 127.0.0.1, or add the current host in Firebase Console > Authentication > Settings > Authorized domains.`;
+        const domain = window.location.hostname;
+        return `Login failed: "${domain}" is not authorized in Firebase Auth.\n\nTo authorize it:\n1. Go to Firebase Console > Authentication > Settings > Authorized domains\n2. Click "Add domain" and enter "${domain}".`;
     }
 
     if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
