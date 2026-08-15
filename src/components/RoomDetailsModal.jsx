@@ -1,3 +1,4 @@
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, ChevronDown, ChevronUp, User, CreditCard, Home, Edit2, Save, Link as LinkIcon, ExternalLink, Trash2, Copy, Check, FileText } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
@@ -26,12 +27,12 @@ export default function RoomDetailsModal({ room, tenant, onClose }) {
     const isOccupied = status === 'Occupied';
 
     // Sync local status if prop changes
-    React.useEffect(() => {
+    useEffect(() => {
         setStatus(tenant?.status || 'Vacant');
     }, [tenant]);
 
     // Handle Escape Key to Close
-    React.useEffect(() => {
+    useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === 'Escape') onClose();
         };
