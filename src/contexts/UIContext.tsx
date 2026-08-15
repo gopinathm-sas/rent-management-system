@@ -1,13 +1,25 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { X, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { X, AlertTriangle, CheckCircle, Info, HelpCircle, Undo2 } from 'lucide-react';
 
 type ToastType = 'info' | 'success' | 'warning' | 'error' | 'confirm' | 'danger';
+
+/** An optional button rendered inside a toast, e.g. "Undo". */
+export interface ToastAction {
+    label: string;
+    onClick: () => void | Promise<void>;
+}
 
 interface Toast {
     id: number;
     message: string;
     type: ToastType;
+    action?: ToastAction;
+    duration: number;
 }
+
+/** Plain toasts disappear quickly; actionable ones need time to be read and tapped. */
+const DEFAULT_TOAST_MS = 3000;
+const ACTION_TOAST_MS = 8000;
 
 interface ConfirmOptions {
     title: string;
@@ -23,7 +35,7 @@ interface ConfirmState extends ConfirmOptions {
 }
 
 interface UIContextType {
-    showToast: (message: string, type?: ToastType) => void;
+    showToast: (message: string, type?: ToastType, action?: ToastAction) => void;
     confirm: (options: ConfirmOptions) => Promise<boolean>;
 }
 
@@ -53,19 +65,30 @@ export function UIProvider({ children }: { children: ReactNode }) {
     });
 
     // --- Toast Logic ---
-    const showToast = useCallback((message: string, type: ToastType = 'info') => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, message, type }]);
+    // Monotonic counter: Date.now() collides when two toasts fire in the same tick,
+    // which produced duplicate React keys and toasts that refused to dismiss.
+    const toastIdRef = useRef(0);
 
-        // Auto remove after 3s
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, 3000);
+    const removeToast = useCallback((id: number) => {
+        setToasts(prev => prev.filter(t => t.id !== id));
     }, []);
 
-    const removeToast = (id: number) => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-    };
+    const showToast = useCallback((message: string, type: ToastType = 'info', action?: ToastAction) => {
+        const id = ++toastIdRef.current;
+        const duration = action ? ACTION_TOAST_MS : DEFAULT_TOAST_MS;
+
+        setToasts(prev => [...prev, { id, message, type, action, duration }]);
+
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, duration);
+    }, []);
+
+    // Dismiss first so a double-tap can't fire the action twice.
+    const runToastAction = useCallback((toast: Toast) => {
+        removeToast(toast.id);
+        void toast.action?.onClick();
+    }, [removeToast]);
 
     // --- Confirm Logic ---
     const confirm = useCallback(({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'confirm' }: ConfirmOptions): Promise<boolean> => {
@@ -96,27 +119,61 @@ export function UIProvider({ children }: { children: ReactNode }) {
         <UIContext.Provider value={{ showToast, confirm }}>
             {children}
 
-            {/* Render Toasts (Bottom Center) */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none">
+            {/* Render Toasts (Bottom Center).
+                Lifted above the mobile bottom nav so actionable toasts stay tappable. */}
+            <div
+                className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none w-full px-4 md:px-0 md:w-auto"
+                role="region"
+                aria-label="Notifications"
+            >
                 {toasts.map(toast => (
                     <div
                         key={toast.id}
-                        className={`pointer-events-auto flex items-center gap-3 px-6 py-3 rounded-2xl shadow-xl border animate-in slide-in-from-bottom-5 fade-in duration-300 min-w-[300px] justify-between ${toast.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-700' :
+                        role={toast.type === 'error' ? 'alert' : 'status'}
+                        aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+                        className={`toast-enter pointer-events-auto relative overflow-hidden flex items-center gap-3 pl-5 pr-3 py-3 rounded-2xl shadow-xl border w-full md:w-auto md:min-w-[320px] md:max-w-[440px] justify-between ${toast.type === 'error' ? 'bg-rose-50 border-rose-100 text-rose-700' :
                             toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
                                 toast.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-700' :
                                     'bg-slate-50 border-slate-200 text-slate-700'
                             }`}
                     >
-                        <div className="flex items-center gap-3">
-                            {toast.type === 'error' && <AlertTriangle size={20} />}
-                            {toast.type === 'success' && <CheckCircle size={20} />}
-                            {toast.type === 'warning' && <AlertTriangle size={20} />}
-                            {toast.type === 'info' && <Info size={20} />}
-                            <span className="font-bold text-sm">{toast.message}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                            <span className="shrink-0">
+                                {toast.type === 'error' && <AlertTriangle size={20} />}
+                                {toast.type === 'success' && <CheckCircle size={20} />}
+                                {toast.type === 'warning' && <AlertTriangle size={20} />}
+                                {toast.type === 'info' && <Info size={20} />}
+                            </span>
+                            <span className="font-bold text-sm leading-snug">{toast.message}</span>
                         </div>
-                        <button onClick={() => removeToast(toast.id)} className="opacity-50 hover:opacity-100">
-                            <X size={16} />
-                        </button>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                            {toast.action && (
+                                <button
+                                    onClick={() => runToastAction(toast)}
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/80 border border-black/5 text-xs font-black uppercase tracking-wide hover:bg-white active:scale-95 transition-all shadow-sm"
+                                >
+                                    <Undo2 size={14} />
+                                    {toast.action.label}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => removeToast(toast.id)}
+                                aria-label="Dismiss notification"
+                                className="p-2 rounded-lg opacity-50 hover:opacity-100 hover:bg-black/5 transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Countdown bar — shows how long an undo window has left */}
+                        {toast.action && (
+                            <span
+                                aria-hidden="true"
+                                className="toast-countdown absolute bottom-0 left-0 h-1 w-full bg-current opacity-30 rounded-full"
+                                style={{ animationDuration: `${toast.duration}ms` }}
+                            />
+                        )}
                     </div>
                 ))}
             </div>

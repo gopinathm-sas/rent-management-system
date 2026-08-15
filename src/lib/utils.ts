@@ -19,6 +19,17 @@ export {
     RENT_WATER_SERVICE_CHARGE
 };
 
+/**
+ * Single source of truth for rupee display.
+ * Replaces the `₹${n.toLocaleString('en-IN')}` pattern repeated across pages —
+ * which silently rendered "₹NaN" for undefined values.
+ */
+export function formatINR(value: number | null | undefined): string {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '₹0';
+    return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
 export function getMonthKey(year: number, monthIndex: number): string {
     return `${year}-${MONTHS[monthIndex]}`;
 }

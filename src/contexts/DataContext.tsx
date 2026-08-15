@@ -19,6 +19,7 @@ interface DataContextType {
     globalYear: number;
     setGlobalYear: (year: number) => void;
     updateRentStatus: (roomId: string, key: string, currentStatus: string, tenantData: Tenant, year: number, monthIndex: number, deductionDays?: number) => Promise<void>;
+    revertRentStatus: (tenantId: string, key: string, prevStatus: string | null, prevTotal: number | null) => Promise<void>;
     addExpense: (expenseData: Omit<Expense, 'id'>) => Promise<void>;
     updateExpense: (id: string, data: Partial<Expense>) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
@@ -181,6 +182,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await updateDoc(doc(db, 'properties', tenantData.id), updatePayload);
     };
 
+    /**
+     * Restores an exact previous payment snapshot for one tenant/month.
+     *
+     * Deliberately NOT a backwards cycle: stepping Paid -> None discards
+     * `paymentTotals[key]`, and that figure can encode a prorated first month or a
+     * manual deduction that cannot be recomputed from the tenant record alone. Undo
+     * therefore replays the captured values verbatim.
+     */
+    const revertRentStatus = async (tenantId: string, key: string, prevStatus: string | null, prevTotal: number | null) => {
+        if (!tenantId) throw new Error('Tenant ID missing');
+
+        // 'None' is persisted as an absent value, matching updateRentStatus.
+        const statusValue = !prevStatus || prevStatus === 'None' ? null : prevStatus;
+        const totalValue = Number.isFinite(Number(prevTotal)) ? Number(prevTotal) : null;
+
+        await updateDoc(doc(db, 'properties', tenantId), {
+            [`paymentHistory.${key}`]: statusValue,
+            [`paymentTotals.${key}`]: totalValue
+        });
+    };
+
     const addExpenseHandler = async (expenseData: Omit<Expense, 'id'>) => {
         await addDoc(collection(db, 'expenses'), expenseData);
     };
@@ -214,6 +236,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         globalYear,
         setGlobalYear,
         updateRentStatus,
+        revertRentStatus,
         addExpense: addExpenseHandler,
         updateExpense: updateExpenseHandler,
         deleteExpense: deleteExpenseHandler,

@@ -22,13 +22,50 @@ import {
 import { ChevronLeft, ChevronRight, Check, X, Minus } from 'lucide-react';
 import ProratedRentDialog from '../components/ProratedRentDialog';
 
+// Status cycle: None -> Pending -> Rent Only -> Paid -> None
+const nextStatusOf = (status) =>
+    status === 'None' || !status ? 'Pending'
+        : status === 'Pending' ? 'Rent Only'
+            : status === 'Rent Only' ? 'Paid'
+                : 'None';
+
+const statusLabel = (status) => (!status || status === 'None' ? 'Not set' : status);
+
 export default function RentDetails() {
-    const { rooms, tenants, loading, updateRentStatus, globalYear } = useData();
-    const { showToast } = useUI();
+    const { rooms, tenants, loading, updateRentStatus, revertRentStatus, globalYear } = useData();
+    const { showToast, confirm } = useUI();
     const year = globalYear;
 
     // Prorated rent dialog state
     const [prorateDialog, setProrateDialog] = useState(null);
+
+    /**
+     * Captures the exact pre-click state of a cell so it can be restored verbatim.
+     * Must be read BEFORE the write — once Firestore round-trips, the old total is gone.
+     */
+    const snapshotCell = (tenantData, key) => ({
+        tenantId: tenantData?.id,
+        key,
+        status: tenantData?.paymentHistory?.[key] ?? null,
+        total: tenantData?.paymentTotals?.[key] ?? null
+    });
+
+    const offerUndo = (snapshot, newStatus, roomData, monthIndex) => {
+        const where = `Room ${roomData.roomNo} · ${formatMonthLabel(year, monthIndex)}`;
+        const message = `${where} → ${statusLabel(newStatus)}`;
+
+        showToast(message, newStatus === 'Paid' ? 'success' : 'info', {
+            label: 'Undo',
+            onClick: async () => {
+                try {
+                    await revertRentStatus(snapshot.tenantId, snapshot.key, snapshot.status, snapshot.total);
+                    showToast(`Restored to ${statusLabel(snapshot.status)}`, 'success');
+                } catch (err) {
+                    showToast(`Could not undo: ${err.message}`, 'error');
+                }
+            }
+        });
+    };
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading rent details...</div>;
 
@@ -52,10 +89,25 @@ export default function RentDetails() {
 
         // Check if this click would transition to 'Paid' (Rent Only -> Paid)
         // AND this is the first month of occupancy for a new tenant
-        const nextStatus = currentStatus === 'None' || !currentStatus ? 'Pending'
-            : currentStatus === 'Pending' ? 'Rent Only'
-                : currentStatus === 'Rent Only' ? 'Paid'
-                    : 'None';
+        const nextStatus = nextStatusOf(currentStatus);
+
+        // Paid -> None is the one destructive step in the cycle: it clears the recorded
+        // paymentTotals for the month. Confirm before letting a mis-tap wipe it.
+        if (currentStatus === 'Paid') {
+            const recordedTotal = tenantData?.paymentTotals?.[key];
+            const amountText = Number.isFinite(Number(recordedTotal))
+                ? ` The recorded total of ₹${Number(recordedTotal).toLocaleString('en-IN')} will be cleared.`
+                : '';
+
+            const ok = await confirm({
+                title: `Clear payment for ${formatMonthLabel(year, monthIndex)}?`,
+                message: `Room ${roomData.roomNo} is currently marked Paid.${amountText}`,
+                confirmText: 'Clear it',
+                cancelText: 'Keep as Paid',
+                type: 'danger'
+            });
+            if (!ok) return;
+        }
 
         if (nextStatus === 'Paid' && isFirstOccupancyMonth(tenantData, year, monthIndex)) {
             const joinDay = new Date(tenantData.joinDate).getDate();
@@ -81,8 +133,12 @@ export default function RentDetails() {
             }
         }
 
+        // Capture state before the write — the old total is unrecoverable afterwards.
+        const snapshot = snapshotCell(tenantData, key);
+
         try {
             await updateRentStatus(roomData.roomId, key, currentStatus, tenantData, year, monthIndex);
+            offerUndo(snapshot, nextStatus, roomData, monthIndex);
         } catch (e) {
             // If the error is a water-reading validation error (thrown when attempting to
             // mark 'Paid' without meter readings), show a warning but still advance the
@@ -92,6 +148,7 @@ export default function RentDetails() {
                 try {
                     // Advance from the would-be 'Paid' state → 'None'
                     await updateRentStatus(roomData.roomId, key, 'Paid', tenantData, year, monthIndex);
+                    offerUndo(snapshot, 'None', roomData, monthIndex);
                 } catch {
                     // 'Paid' → 'None' never requires validation, so this should not throw.
                     // Silently ignore in case of any unexpected edge case.
@@ -106,14 +163,18 @@ export default function RentDetails() {
         if (!prorateDialog) return;
         const { roomData, key, currentStatus, tenant: tenantData, year: y, monthIndex: mi } = prorateDialog;
         setProrateDialog(null);
+
+        const snapshot = snapshotCell(tenantData, key);
+
         try {
             await updateRentStatus(roomData.roomId, key, currentStatus, tenantData, y, mi, deductionDays);
-            showToast('Prorated rent marked as Paid', 'success');
+            offerUndo(snapshot, 'Paid', roomData, mi);
         } catch (e) {
             // Same fallback: if water readings are missing, don't trap user at Rent Only
             showToast('Water readings missing — skipped to None. Enter readings on the Water Bill page to mark Paid.', 'warning');
             try {
                 await updateRentStatus(roomData.roomId, key, 'Paid', tenantData, y, mi);
+                offerUndo(snapshot, 'None', roomData, mi);
             } catch {
                 // Silently ignore — Paid → None never requires water validation
             }

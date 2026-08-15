@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { ReactNode } from 'react';
 import { useData } from '../contexts/DataContext';
+import { useUI } from '../contexts/UIContext';
 import {
     formatMonthLabel,
-    computeRentCollectedForMonth,
-    computePendingRentForMonth,
     computeFinancialsForMonth,
     sumExpensesForMonth,
     isFutureYearMonth,
@@ -14,11 +13,13 @@ import {
     isMonthBeforeJoinDate,
     getEffectiveRent,
     computeWaterForMonth,
+    isOccupiedRecord,
+    formatINR,
     MONTHS
 } from '../lib/utils';
-import { ChevronLeft, ChevronRight, AlertCircle, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertCircle, Clock, Home, Wallet, TrendingUp, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_WATER_RATE, DISCOUNTED_WATER_ROOMS } from '../lib/constants';
+import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_WATER_RATE } from '../lib/constants';
 
 const WhatsAppIcon = ({ size = 20, className = "" }) => (
     <svg
@@ -33,8 +34,52 @@ const WhatsAppIcon = ({ size = 20, className = "" }) => (
     </svg>
 );
 
+type KpiTone = 'emerald' | 'rose' | 'slate' | 'blue';
+
+const KPI_TONES: Record<KpiTone, { icon: string; value: string; ring: string }> = {
+    emerald: { icon: 'bg-emerald-100 text-emerald-700', value: 'text-emerald-700', ring: 'hover:border-emerald-200' },
+    rose: { icon: 'bg-rose-100 text-rose-700', value: 'text-rose-700', ring: 'hover:border-rose-200' },
+    blue: { icon: 'bg-blue-100 text-blue-700', value: 'text-blue-700', ring: 'hover:border-blue-200' },
+    slate: { icon: 'bg-slate-100 text-slate-700', value: 'text-slate-900', ring: 'hover:border-slate-300' }
+};
+
+interface KpiCardProps {
+    label: string;
+    value: string;
+    hint?: string;
+    icon: any;
+    tone?: KpiTone;
+    to?: string;
+    footer?: ReactNode;
+}
+
+function KpiCard({ label, value, hint, icon: Icon, tone = 'slate', to, footer }: KpiCardProps) {
+    const styles = KPI_TONES[tone];
+
+    const body = (
+        <>
+            <div className="flex items-start justify-between gap-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                <span className={`p-2 rounded-xl shrink-0 ${styles.icon}`}>
+                    <Icon size={16} />
+                </span>
+            </div>
+            <h3 className={`text-2xl font-black mt-2 tracking-tight tabular-nums ${styles.value}`}>{value}</h3>
+            {hint && <p className="text-[11px] font-medium text-slate-500 mt-1">{hint}</p>}
+            {footer}
+        </>
+    );
+
+    const shell = `bg-white rounded-3xl p-5 border border-black/5 shadow-sm transition-colors ${styles.ring}`;
+
+    return to
+        ? <Link to={to} className={`${shell} block`}>{body}</Link>
+        : <div className={shell}>{body}</div>;
+}
+
 export default function Dashboard() {
     const { tenants, expenses, rooms, loading, globalYear, setGlobalYear } = useData();
+    const { showToast } = useUI();
 
     // Derived state for local calculation if needed, but we use globalYear
     const year = globalYear;
@@ -58,6 +103,31 @@ export default function Dashboard() {
             locked
         });
     }
+
+    // -- KPI TOTALS --
+    // Derived from the same `rows` the table below renders, so the summary and the
+    // breakdown can never disagree (a recurring source of bugs in this app).
+    const yearRent = rows.reduce((s, r) => s + r.rent, 0);
+    const yearWater = rows.reduce((s, r) => s + r.water, 0);
+    const yearExpenses = rows.reduce((s, r) => s + r.expenses, 0);
+    const yearPending = rows.reduce((s, r) => s + r.pending, 0);
+    const yearCollected = rows.reduce((s, r) => s + r.total, 0);
+    const netPosition = yearCollected - yearExpenses;
+
+    // Occupancy is inherently present-tense — it does not follow the year selector.
+    const roomKeys = Object.keys(IMMUTABLE_ROOMS_DATA);
+    const totalRooms = roomKeys.length;
+    const occupiedRooms = roomKeys.filter(roomKey => {
+        const room = rooms[roomKey];
+        return room ? isOccupiedRecord(findTenantForRoom(tenants, room.roomId)) : false;
+    }).length;
+    const occupancyPct = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+
+    // "This month" only has meaning while viewing the current year.
+    const today = new Date();
+    const isCurrentYear = year === today.getFullYear();
+    const thisMonthCollected = isCurrentYear ? rows[today.getMonth()].total : null;
+    const monthsWithActivity = rows.filter(r => r.total > 0).length;
 
     // -- ALERT LOGIC --
     // 1. Pending Rents: Check if any rows have pending amounts
@@ -178,6 +248,57 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            {/* KPI SUMMARY */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <KpiCard
+                    label="Occupancy"
+                    value={`${occupiedRooms}/${totalRooms}`}
+                    hint={occupiedRooms === totalRooms
+                        ? 'Fully occupied'
+                        : `${occupancyPct}% · ${totalRooms - occupiedRooms} vacant`}
+                    icon={Home}
+                    tone={occupiedRooms === totalRooms ? 'emerald' : 'slate'}
+                    to="/rooms"
+                    footer={
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${occupancyPct === 100 ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                                style={{ width: `${occupancyPct}%` }}
+                            />
+                        </div>
+                    }
+                />
+
+                <KpiCard
+                    label={`Collected ${year}`}
+                    value={formatINR(yearCollected)}
+                    hint={thisMonthCollected !== null
+                        ? `${formatINR(thisMonthCollected)} this month`
+                        : `${monthsWithActivity} of 12 months recorded`}
+                    icon={Wallet}
+                    tone="emerald"
+                />
+
+                <KpiCard
+                    label="Outstanding"
+                    value={formatINR(yearPending)}
+                    hint={yearPending > 0
+                        ? `${pendingTenantsList.length} ${pendingTenantsList.length === 1 ? 'room' : 'rooms'} pending`
+                        : 'All dues cleared'}
+                    icon={AlertCircle}
+                    tone={yearPending > 0 ? 'rose' : 'emerald'}
+                    to={yearPending > 0 ? '/rent' : undefined}
+                />
+
+                <KpiCard
+                    label="Net Position"
+                    value={formatINR(netPosition)}
+                    hint={`After ${formatINR(yearExpenses)} expenses`}
+                    icon={netPosition >= 0 ? TrendingUp : TrendingDown}
+                    tone={netPosition >= 0 ? 'emerald' : 'rose'}
+                />
+            </div>
+
             {/* ALERTS SECTION */}
             {(overdueRevisions.length > 0 || hasPending) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
@@ -226,7 +347,7 @@ export default function Dashboard() {
                                     </div>
                                     <h3 className="text-base font-bold text-rose-900">Pending Payments</h3>
                                     <span className="bg-rose-200/50 text-rose-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                                        ₹{rows.reduce((acc, curr) => acc + curr.pending, 0).toLocaleString('en-IN')}
+                                        {formatINR(yearPending)}
                                     </span>
                                 </div>
                                 <p className="text-sm text-rose-800/80 mt-1 font-medium">
@@ -243,7 +364,7 @@ export default function Dashboard() {
                                             : item.pendingMonths[0];
 
                                         const fullMonthsText = item.pendingMonths.join(', ');
-                                        const msg = `Hi ${item.tenantName},\n\nYour rent for ${fullMonthsText} is pending.\n\nBreakdown:\n- Rent: ₹${item.totalRentPending.toLocaleString('en-IN')}\n- Water Bill: ₹${item.totalWaterPending.toLocaleString('en-IN')}\n- Garbage Bill: ₹${item.totalGarbagePending.toLocaleString('en-IN')}\n\n*Total Amount: ₹${item.totalPending.toLocaleString('en-IN')}*\n\nPlease pay at the earliest.`;
+                                        const msg = `Hi ${item.tenantName},\n\nYour rent for ${fullMonthsText} is pending.\n\nBreakdown:\n- Rent: ${formatINR(item.totalRentPending)}\n- Water Bill: ${formatINR(item.totalWaterPending)}\n- Garbage Bill: ${formatINR(item.totalGarbagePending)}\n\n*Total Amount: ${formatINR(item.totalPending)}*\n\nPlease pay at the earliest.`;
                                         const waLink = `https://wa.me/91${item.phone}?text=${encodeURIComponent(msg)}`;
 
                                         return (
@@ -254,13 +375,18 @@ export default function Dashboard() {
                                                         <span className="text-slate-500 text-xs truncate">({item.tenantName})</span>
                                                     </div>
                                                     <div className="text-xs text-rose-600 font-medium truncate" title={fullMonthsText}>
-                                                        ₹{item.totalPending.toLocaleString('en-IN')} • {monthsText}
+                                                        {formatINR(item.totalPending)} • {monthsText}
                                                     </div>
                                                 </div>
 
                                                 <a
                                                     href={item.phone ? waLink : undefined}
-                                                    onClick={(e) => !item.phone && alert('No phone number for tenant')}
+                                                    onClick={(e) => {
+                                                        if (!item.phone) {
+                                                            e.preventDefault();
+                                                            showToast(`No phone number saved for Room ${item.roomNo}`, 'warning');
+                                                        }
+                                                    }}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                     className={`flex-shrink-0 p-2 rounded-lg transition-colors flex items-center justify-center
@@ -304,20 +430,20 @@ export default function Dashboard() {
                             {rows.map((row, idx) => (
                                 <tr key={idx} className={row.locked ? 'bg-stone-100/50 text-slate-400' : 'hover:bg-emerald-50/30 transition'}>
                                     <td className="px-5 py-4 font-bold text-slate-800">{row.label}</td>
-                                    <td className="px-5 py-4 text-right font-medium text-emerald-700">
-                                        {row.locked ? '₹0' : `₹${row.rent.toLocaleString('en-IN')}`}
+                                    <td className="px-5 py-4 text-right font-medium text-emerald-700 tabular-nums">
+                                        {formatINR(row.locked ? 0 : row.rent)}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-medium text-rose-700">
-                                        {`₹${row.expenses.toLocaleString('en-IN')}`}
+                                    <td className="px-5 py-4 text-right font-medium text-rose-700 tabular-nums">
+                                        {formatINR(row.expenses)}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-medium text-blue-600">
-                                        {row.locked ? '₹0' : `₹${row.water.toLocaleString('en-IN')}`}
+                                    <td className="px-5 py-4 text-right font-medium text-blue-600 tabular-nums">
+                                        {formatINR(row.locked ? 0 : row.water)}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-medium text-amber-800">
-                                        {row.locked ? '₹0' : `₹${row.pending.toLocaleString('en-IN')}`}
+                                    <td className="px-5 py-4 text-right font-medium text-amber-800 tabular-nums">
+                                        {formatINR(row.locked ? 0 : row.pending)}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-medium text-slate-600">
-                                        {row.locked ? '₹0' : `₹${row.total.toLocaleString('en-IN')}`}
+                                    <td className="px-5 py-4 text-right font-medium text-slate-600 tabular-nums">
+                                        {formatINR(row.locked ? 0 : row.total)}
                                     </td>
                                 </tr>
                             ))}
@@ -328,29 +454,19 @@ export default function Dashboard() {
                                     Year Total
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                    <span className="text-sm font-bold text-emerald-700">
-                                        ₹{rows.reduce((s, r) => s + r.rent, 0).toLocaleString('en-IN')}
-                                    </span>
+                                    <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatINR(yearRent)}</span>
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                    <span className="text-sm font-bold text-rose-700">
-                                        ₹{rows.reduce((s, r) => s + r.expenses, 0).toLocaleString('en-IN')}
-                                    </span>
+                                    <span className="text-sm font-bold text-rose-700 tabular-nums">{formatINR(yearExpenses)}</span>
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                    <span className="text-sm font-bold text-blue-600">
-                                        ₹{rows.reduce((s, r) => s + r.water, 0).toLocaleString('en-IN')}
-                                    </span>
+                                    <span className="text-sm font-bold text-blue-600 tabular-nums">{formatINR(yearWater)}</span>
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                    <span className="text-sm font-bold text-amber-800">
-                                        ₹{rows.reduce((s, r) => s + r.pending, 0).toLocaleString('en-IN')}
-                                    </span>
+                                    <span className="text-sm font-bold text-amber-800 tabular-nums">{formatINR(yearPending)}</span>
                                 </td>
                                 <td className="px-5 py-4 text-right">
-                                    <span className="text-sm font-bold text-slate-800">
-                                        ₹{rows.reduce((s, r) => s + r.total, 0).toLocaleString('en-IN')}
-                                    </span>
+                                    <span className="text-sm font-bold text-slate-800 tabular-nums">{formatINR(yearCollected)}</span>
                                 </td>
                             </tr>
                         </tfoot>
