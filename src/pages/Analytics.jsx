@@ -24,8 +24,7 @@ import {
     ArrowDownRight,
     Lightbulb,
     ArrowRightLeft,
-    CheckCircle2,
-    ShieldAlert
+    CheckCircle2
 } from 'lucide-react';
 
 export default function Analytics() {
@@ -84,7 +83,7 @@ export default function Analytics() {
     const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
 
     useEffect(() => {
-        if (availableMonths.length > 0 && !availableMonths.includes(selectedMonthKey)) {
+        if (selectedMonthKey !== 'all' && availableMonths.length > 0 && !availableMonths.includes(selectedMonthKey)) {
             setSelectedMonthKey(availableMonths[0]);
         }
     }, [availableMonths, selectedMonthKey]);
@@ -97,7 +96,7 @@ export default function Analytics() {
         const expenseList = Array.isArray(expenses) ? expenses : Object.values(expenses || {});
         const isAllTime = selectedMonthKey === 'all';
 
-        // Helper function to calculate full monthly stats for a given monthKey
+        // Helper function to calculate full monthly stats for a given monthKey or 'all'
         const calculateMonthStats = (mKey) => {
             let rev = 0;
             let rentRev = 0;
@@ -105,8 +104,97 @@ export default function Analytics() {
             let svcRev = 0;
             let totalLiters = 0;
             let paidCount = 0;
-            const roomWaterList = [];
 
+            if (mKey === 'all') {
+                const roomWaterMap = {};
+                const paidRoomsSet = new Set();
+
+                tenantList.forEach(t => {
+                    const waterRate = t.waterRate || getDefaultWaterRateForRoom(t.roomNo);
+                    let roomTotalLiters = 0;
+                    let roomTotalWaterCost = 0;
+
+                    if (t.paymentTotals) {
+                        Object.entries(t.paymentTotals).forEach(([monthKey, paidAmt]) => {
+                            const status = t.paymentHistory?.[monthKey];
+                            if (paidAmt && (status === 'Paid' || status === 'Rent Only')) {
+                                const amt = Number(paidAmt) || 0;
+                                rev += amt;
+                                paidRoomsSet.add(t.roomNo);
+
+                                if (monthKey && monthKey.includes('-')) {
+                                    const [yStr, mStr] = monthKey.split('-');
+                                    const yP = parseInt(yStr, 10);
+                                    const mP = MONTHS.indexOf(mStr);
+                                    if (!isNaN(yP) && mP !== -1) {
+                                        const waterCalc = computeWaterForMonth(t, yP, mP, waterRate);
+                                        const roomWaterCost = waterCalc?.amount || 0;
+                                        const roomWaterUnits = waterCalc?.units || 0;
+
+                                        if (roomWaterUnits > 0) {
+                                            totalLiters += roomWaterUnits;
+                                            roomTotalLiters += roomWaterUnits;
+                                            roomTotalWaterCost += roomWaterCost;
+                                        }
+
+                                        if (status === 'Paid') {
+                                            svcRev += RENT_WATER_SERVICE_CHARGE;
+                                            waterRev += roomWaterCost;
+                                            rentRev += Math.max(0, amt - roomWaterCost - RENT_WATER_SERVICE_CHARGE);
+                                        } else {
+                                            rentRev += amt;
+                                        }
+                                    } else {
+                                        rentRev += amt;
+                                    }
+                                } else {
+                                    rentRev += amt;
+                                }
+                            }
+                        });
+                    }
+
+                    if (roomTotalLiters > 0) {
+                        roomWaterMap[t.roomNo] = {
+                            roomNo: t.roomNo || 'N/A',
+                            tenant: t.tenant || 'Occupant',
+                            liters: roomTotalLiters,
+                            cost: roomTotalWaterCost
+                        };
+                    }
+                });
+
+                paidCount = paidRoomsSet.size;
+
+                let exp = 0;
+                const catMap = {};
+                expenseList.forEach(e => {
+                    const amt = Number(e.amount) || 0;
+                    exp += amt;
+                    const cat = e.category || 'General';
+                    catMap[cat] = (catMap[cat] || 0) + amt;
+                });
+
+                const roomWaterList = Object.values(roomWaterMap);
+                roomWaterList.sort((a, b) => (b.liters || 0) - (a.liters || 0));
+
+                return {
+                    totalRevenue: rev,
+                    rentRevenue: rentRev,
+                    waterRevenue: waterRev,
+                    serviceChargeRevenue: svcRev,
+                    totalExpenses: exp,
+                    netProfit: rev - exp,
+                    profitMargin: rev > 0 ? Math.round(((rev - exp) / rev) * 100) : 0,
+                    totalWaterLiters: totalLiters,
+                    waterUsageByRoom: roomWaterList,
+                    categoryMap: catMap,
+                    roomsPaidCount: paidCount
+                };
+            }
+
+            // Single Month calculation
+            const roomWaterList = [];
             let y = new Date().getFullYear();
             let mIdx = new Date().getMonth();
 
@@ -183,12 +271,12 @@ export default function Analytics() {
             };
         };
 
-        // 1. Current Selected Month Stats
+        // 1. Current Selected Month (or All Time) Stats
         const currentStats = calculateMonthStats(selectedMonthKey);
 
-        // 2. Previous Month Key & Stats for MoM Comparison
+        // 2. Previous Month Key & Stats for MoM Comparison (only active if a single month is selected)
         let prevMonthKey = '';
-        if (selectedMonthKey && selectedMonthKey.includes('-')) {
+        if (!isAllTime && selectedMonthKey && selectedMonthKey.includes('-')) {
             const [yStr, mStr] = selectedMonthKey.split('-');
             const y = parseInt(yStr, 10);
             const mIdx = MONTHS.indexOf(mStr);
@@ -282,9 +370,6 @@ export default function Analytics() {
 
     const {
         totalRevenue,
-        rentRevenue,
-        waterRevenue,
-        serviceChargeRevenue,
         totalExpenses,
         netProfit,
         profitMargin,
@@ -303,6 +388,7 @@ export default function Analytics() {
     } = analyticsData;
 
     const maxTrendVal = Math.max(...monthlyTrend.map(m => Math.max(m.revenue, m.expenses)), 10000);
+    const selectedMonthLabel = selectedMonthKey === 'all' ? 'All Time' : selectedMonthKey;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -313,7 +399,7 @@ export default function Analytics() {
                         <Sparkles size={14} /> Property Insights & Analytics
                     </div>
                     <h1 className="text-2xl font-black tracking-tight text-white">Interactive Performance Dashboard</h1>
-                    <p className="text-xs text-slate-400 mt-1">Real-time revenue comparisons, expense breakdowns & water tracking</p>
+                    <p className="text-xs text-slate-400 mt-1">Real-time revenue comparisons, expense breakdowns & utility tracking</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -357,6 +443,11 @@ export default function Analytics() {
                                 {momDeltas.revenueDiff >= 0 ? '+' : ''}{momDeltas.revenuePct}%
                             </span>
                         )}
+                        {selectedMonthKey === 'all' && (
+                            <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                All Time Sum
+                            </span>
+                        )}
                     </div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Revenue</p>
                     <h3 className="text-2xl font-black text-slate-900 mt-1">₹{(totalRevenue || 0).toLocaleString('en-IN')}</h3>
@@ -382,6 +473,11 @@ export default function Analytics() {
                                 {momDeltas.expenseDiff <= 0 ? '' : '+'}{momDeltas.expensePct}%
                             </span>
                         )}
+                        {selectedMonthKey === 'all' && (
+                            <span className="text-[10px] font-extrabold text-rose-700 bg-rose-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                All Time Sum
+                            </span>
+                        )}
                     </div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Expenses</p>
                     <h3 className="text-2xl font-black text-slate-900 mt-1">₹{(totalExpenses || 0).toLocaleString('en-IN')}</h3>
@@ -405,6 +501,11 @@ export default function Analytics() {
                             <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full ${momDeltas.profitDiff >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                                 {momDeltas.profitDiff >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                                 {momDeltas.profitDiff >= 0 ? '+' : ''}{momDeltas.profitPct}%
+                            </span>
+                        )}
+                        {selectedMonthKey === 'all' && (
+                            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${profitMargin >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                {profitMargin}% Margin
                             </span>
                         )}
                     </div>
@@ -434,6 +535,11 @@ export default function Analytics() {
                                 {momDeltas.waterDiff <= 0 ? '' : '+'}{momDeltas.waterPct}%
                             </span>
                         )}
+                        {selectedMonthKey === 'all' && (
+                            <span className="text-[10px] font-extrabold text-sky-700 bg-sky-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                All Time Sum
+                            </span>
+                        )}
                     </div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Water Consumption</p>
                     <h3 className="text-2xl font-black text-slate-900 mt-1">{(totalWaterLiters || 0).toLocaleString('en-IN')} <span className="text-sm font-bold text-slate-500">Liters</span></h3>
@@ -448,7 +554,7 @@ export default function Analytics() {
                 </div>
             </div>
 
-            {/* NEW: Month-over-Month Comparison Breakdown Widget */}
+            {/* Month-over-Month Comparison Breakdown Widget */}
             {prevStats && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
@@ -578,7 +684,7 @@ export default function Analytics() {
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h3 className="text-base font-black text-slate-900">Expense Distribution</h3>
-                                <p className="text-xs text-slate-500">Categorized costs for {selectedMonthKey}</p>
+                                <p className="text-xs text-slate-500">Categorized costs for {selectedMonthLabel}</p>
                             </div>
                             <div className="p-2 bg-slate-100 text-slate-600 rounded-xl">
                                 <PieChartIcon size={18} />
@@ -587,7 +693,7 @@ export default function Analytics() {
 
                         {Object.keys(categoryMap).length === 0 ? (
                             <div className="py-12 text-center text-slate-400 text-xs italic">
-                                No expenses logged for this month.
+                                No expenses logged for {selectedMonthLabel}.
                             </div>
                         ) : (
                             <div className="space-y-4 my-2">
@@ -619,7 +725,7 @@ export default function Analytics() {
                 </div>
             </div>
 
-            {/* NEW: Smart Owner AI Insights Widget */}
+            {/* Smart Owner AI Insights Widget */}
             <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-orange-500/10 p-6 rounded-3xl border border-amber-200/60 shadow-sm space-y-3">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-sm">
@@ -672,14 +778,14 @@ export default function Analytics() {
                             </div>
                             <div>
                                 <h3 className="text-base font-black text-slate-900">Water Consumption Rankings</h3>
-                                <p className="text-xs text-slate-500">Total: <span className="font-extrabold text-sky-700">{(totalWaterLiters || 0).toLocaleString('en-IN')} Liters</span> for {selectedMonthKey}</p>
+                                <p className="text-xs text-slate-500">Total: <span className="font-extrabold text-sky-700">{(totalWaterLiters || 0).toLocaleString('en-IN')} Liters</span> for {selectedMonthLabel}</p>
                             </div>
                         </div>
                     </div>
 
                     {waterUsageByRoom.length === 0 ? (
                         <div className="py-8 text-center text-slate-400 text-xs italic">
-                            No water meter readings logged for this month.
+                            No water meter readings logged for {selectedMonthLabel}.
                         </div>
                     ) : (
                         <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
