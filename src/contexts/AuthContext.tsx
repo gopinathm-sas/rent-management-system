@@ -164,19 +164,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }, AUTO_LOGOUT_TIME);
         };
 
-        // Events to detect activity
-        const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+        // Comprehensive events to detect user activity across all elements
+        const events = ['mousedown', 'mousemove', 'keydown', 'keypress', 'click', 'scroll', 'touchstart', 'touchmove', 'pointerdown'];
 
         // Initial set
         resetTimer();
 
-        // Add listeners
-        events.forEach(event => window.addEventListener(event, resetTimer));
+        // Add listeners with capture to ensure nested clicks/events are always captured
+        events.forEach(event => window.addEventListener(event, resetTimer, { passive: true, capture: true }));
 
         // Cleanup
         return () => {
             if (logoutTimer) clearTimeout(logoutTimer);
-            events.forEach(event => window.removeEventListener(event, resetTimer));
+            events.forEach(event => window.removeEventListener(event, resetTimer, { capture: true } as any));
         };
     }, [currentUser]);
 

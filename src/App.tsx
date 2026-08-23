@@ -38,32 +38,7 @@ function GlobalLock() {
     return null;
 }
 
-function useAutoUpdateChecker() {
-    React.useEffect(() => {
-        const checkLatestVersion = async () => {
-            try {
-                const response = await fetch(`/?_t=${Date.now()}`, { cache: 'no-store' });
-                const html = await response.text();
-                const match = html.match(/src="(\/assets\/index-[^"]+\.js)"/);
-                if (match && match[1]) {
-                    const latestScript = match[1];
-                    const currentScript = document.querySelector('script[src*="/assets/index-"]')?.getAttribute('src');
-                    if (currentScript && currentScript !== latestScript) {
-                        console.log('New app version detected. Updating...');
-                        window.location.reload();
-                    }
-                }
-            } catch (e) {
-                // Ignore network errors
-            }
-        };
-
-        checkLatestVersion();
-    }, []);
-}
-
 function App() {
-    useAutoUpdateChecker();
     return (
         <AuthProvider>
             <UIProvider>
