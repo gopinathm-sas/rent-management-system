@@ -76,6 +76,9 @@ export default function Analytics() {
     // Extract unique available years (sorted descending e.g. ["2026", "2025"])
     const availableYears = useMemo(() => {
         const yearsSet = new Set();
+        const nowYear = new Date().getFullYear().toString();
+        yearsSet.add(nowYear);
+
         availableMonths.forEach(mKey => {
             if (mKey && mKey.includes('-')) {
                 const [yStr] = mKey.split('-');
@@ -87,22 +90,49 @@ export default function Analytics() {
         return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
     }, [availableMonths]);
 
-    // Current month key e.g. "2026-Jan"
-    const currentMonthKey = useMemo(() => {
-        const now = new Date();
-        return getMonthKey(now.getFullYear(), now.getMonth());
+    // Current default year and month
+    const defaultYear = useMemo(() => {
+        return new Date().getFullYear().toString();
     }, []);
 
-    // Selected time filter state (can be 'all', 'year-2026', or '2026-Jan')
-    const [selectedMonthKey, setSelectedMonthKey] = useState(currentMonthKey);
+    const defaultMonth = useMemo(() => {
+        return MONTHS[new Date().getMonth()];
+    }, []);
 
-    useEffect(() => {
-        const isYearKey = selectedMonthKey.startsWith('year-');
-        const isValidKey = selectedMonthKey === 'all' || isYearKey || availableMonths.includes(selectedMonthKey);
-        if (!isValidKey && availableMonths.length > 0) {
-            setSelectedMonthKey(availableMonths[0]);
+    // Separate state for Year and Month dropdowns
+    // selectedYear can be 'all' or a year string (e.g. '2026')
+    // selectedMonth can be 'all' or a month string (e.g. 'Aug')
+    const [selectedYear, setSelectedYear] = useState('all');
+    const [selectedMonth, setSelectedMonth] = useState('all');
+
+    // Combine selectedYear and selectedMonth into single filter key for calculation
+    const selectedFilterKey = useMemo(() => {
+        if (selectedYear === 'all' && selectedMonth === 'all') {
+            return 'all';
         }
-    }, [availableMonths, selectedMonthKey]);
+        if (selectedYear !== 'all' && selectedMonth === 'all') {
+            return `year-${selectedYear}`;
+        }
+        if (selectedYear !== 'all' && selectedMonth !== 'all') {
+            return `${selectedYear}-${selectedMonth}`;
+        }
+        // If year is 'all' but a specific month is selected, default to latest active year
+        const fallbackYear = availableYears[0] || defaultYear;
+        return `${fallbackYear}-${selectedMonth}`;
+    }, [selectedYear, selectedMonth, availableYears, defaultYear]);
+
+    // Handle Year Change
+    const handleYearChange = (yearVal) => {
+        setSelectedYear(yearVal);
+    };
+
+    // Handle Month Change
+    const handleMonthChange = (monthVal) => {
+        setSelectedMonth(monthVal);
+        if (monthVal !== 'all' && selectedYear === 'all') {
+            setSelectedYear(availableYears[0] || defaultYear);
+        }
+    };
 
     // Financial Computations based on Selected Filter (All Time / Specific Year / Specific Month)
     const analyticsData = useMemo(() => {
@@ -110,9 +140,9 @@ export default function Analytics() {
 
         const tenantList = Array.isArray(tenants) ? tenants : Object.values(tenants || {});
         const expenseList = Array.isArray(expenses) ? expenses : Object.values(expenses || {});
-        const isAllTime = selectedMonthKey === 'all';
-        const isYearFilter = selectedMonthKey.startsWith('year-');
-        const targetYearStr = isYearFilter ? selectedMonthKey.replace('year-', '') : '';
+        const isAllTime = selectedFilterKey === 'all';
+        const isYearFilter = selectedFilterKey.startsWith('year-');
+        const targetYearStr = isYearFilter ? selectedFilterKey.replace('year-', '') : '';
 
         // Helper function to calculate stats for 'all', 'year-YYYY', or 'YYYY-MMM'
         const calculateMonthStats = (mKey) => {
@@ -266,7 +296,7 @@ export default function Analytics() {
                     if (status === 'Paid') {
                         svcRev += RENT_WATER_SERVICE_CHARGE;
                         waterRev += roomWaterCost;
-                        rentRev += Math.max(0, Number(paidAmt) - roomWaterCost - RENT_WATER_SERVICE_CHARGE);
+                        rentRev += Math.max(0, amt - roomWaterCost - RENT_WATER_SERVICE_CHARGE);
                     } else {
                         rentRev += Number(paidAmt);
                     }
@@ -304,7 +334,7 @@ export default function Analytics() {
         };
 
         // 1. Current Selected Filter Stats
-        const currentStats = calculateMonthStats(selectedMonthKey);
+        const currentStats = calculateMonthStats(selectedFilterKey);
 
         // 2. Previous Period Key & Stats for Comparison (Year-over-Year if Year filter selected, MoM if Month selected)
         let prevMonthKey = '';
@@ -313,8 +343,8 @@ export default function Analytics() {
             if (!isNaN(yNum)) {
                 prevMonthKey = `year-${yNum - 1}`;
             }
-        } else if (!isAllTime && selectedMonthKey && selectedMonthKey.includes('-')) {
-            const [yStr, mStr] = selectedMonthKey.split('-');
+        } else if (!isAllTime && selectedFilterKey && selectedFilterKey.includes('-')) {
+            const [yStr, mStr] = selectedFilterKey.split('-');
             const y = parseInt(yStr, 10);
             const mIdx = MONTHS.indexOf(mStr);
             if (!isNaN(y) && mIdx !== -1) {
@@ -347,9 +377,25 @@ export default function Analytics() {
         const totalAdvanceHeld = activeOccupied.reduce((acc, t) => acc + (Number(t.advance) || 0), 0);
         const occupancyRate = Math.round((activeOccupied.length / totalRoomsCount) * 100);
 
-        // 5. Monthly History Trend (Last 6 Months)
-        const recent6Months = availableMonths.slice(0, 6).reverse();
-        const monthlyTrend = recent6Months.map(mKey => {
+        // 5. Performance Trajectory Trend (Fix: Match the user's selected time filter scope!)
+        let trendMonths = [];
+        if (isYearFilter) {
+            // Show all 12 months for the selected year (e.g. "2024-Jan" through "2024-Dec")
+            trendMonths = MONTHS.map(mStr => `${targetYearStr}-${mStr}`);
+        } else if (isAllTime) {
+            // Show last 6 active months in availableMonths
+            trendMonths = availableMonths.slice(0, 6).reverse();
+        } else {
+            // Single month selected: show 6 months ending at selectedFilterKey
+            const selIdx = availableMonths.indexOf(selectedFilterKey);
+            if (selIdx !== -1) {
+                trendMonths = availableMonths.slice(selIdx, selIdx + 6).reverse();
+            } else {
+                trendMonths = availableMonths.slice(0, 6).reverse();
+            }
+        }
+
+        const monthlyTrend = trendMonths.map(mKey => {
             const st = calculateMonthStats(mKey);
             return {
                 month: mKey,
@@ -394,7 +440,7 @@ export default function Analytics() {
             monthlyTrend,
             rentRevisions
         };
-    }, [tenants, rooms, expenses, selectedMonthKey, availableMonths, totalRoomsCount]);
+    }, [tenants, rooms, expenses, selectedFilterKey, availableMonths, totalRoomsCount]);
 
     if (loading || !analyticsData) {
         return (
@@ -425,14 +471,15 @@ export default function Analytics() {
     } = analyticsData;
 
     const maxTrendVal = Math.max(...monthlyTrend.map(m => Math.max(m.revenue, m.expenses)), 10000);
-    
+    const hasTrendData = monthlyTrend.some(m => (m.revenue || 0) > 0 || (m.expenses || 0) > 0);
+
     // Label helpers for UI display
-    const isYearSelected = selectedMonthKey.startsWith('year-');
-    const selectedMonthLabel = selectedMonthKey === 'all'
+    const isYearSelected = selectedFilterKey.startsWith('year-');
+    const selectedMonthLabel = selectedFilterKey === 'all'
         ? 'All Time'
         : isYearSelected
-            ? `Year ${selectedMonthKey.replace('year-', '')}`
-            : selectedMonthKey;
+            ? `Year ${selectedFilterKey.replace('year-', '')}`
+            : selectedFilterKey;
 
     const prevMonthLabel = prevMonthKey.startsWith('year-')
         ? `Year ${prevMonthKey.replace('year-', '')}`
@@ -441,7 +488,7 @@ export default function Analytics() {
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             {/* Top Bar / Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-3xl text-white shadow-xl border border-slate-800">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-3xl text-white shadow-xl border border-slate-800">
                 <div>
                     <div className="flex items-center gap-2 text-blue-400 text-xs font-extrabold uppercase tracking-widest mb-1">
                         <Sparkles size={14} /> Property Insights & Analytics
@@ -450,37 +497,46 @@ export default function Analytics() {
                     <p className="text-xs text-slate-400 mt-1">Real-time revenue comparisons, expense breakdowns & utility tracking</p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="relative">
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Separate Dropdown 1: Year Selector (Includes All Time) */}
+                    <div className="flex items-center gap-1.5 bg-white/10 border border-white/15 px-3 py-2 rounded-2xl backdrop-blur-md">
+                        <span className="text-[11px] font-extrabold text-slate-300 uppercase tracking-wider">Year:</span>
                         <select
-                            value={selectedMonthKey}
-                            onChange={(e) => setSelectedMonthKey(e.target.value)}
-                            className="bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs px-4 py-2.5 rounded-2xl backdrop-blur-md outline-none cursor-pointer transition pr-8"
+                            value={selectedYear}
+                            onChange={(e) => handleYearChange(e.target.value)}
+                            className="bg-transparent text-white font-black text-xs outline-none cursor-pointer pr-1"
                         >
                             <option value="all" className="bg-slate-900 text-emerald-400 font-extrabold">
-                                🌐 All Time (Lifetime Overview)
+                                🌐 All Time
                             </option>
-
-                            {availableYears.length > 0 && (
-                                <optgroup label="📅 Yearly Summary" className="bg-slate-900 text-amber-400 font-extrabold">
-                                    {availableYears.map(y => (
-                                        <option key={`year-${y}`} value={`year-${y}`} className="bg-slate-900 text-white font-bold">
-                                            Year {y} (Full Year)
-                                        </option>
-                                    ))}
-                                </optgroup>
-                            )}
-
-                            <optgroup label="📆 Monthly Breakdown" className="bg-slate-900 text-blue-400 font-extrabold">
-                                {availableMonths.map(m => (
-                                    <option key={m} value={m} className="bg-slate-900 text-white">
-                                        {m}
-                                    </option>
-                                ))}
-                            </optgroup>
+                            {availableYears.map(y => (
+                                <option key={y} value={y} className="bg-slate-900 text-white font-bold">
+                                    {y}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
+                    {/* Separate Dropdown 2: Month Selector */}
+                    <div className="flex items-center gap-1.5 bg-white/10 border border-white/15 px-3 py-2 rounded-2xl backdrop-blur-md">
+                        <span className="text-[11px] font-extrabold text-slate-300 uppercase tracking-wider">Month:</span>
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => handleMonthChange(e.target.value)}
+                            className="bg-transparent text-white font-black text-xs outline-none cursor-pointer pr-1"
+                        >
+                            <option value="all" className="bg-slate-900 text-blue-400 font-extrabold">
+                                📆 All Months (Full Year)
+                            </option>
+                            {MONTHS.map(m => (
+                                <option key={m} value={m} className="bg-slate-900 text-white font-bold">
+                                    {m}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Print Statement Button */}
                     <button
                         onClick={() => window.print()}
                         className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition shadow-md flex items-center gap-2 text-xs font-bold"
@@ -506,7 +562,7 @@ export default function Analytics() {
                                 {momDeltas.revenueDiff >= 0 ? '+' : ''}{momDeltas.revenuePct}%
                             </span>
                         )}
-                        {(selectedMonthKey === 'all' || isYearSelected) && (
+                        {(selectedFilterKey === 'all' || isYearSelected) && (
                             <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -536,7 +592,7 @@ export default function Analytics() {
                                 {momDeltas.expenseDiff <= 0 ? '' : '+'}{momDeltas.expensePct}%
                             </span>
                         )}
-                        {(selectedMonthKey === 'all' || isYearSelected) && (
+                        {(selectedFilterKey === 'all' || isYearSelected) && (
                             <span className="text-[10px] font-extrabold text-rose-700 bg-rose-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -566,7 +622,7 @@ export default function Analytics() {
                                 {momDeltas.profitDiff >= 0 ? '+' : ''}{momDeltas.profitPct}%
                             </span>
                         )}
-                        {(selectedMonthKey === 'all' || isYearSelected) && (
+                        {(selectedFilterKey === 'all' || isYearSelected) && (
                             <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${profitMargin >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
                                 {profitMargin}% Margin
                             </span>
@@ -598,7 +654,7 @@ export default function Analytics() {
                                 {momDeltas.waterDiff <= 0 ? '' : '+'}{momDeltas.waterPct}%
                             </span>
                         )}
-                        {(selectedMonthKey === 'all' || isYearSelected) && (
+                        {(selectedFilterKey === 'all' || isYearSelected) && (
                             <span className="text-[10px] font-extrabold text-sky-700 bg-sky-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -693,53 +749,65 @@ export default function Analytics() {
             {/* Middle Section: Financial Trend Chart & Expense Categories */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Monthly Revenue vs Expenses Trend (2 cols) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 className="text-base font-black text-slate-900">Graphical Performance Trajectory</h3>
-                            <p className="text-xs text-slate-500">Revenue vs. Expenses over recent months</p>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs font-bold">
-                            <div className="flex items-center gap-1.5 text-emerald-600">
-                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div> Revenue
+                <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-base font-black text-slate-900">Graphical Performance Trajectory</h3>
+                                <p className="text-xs text-slate-500">
+                                    {isYearSelected
+                                        ? `Monthly breakdown for ${selectedMonthLabel}`
+                                        : `Revenue vs. Expenses for ${selectedMonthLabel}`}
+                                </p>
                             </div>
-                            <div className="flex items-center gap-1.5 text-rose-500">
-                                <div className="w-3 h-3 rounded-full bg-rose-400"></div> Expenses
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Visual Bar Chart */}
-                    <div className="space-y-4 pt-2">
-                        {monthlyTrend.map((m) => {
-                            const revPct = Math.round(((m.revenue || 0) / maxTrendVal) * 100);
-                            const expPct = Math.round(((m.expenses || 0) / maxTrendVal) * 100);
-
-                            return (
-                                <div key={m.month} className="space-y-1.5">
-                                    <div className="flex items-center justify-between text-xs font-bold">
-                                        <span className="text-slate-700 w-24 font-extrabold">{m.month}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-emerald-700 font-extrabold">₹{(m.revenue || 0).toLocaleString('en-IN')}</span>
-                                            <span className="text-slate-300">/</span>
-                                            <span className="text-rose-600 font-extrabold">₹{(m.expenses || 0).toLocaleString('en-IN')}</span>
-                                        </div>
-                                    </div>
-                                    <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden flex gap-0.5 p-0.5">
-                                        <div
-                                            style={{ width: `${Math.max(revPct, 2)}%` }}
-                                            className="bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full h-full transition-all duration-500"
-                                            title={`Revenue: ₹${m.revenue || 0}`}
-                                        />
-                                        <div
-                                            style={{ width: `${Math.max(expPct, 2)}%` }}
-                                            className="bg-gradient-to-r from-rose-400 to-pink-500 rounded-full h-full transition-all duration-500"
-                                            title={`Expenses: ₹${m.expenses || 0}`}
-                                        />
-                                    </div>
+                            <div className="flex items-center gap-4 text-xs font-bold">
+                                <div className="flex items-center gap-1.5 text-emerald-600">
+                                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div> Revenue
                                 </div>
-                            );
-                        })}
+                                <div className="flex items-center gap-1.5 text-rose-500">
+                                    <div className="w-3 h-3 rounded-full bg-rose-400"></div> Expenses
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Visual Bar Chart */}
+                        {!hasTrendData ? (
+                            <div className="py-16 text-center text-slate-400 text-xs italic">
+                                No financial trajectory data logged for {selectedMonthLabel}.
+                            </div>
+                        ) : (
+                            <div className="space-y-4 pt-2">
+                                {monthlyTrend.map((m) => {
+                                    const revPct = Math.round(((m.revenue || 0) / maxTrendVal) * 100);
+                                    const expPct = Math.round(((m.expenses || 0) / maxTrendVal) * 100);
+
+                                    return (
+                                        <div key={m.month} className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-xs font-bold">
+                                                <span className="text-slate-700 w-24 font-extrabold">{m.month}</span>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-emerald-700 font-extrabold">₹{(m.revenue || 0).toLocaleString('en-IN')}</span>
+                                                    <span className="text-slate-300">/</span>
+                                                    <span className="text-rose-600 font-extrabold">₹{(m.expenses || 0).toLocaleString('en-IN')}</span>
+                                                </div>
+                                            </div>
+                                            <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden flex gap-0.5 p-0.5">
+                                                <div
+                                                    style={{ width: `${Math.max(revPct, (m.revenue || 0) > 0 ? 2 : 0)}%` }}
+                                                    className="bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full h-full transition-all duration-500"
+                                                    title={`Revenue: ₹${m.revenue || 0}`}
+                                                />
+                                                <div
+                                                    style={{ width: `${Math.max(expPct, (m.expenses || 0) > 0 ? 2 : 0)}%` }}
+                                                    className="bg-gradient-to-r from-rose-400 to-pink-500 rounded-full h-full transition-all duration-500"
+                                                    title={`Expenses: ₹${m.expenses || 0}`}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -757,7 +825,7 @@ export default function Analytics() {
                         </div>
 
                         {Object.keys(categoryMap).length === 0 ? (
-                            <div className="py-12 text-center text-slate-400 text-xs italic">
+                            <div className="py-16 text-center text-slate-400 text-xs italic">
                                 No expenses logged for {selectedMonthLabel}.
                             </div>
                         ) : (
@@ -798,7 +866,7 @@ export default function Analytics() {
                     </div>
                     <div>
                         <h3 className="text-base font-black text-amber-950">Property Owner Smart Insights</h3>
-                        <p className="text-xs text-amber-800/80">Automated key takeaways & cost optimization recommendations</p>
+                        <p className="text-xs text-amber-800/80">Automated key takeaways & cost optimization recommendations for {selectedMonthLabel}</p>
                     </div>
                 </div>
 
@@ -808,7 +876,9 @@ export default function Analytics() {
                             <CheckCircle2 size={14} className="text-emerald-600" /> Revenue Health
                         </div>
                         <p className="text-slate-600 leading-relaxed">
-                            {profitMargin >= 80 ? `Excellent profit margin of ${profitMargin}%. Rent collection is performing strongly.` : `Current profit margin is ${profitMargin}%.`}
+                            {totalRevenue > 0
+                                ? (profitMargin >= 80 ? `Excellent profit margin of ${profitMargin}%. Rent collection is performing strongly.` : `Current profit margin is ${profitMargin}%.`)
+                                : `No revenue logged for ${selectedMonthLabel}.`}
                         </p>
                     </div>
 
@@ -817,7 +887,7 @@ export default function Analytics() {
                             <Droplets size={14} className="text-sky-600" /> Utility Analysis
                         </div>
                         <p className="text-slate-600 leading-relaxed">
-                            {waterUsageByRoom.length > 0 ? `Room ${waterUsageByRoom[0]?.roomNo} is the highest consumer (${waterUsageByRoom[0]?.liters.toLocaleString('en-IN')} L).` : `No unusual water consumption detected.`}
+                            {waterUsageByRoom.length > 0 ? `Room ${waterUsageByRoom[0]?.roomNo} is the highest consumer (${waterUsageByRoom[0]?.liters.toLocaleString('en-IN')} L).` : `No water meter readings logged for ${selectedMonthLabel}.`}
                         </p>
                     </div>
 
