@@ -29,6 +29,7 @@ export default function Login() {
         try {
             setLoading(true);
             await loginWithGoogle();
+            window.location.href = '/';
         } catch (error) {
             console.error("Login failed:", error);
             alert(getLoginErrorMessage(error));

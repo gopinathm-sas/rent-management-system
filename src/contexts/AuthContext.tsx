@@ -94,11 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    function logout(): Promise<void> {
+    async function logout(): Promise<void> {
         if (Capacitor.isNativePlatform()) {
-            return FirebaseAuthentication.signOut().then(() => signOut(auth));
+            await FirebaseAuthentication.signOut();
+            await signOut(auth);
+        } else {
+            await signOut(auth);
+            window.location.href = '/login';
         }
-        return signOut(auth);
     }
 
     useEffect(() => {
