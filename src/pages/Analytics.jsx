@@ -105,29 +105,29 @@ export default function Analytics() {
 
     // Combine selectedYear and selectedMonth into single filter key for calculation
     const selectedFilterKey = useMemo(() => {
-        if (selectedYear === 'all' && selectedMonth === 'all') {
+        if (selectedYear === 'all') {
             return 'all';
         }
-        if (selectedYear !== 'all' && selectedMonth === 'all') {
+        if (selectedMonth === 'all') {
             return `year-${selectedYear}`;
         }
-        if (selectedYear !== 'all' && selectedMonth !== 'all') {
-            return `${selectedYear}-${selectedMonth}`;
-        }
-        // If year is 'all' but a specific month is selected, default to latest active year
-        const fallbackYear = availableYears[0] || defaultYear;
-        return `${fallbackYear}-${selectedMonth}`;
-    }, [selectedYear, selectedMonth, availableYears, defaultYear]);
+        return `${selectedYear}-${selectedMonth}`;
+    }, [selectedYear, selectedMonth]);
 
     // Handle Year Change
     const handleYearChange = (yearVal) => {
         setSelectedYear(yearVal);
+        if (yearVal === 'all') {
+            // When All Time is selected in the year dropdown, automatically set month to all
+            setSelectedMonth('all');
+        }
     };
 
     // Handle Month Change
     const handleMonthChange = (monthVal) => {
         setSelectedMonth(monthVal);
         if (monthVal !== 'all' && selectedYear === 'all') {
+            // If a specific month is chosen while Year is All Time, switch year to current/latest active year
             setSelectedYear(availableYears[0] || defaultYear);
         }
     };
@@ -376,33 +376,51 @@ export default function Analytics() {
         const totalAdvanceHeld = activeOccupied.reduce((acc, t) => acc + (Number(t.advance) || 0), 0);
         const occupancyRate = Math.round((activeOccupied.length / totalRoomsCount) * 100);
 
-        // 5. Performance Trajectory Trend (Fix: Match the user's selected time filter scope!)
-        let trendMonths = [];
-        if (isYearFilter) {
-            // Show all 12 months for the selected year (e.g. "2024-Jan" through "2024-Dec")
-            trendMonths = MONTHS.map(mStr => `${targetYearStr}-${mStr}`);
-        } else if (isAllTime) {
-            // Show last 6 active months in availableMonths
-            trendMonths = availableMonths.slice(0, 6).reverse();
+        // 5. Performance Trajectory Trend (All Time shows Yearly trajectory; Year filter shows 12 months; Month filter shows 6 months)
+        let monthlyTrend = [];
+        if (isAllTime) {
+            // For All Time: show the Year-by-Year macro trajectory across all recorded years (sorted chronologically)
+            const chronologicalYears = [...availableYears].sort((a, b) => Number(a) - Number(b));
+            monthlyTrend = chronologicalYears.map(yStr => {
+                const st = calculateMonthStats(`year-${yStr}`);
+                return {
+                    month: `Year ${yStr}`,
+                    revenue: st.totalRevenue,
+                    expenses: st.totalExpenses,
+                    profit: st.netProfit
+                };
+            });
+        } else if (isYearFilter) {
+            // For a selected Year: show the 12 calendar months for that year (e.g. 2026-Jan through 2026-Dec)
+            const trendMonths = MONTHS.map(mStr => `${targetYearStr}-${mStr}`);
+            monthlyTrend = trendMonths.map(mKey => {
+                const st = calculateMonthStats(mKey);
+                return {
+                    month: mKey,
+                    revenue: st.totalRevenue,
+                    expenses: st.totalExpenses,
+                    profit: st.netProfit
+                };
+            });
         } else {
             // Single month selected: show 6 months ending at selectedFilterKey
             const selIdx = availableMonths.indexOf(selectedFilterKey);
+            let sliceMonths = [];
             if (selIdx !== -1) {
-                trendMonths = availableMonths.slice(selIdx, selIdx + 6).reverse();
+                sliceMonths = availableMonths.slice(selIdx, selIdx + 6).reverse();
             } else {
-                trendMonths = availableMonths.slice(0, 6).reverse();
+                sliceMonths = availableMonths.slice(0, 6).reverse();
             }
+            monthlyTrend = sliceMonths.map(mKey => {
+                const st = calculateMonthStats(mKey);
+                return {
+                    month: mKey,
+                    revenue: st.totalRevenue,
+                    expenses: st.totalExpenses,
+                    profit: st.netProfit
+                };
+            });
         }
-
-        const monthlyTrend = trendMonths.map(mKey => {
-            const st = calculateMonthStats(mKey);
-            return {
-                month: mKey,
-                revenue: st.totalRevenue,
-                expenses: st.totalExpenses,
-                profit: st.netProfit
-            };
-        });
 
         // 6. Rent Revision Radar (Excludes rooms with noRevision or eviction confirmed)
         const rentRevisions = activeOccupied
@@ -437,9 +455,11 @@ export default function Analytics() {
             occupancyRate,
             activeOccupiedCount: activeOccupied.length,
             monthlyTrend,
-            rentRevisions
+            rentRevisions,
+            isAllTime,
+            isYearFilter
         };
-    }, [tenants, rooms, expenses, selectedFilterKey, availableMonths, totalRoomsCount]);
+    }, [tenants, rooms, expenses, selectedFilterKey, availableMonths, availableYears, totalRoomsCount]);
 
     if (loading || !analyticsData) {
         return (
@@ -466,17 +486,18 @@ export default function Analytics() {
         categoryMap,
         monthlyTrend,
         rentRevisions,
-        roomsPaidCount
+        roomsPaidCount,
+        isAllTime,
+        isYearFilter
     } = analyticsData;
 
     const maxTrendVal = Math.max(...monthlyTrend.map(m => Math.max(m.revenue, m.expenses)), 10000);
     const hasTrendData = monthlyTrend.some(m => (m.revenue || 0) > 0 || (m.expenses || 0) > 0);
 
     // Label helpers for UI display
-    const isYearSelected = selectedFilterKey.startsWith('year-');
-    const selectedMonthLabel = selectedFilterKey === 'all'
+    const selectedMonthLabel = isAllTime
         ? 'All Time'
-        : isYearSelected
+        : isYearFilter
             ? `Year ${selectedFilterKey.replace('year-', '')}`
             : selectedFilterKey;
 
@@ -528,7 +549,7 @@ export default function Analytics() {
                                 📆 All Months (Full Year)
                             </option>
                             {MONTHS.map(m => (
-                                <option key={m} value={m} className="bg-slate-900 text-white font-bold">
+                                <option key={m} value={m} className="bg-slate-900 text-white">
                                     {m}
                                 </option>
                             ))}
@@ -561,7 +582,7 @@ export default function Analytics() {
                                 {momDeltas.revenueDiff >= 0 ? '+' : ''}{momDeltas.revenuePct}%
                             </span>
                         )}
-                        {(selectedFilterKey === 'all' || isYearSelected) && (
+                        {(isAllTime || isYearFilter) && (
                             <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -591,7 +612,7 @@ export default function Analytics() {
                                 {momDeltas.expenseDiff <= 0 ? '' : '+'}{momDeltas.expensePct}%
                             </span>
                         )}
-                        {(selectedFilterKey === 'all' || isYearSelected) && (
+                        {(isAllTime || isYearFilter) && (
                             <span className="text-[10px] font-extrabold text-rose-700 bg-rose-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -621,7 +642,7 @@ export default function Analytics() {
                                 {momDeltas.profitDiff >= 0 ? '+' : ''}{momDeltas.profitPct}%
                             </span>
                         )}
-                        {(selectedFilterKey === 'all' || isYearSelected) && (
+                        {(isAllTime || isYearFilter) && (
                             <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${profitMargin >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
                                 {profitMargin}% Margin
                             </span>
@@ -653,7 +674,7 @@ export default function Analytics() {
                                 {momDeltas.waterDiff <= 0 ? '' : '+'}{momDeltas.waterPct}%
                             </span>
                         )}
-                        {(selectedFilterKey === 'all' || isYearSelected) && (
+                        {(isAllTime || isYearFilter) && (
                             <span className="text-[10px] font-extrabold text-sky-700 bg-sky-100/70 px-2.5 py-1 rounded-full uppercase tracking-wider">
                                 {selectedMonthLabel} Sum
                             </span>
@@ -682,7 +703,7 @@ export default function Analytics() {
                             </div>
                             <div>
                                 <h3 className="text-base font-black text-slate-900">
-                                    {isYearSelected ? 'Year-over-Year (YoY) Financial Comparison' : 'Month-over-Month (MoM) Financial Comparison'}
+                                    {isYearFilter ? 'Year-over-Year (YoY) Financial Comparison' : 'Month-over-Month (MoM) Financial Comparison'}
                                 </h3>
                                 <p className="text-xs text-slate-500">Comparing <span className="font-extrabold text-slate-900">{selectedMonthLabel}</span> vs <span className="font-extrabold text-slate-900">{prevMonthLabel}</span></p>
                             </div>
@@ -747,16 +768,18 @@ export default function Analytics() {
 
             {/* Middle Section: Financial Trend Chart & Expense Categories */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Monthly Revenue vs Expenses Trend (2 cols) */}
+                {/* Monthly/Yearly Revenue vs Expenses Trend (2 cols) */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
                     <div>
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h3 className="text-base font-black text-slate-900">Graphical Performance Trajectory</h3>
                                 <p className="text-xs text-slate-500">
-                                    {isYearSelected
-                                        ? `Monthly breakdown for ${selectedMonthLabel}`
-                                        : `Revenue vs. Expenses for ${selectedMonthLabel}`}
+                                    {isAllTime
+                                        ? 'Year-by-year macro performance trajectory across all time'
+                                        : isYearFilter
+                                            ? `Monthly breakdown for ${selectedMonthLabel}`
+                                            : `Revenue vs. Expenses for ${selectedMonthLabel}`}
                                 </p>
                             </div>
                             <div className="flex items-center gap-4 text-xs font-bold">
