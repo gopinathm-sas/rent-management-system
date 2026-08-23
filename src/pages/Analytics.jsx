@@ -275,7 +275,8 @@ export default function Analytics() {
                 const status = t.paymentHistory?.[mKey];
 
                 if (paidAmt && (status === 'Paid' || status === 'Rent Only')) {
-                    rev += Number(paidAmt) || 0;
+                    const amt = Number(paidAmt) || 0;
+                    rev += amt;
                     paidCount++;
 
                     const waterRate = t.waterRate || getDefaultWaterRateForRoom(t.roomNo);
@@ -298,7 +299,7 @@ export default function Analytics() {
                         waterRev += roomWaterCost;
                         rentRev += Math.max(0, amt - roomWaterCost - RENT_WATER_SERVICE_CHARGE);
                     } else {
-                        rentRev += Number(paidAmt);
+                        rentRev += amt;
                     }
                 }
             });
