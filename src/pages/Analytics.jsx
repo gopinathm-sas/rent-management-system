@@ -99,11 +99,9 @@ export default function Analytics() {
         return MONTHS[new Date().getMonth()];
     }, []);
 
-    // Separate state for Year and Month dropdowns
-    // selectedYear can be 'all' or a year string (e.g. '2026')
-    // selectedMonth can be 'all' or a month string (e.g. 'Aug')
-    const [selectedYear, setSelectedYear] = useState('all');
-    const [selectedMonth, setSelectedMonth] = useState('all');
+    // Separate state for Year and Month dropdowns - default to Current Year & Current Month
+    const [selectedYear, setSelectedYear] = useState(defaultYear);
+    const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
 
     // Combine selectedYear and selectedMonth into single filter key for calculation
     const selectedFilterKey = useMemo(() => {
