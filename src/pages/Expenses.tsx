@@ -47,7 +47,7 @@ export default function Expenses() {
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedMonth, setSelectedMonth] = useState<string>('All');
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => MONTHS[new Date().getMonth()]);
 
     // New Category Modal State
     const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -200,7 +200,7 @@ export default function Expenses() {
                             onChange={e => setSelectedMonth(e.target.value)}
                             className="pl-8 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
                         >
-                            <option value="All">All Months</option>
+                            <option value="All">Overall</option>
                             {MONTHS.map(m => (
                                 <option key={m} value={m}>{m}</option>
                             ))}
@@ -212,7 +212,7 @@ export default function Expenses() {
 
             {/* Total Card */}
             <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-3xl p-6 text-white shadow-lg shadow-rose-200">
-                <div className="text-white/80 font-medium mb-1">Total Expenses ({selectedMonth === 'All' ? year : `${selectedMonth} ${year}`})</div>
+                <div className="text-white/80 font-medium mb-1">Total Expenses ({selectedMonth === 'All' ? `Overall ${year}` : `${selectedMonth} ${year}`})</div>
                 <div className="text-4xl font-extrabold tracking-tight">₹{totalExpenses.toLocaleString('en-IN')}</div>
             </div>
 
@@ -397,7 +397,7 @@ export default function Expenses() {
                             {filteredExpenses.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
-                                        No expenses recorded for {selectedMonth === 'All' ? year : `${selectedMonth} ${year}`}.
+                                        No expenses recorded for {selectedMonth === 'All' ? `Overall ${year}` : `${selectedMonth} ${year}`}.
                                     </td>
                                 </tr>
                             ) : (
