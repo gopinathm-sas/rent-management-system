@@ -90,16 +90,17 @@ export default function Analytics() {
         return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
     }, [availableMonths]);
 
-    // Current default year and month
-    const defaultYear = useMemo(() => {
-        return new Date().getFullYear().toString();
+    // Default to previous month (current month - 1) and its corresponding year
+    const { defaultYear, defaultMonth } = useMemo(() => {
+        const now = new Date();
+        const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return {
+            defaultYear: prevDate.getFullYear().toString(),
+            defaultMonth: MONTHS[prevDate.getMonth()]
+        };
     }, []);
 
-    const defaultMonth = useMemo(() => {
-        return MONTHS[new Date().getMonth()];
-    }, []);
-
-    // Separate state for Year and Month dropdowns - default to Current Year & Current Month
+    // Separate state for Year and Month dropdowns - default to Previous Month (e.g. Jul if Aug)
     const [selectedYear, setSelectedYear] = useState(defaultYear);
     const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
 
