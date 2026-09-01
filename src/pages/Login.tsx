@@ -63,12 +63,12 @@ export default function Login() {
     const [confirmEmail, setConfirmEmail] = useState('');
     const [confirmEmailError, setConfirmEmailError] = useState('');
 
-    // Handle initial mount checks: email magic link or Google redirect result
+    // Handle initial mount check for incoming Email Magic Link
     useEffect(() => {
         const checkIncomingAuth = async () => {
             const href = window.location.href;
 
-            // 1. Check if user arrived via Email Sign-In Link
+            // Check if user arrived via Email Sign-In Link
             if (isSignInWithEmailLink(auth, href)) {
                 setIsProcessingLink(true);
                 const savedEmail = window.localStorage.getItem('emailForSignIn');
@@ -88,18 +88,6 @@ export default function Login() {
                     setIsProcessingLink(false);
                     setNeedsEmailPrompt(true);
                 }
-                return;
-            }
-
-            // 2. Check if user returned from Google Redirect
-            try {
-                const redirectResult = await getRedirectResult(auth);
-                if (redirectResult?.user) {
-                    navigate('/', { replace: true });
-                }
-            } catch (err) {
-                console.error('Google redirect result error:', err);
-                setGeneralError(formatAuthError(err));
             }
         };
 
