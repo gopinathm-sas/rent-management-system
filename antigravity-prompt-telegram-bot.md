@@ -161,6 +161,23 @@ Each tenant document in `properties` has a `paymentHistory` map keyed by month (
 - Add input sanitization on all incoming Telegram message text before using it in Firestore queries or business logic.
 - Log all bot interactions (command, user, result) using whatever logging Cloud Functions already emits (`console.log`/Firebase Functions logs), or an existing app-level logger if one exists.
 
+## Bot Command Menu (Telegram native "/" menu)
+Register a command list with Telegram via `bot.api.setMyCommands(...)` (grammy) on bot startup, so the menu button next to the message box shows all available commands with descriptions — instead of expecting users to remember free-text formats from scratch.
+
+| Command | Description shown in menu |
+|---|---|
+| `/start` | Welcome message and quick overview of what the bot can do |
+| `/link` | Link your Telegram account to your app user (prompts for the code) |
+| `/reading` | Submit a water meter reading for one unit |
+| `/bulk` | Submit water meter readings for multiple units at once |
+| `/rent` | Update a unit's rent status (shows accepted status words) |
+| `/help` | List all commands and example phrasings for each |
+
+- Free-text shortcuts (`G01 Rent Received`, `101: 1041.2`, etc.) should keep working exactly as specified above — the command menu is a discoverability aid on top of them, not a replacement.
+- `/help` should double as a living reference: list the three rent statuses and example phrasings, and the meter-reading formats (single and bulk), so a new staff member can learn the bot without asking anyone.
+- If certain commands are meant to be admin-only (e.g. a future command to generate linking codes), use grammy's per-scope command support (`setMyCommands` accepts a `scope`) so regular staff don't see admin-only entries in their menu — only build this scoping if/when an admin-only command actually exists; don't add complexity for a menu with none yet.
+- Re-register the command list on every deploy (or check it's idempotent to call `setMyCommands` repeatedly) so menu changes ship automatically with code changes, rather than needing a manual one-off API call.
+
 ## Conversation Flow Example
 ```
 User: /start
@@ -243,6 +260,7 @@ Bot: I don't recognize unit G05. Units you manage: G01, G02, 102, 201, 202, 203,
 2. Any new Firestore collections needed (e.g. `telegramLinks` for chat_id-to-user linking, and any audit log collection for meter readings / rent status changes) — no SQL migrations, this is Firestore.
 3. A short README section explaining: how to create the Telegram bot via BotFather, where the bot token is configured for both production (Cloud Functions config/secrets) and local dev (`.env` used by `telegram-bot-dev.js`), how to run it locally, the linking flow for onboarding new staff, and the accepted message formats for both meter readings and rent status updates.
 4. A summary of what existing files/modules were touched or reused (especially `DataContext.tsx`, `utils.ts`, and whatever new Cloud Function handler file is added), so I can review the diff easily.
+5. The `/` command menu registered and visible in Telegram (verify by opening the bot chat and tapping the menu button, not just by reading the code).
 
 ---
 **All implementation details are confirmed above** — stack, schema, exact `updateRentStatus` formula, deployment model, and the `rent` field for amount cross-checks. Please proceed directly to implementation. The one thing worth confirming as you go, since it wasn't fully clear from the summary: whether `updateRentStatus` in `DataContext.tsx` can be safely invoked from a Cloud Function (server-side, via `firebase-admin`) as-is, or whether it's written against the client Firebase SDK and needs an equivalent server-side version — flag this specifically once you've opened the file, since it affects how Feature 2 is wired up.

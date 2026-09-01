@@ -87,7 +87,7 @@ if (!token) {
   process.exit(1);
 }
 
-const { createTelegramBot } = require('../functions/telegramBot');
+const { createTelegramBot, registerBotCommands } = require('../functions/telegramBot');
 
 console.log('\x1b[36m%s\x1b[0m', '🤖 Starting Munirathnam Illam Telegram Bot (Polling Mode)...');
 
@@ -98,8 +98,9 @@ bot.catch((err) => {
 });
 
 bot.start({
-  onStart: (botInfo) => {
+  onStart: async (botInfo) => {
     console.log('\x1b[32m%s\x1b[0m', `✅ Bot @${botInfo.username} is running and listening for messages!`);
+    await registerBotCommands(bot);
     console.log('Press Ctrl+C to stop.\n');
   }
 });

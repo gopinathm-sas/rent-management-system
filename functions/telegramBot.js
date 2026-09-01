@@ -497,7 +497,7 @@ async function saveRentStatus({ tenant, roomNo, roomId, monthKey, year, monthInd
     waterCharge = waterCalc?.amount || 0;
     const serviceCharge = RENT_WATER_SERVICE_CHARGE;
 
-    // Use enteredAmount if provided, else calculated total
+    // Use computed total (or enteredAmount if confirmed override)
     finalTotal = enteredAmount !== null && Number.isFinite(enteredAmount)
       ? enteredAmount
       : (baseRent + waterCharge + serviceCharge);
@@ -556,6 +556,27 @@ async function saveRentStatus({ tenant, roomNo, roomId, monthKey, year, monthInd
   };
 }
 
+// Command list for Telegram "/" native menu
+const BOT_COMMANDS = [
+  { command: 'start', description: 'Welcome overview and features' },
+  { command: 'reading', description: 'Submit water meter reading for one unit' },
+  { command: 'bulk', description: 'Bulk submit readings for multiple units' },
+  { command: 'rent', description: 'Update rent payment status for a unit' },
+  { command: 'status', description: 'View current cycle water readings status' },
+  { command: 'help', description: 'List all commands and example phrasings' },
+  { command: 'link', description: 'Link Telegram account with staff code' },
+  { command: 'cancel', description: 'Cancel active conversation flow' }
+];
+
+async function registerBotCommands(bot) {
+  try {
+    await bot.api.setMyCommands(BOT_COMMANDS);
+    console.log('[Telegram Bot] Native commands menu registered successfully.');
+  } catch (err) {
+    console.warn('[Telegram Bot] Warning registering commands menu:', err.message);
+  }
+}
+
 // Factory to create and configure the Bot instance
 function createTelegramBot(token) {
   if (!token) {
@@ -605,7 +626,7 @@ function createTelegramBot(token) {
       `• /status — View current month's water readings\n\n` +
       `*💰 Rent Status Updates:*\n` +
       `• \`G01 Rent Received\` — Mark Rent Only (base rent)\n` +
-      `• \`G01 Paid\` — Mark Paid (rent + water + service)\n` +
+      `• \`G01 Paid\` — Mark Paid (rent + water + service charge)\n` +
       `• \`G01 Pending\` — Revert to Pending\n` +
       `• /rent — Interactive rent status menu\n\n` +
       `_Type any command or message to begin._`,
@@ -630,9 +651,48 @@ function createTelegramBot(token) {
       `*Rules & Protections:*\n` +
       `• Downgrading from Paid to Rent Only/Pending requires explicit confirmation.\n` +
       `• Amount mismatches against expected rent prompt for confirmation.\n` +
-      `• Pre-tenancy months cannot be modified.`,
+      `• Pre-tenancy / inactive months cannot be modified.`,
       { parse_mode: 'Markdown' }
     );
+  });
+
+  // /link command
+  bot.command('link', async (ctx) => {
+    const raw = (ctx.message?.text || '').trim();
+    const parts = raw.split(/\s+/).filter(Boolean);
+
+    if (parts.length < 2) {
+      await ctx.reply("💬 Please provide your 6-character linking code:\n\n`/link <CODE>`", { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const code = parts[1].toUpperCase();
+    const codeSnap = await admin.firestore().collection('telegramAuthCodes').doc(code).get();
+
+    if (!codeSnap.exists) {
+      await ctx.reply("❌ Invalid or expired linking code. Please ask the Admin to generate a new one.");
+      return;
+    }
+
+    const codeData = codeSnap.data();
+    if (codeData.expiresAt && new Date(codeData.expiresAt).getTime() < Date.now()) {
+      await ctx.reply("⏳ This linking code has expired. Please ask the Admin to generate a new one.");
+      return;
+    }
+
+    const chatId = ctx.chat.id;
+    await admin.firestore().collection('telegramUsers').doc(String(chatId)).set({
+      chatId: String(chatId),
+      email: codeData.email,
+      role: codeData.role || 'Staff',
+      username: ctx.from?.username || null,
+      firstName: ctx.from?.first_name || 'Staff',
+      lastName: ctx.from?.last_name || null,
+      linkedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await admin.firestore().collection('telegramAuthCodes').doc(code).delete();
+    await ctx.reply(`✅ Linked successfully as *${codeData.role}* (${codeData.email})!`, { parse_mode: 'Markdown' });
   });
 
   // /cancel command
@@ -918,6 +978,15 @@ function createTelegramBot(token) {
     const curStatus = tenant.paymentHistory?.[monthKey] || 'Pending';
     const curTotal = tenant.paymentTotals?.[monthKey] || 0;
 
+    // Check "None" Month (Inactive / pre-occupancy)
+    if (curStatus === 'None') {
+      await ctx.reply(
+        `⚠️ Room *${roomId}* has status *None* for *${monthKey}* (unit was not active/applicable for this month).`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
     // Check Already Set
     if (curStatus === targetStatus && (enteredAmount === null || enteredAmount === curTotal)) {
       await ctx.reply(
@@ -926,6 +995,18 @@ function createTelegramBot(token) {
       );
       return;
     }
+
+    // Calculate base rent and expected totals
+    let baseRent = Number(tenant.rent) || 0;
+    if (isFirstOccupancyMonth(tenant, year, monthIndex) && tenant.joinDate) {
+      baseRent = getProratedRent(baseRent, tenant.joinDate);
+    }
+
+    const effectiveWaterRate = Number(tenant.waterRate) || getDefaultWaterRateForRoom(roomNo);
+    const waterCalc = computeWaterForMonth(tenant, year, monthIndex, effectiveWaterRate);
+    const waterCharge = waterCalc?.amount || 0;
+    const serviceCharge = RENT_WATER_SERVICE_CHARGE;
+    const computedPaidTotal = baseRent + waterCharge + serviceCharge;
 
     // Check Downgrade Protection (Paid -> Rent Only or Pending)
     if (curStatus === 'Paid' && (targetStatus === 'Rent Only' || targetStatus === 'Pending')) {
@@ -955,9 +1036,8 @@ function createTelegramBot(token) {
       return;
     }
 
-    // Check Amount Discrepancy (if enteredAmount differs from expected base rent)
-    const expectedRent = Number(tenant.rent) || 0;
-    if (enteredAmount !== null && targetStatus === 'Rent Only' && enteredAmount !== expectedRent) {
+    // Check Amount Discrepancy for Rent Only
+    if (enteredAmount !== null && targetStatus === 'Rent Only' && enteredAmount !== baseRent) {
       await setSession(chatId, {
         step: 'awaiting_rent_confirmation',
         action: 'amount_mismatch',
@@ -977,7 +1057,35 @@ function createTelegramBot(token) {
 
       await ctx.reply(
         `⚠️ *Amount Mismatch Warning!*\n\n` +
-        `Expected base rent for *${roomId}* is *₹${expectedRent.toLocaleString('en-IN')}*, but you entered *₹${enteredAmount.toLocaleString('en-IN')}*.\n\n` +
+        `Expected base rent for *${roomId}* is *₹${baseRent.toLocaleString('en-IN')}*, but you entered *₹${enteredAmount.toLocaleString('en-IN')}*.\n\n` +
+        `Confirm recording ₹${enteredAmount.toLocaleString('en-IN')} for *${monthKey}*?`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Check Amount Discrepancy for Paid
+    if (enteredAmount !== null && targetStatus === 'Paid' && enteredAmount !== computedPaidTotal) {
+      await setSession(chatId, {
+        step: 'awaiting_rent_confirmation',
+        action: 'amount_mismatch',
+        roomNo,
+        roomId,
+        tenantId: tenant.id,
+        monthKey,
+        year,
+        monthIndex,
+        targetStatus,
+        enteredAmount
+      });
+
+      const kb = new InlineKeyboard()
+        .text(`✅ Confirm ₹${enteredAmount}`, `conf_rent_save:${roomNo}`)
+        .text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(
+        `⚠️ *Amount Mismatch Warning!*\n\n` +
+        `Computed total for *${roomId}* (${monthKey}) is *₹${computedPaidTotal.toLocaleString('en-IN')}* (₹${baseRent} rent + ₹${waterCharge} water + ₹${serviceCharge} service), but you entered *₹${enteredAmount.toLocaleString('en-IN')}*.\n\n` +
         `Confirm recording ₹${enteredAmount.toLocaleString('en-IN')} for *${monthKey}*?`,
         { parse_mode: 'Markdown', reply_markup: kb }
       );
@@ -1000,13 +1108,18 @@ function createTelegramBot(token) {
 
       await clearSession(chatId);
 
+      let breakdownText = '';
+      if (targetStatus === 'Paid') {
+        breakdownText = `\n🧾 _(₹${result.baseRent.toLocaleString('en-IN')} rent + ₹${result.waterCharge} water + ₹${RENT_WATER_SERVICE_CHARGE} service)_`;
+      }
+
       await ctx.reply(
         `✅ *Rent Status Updated!*\n\n` +
         `🏠 *Room:* ${roomId} (${roomNo})\n` +
         `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
         `🏷️ *Status:* *${targetStatus}*\n` +
         `📅 *Billing Cycle:* ${monthKey}\n` +
-        `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}\n` +
+        `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}${breakdownText}\n` +
         `⏱️ *Recorded:* ${new Date().toLocaleDateString('en-IN')}`,
         { parse_mode: 'Markdown' }
       );
@@ -1094,7 +1207,7 @@ function createTelegramBot(token) {
       const roomNo = parts[1];
       const targetStatus = parts[2];
       const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
-      const { cycleKey, cycleYear, cycleMonthIndex } = getActiveWaterCycleDateParts();
+      const { cycleKey } = getActiveWaterCycleDateParts();
 
       const { tenantsByRoomNo } = await getOccupiedTenants();
       const tenant = tenantsByRoomNo[roomNo];
@@ -1143,13 +1256,18 @@ function createTelegramBot(token) {
         await clearSession(chatId);
         await ctx.answerCallbackQuery({ text: "Status updated!" });
 
+        let breakdownText = '';
+        if (session.targetStatus === 'Paid') {
+          breakdownText = `\n🧾 _(₹${result.baseRent.toLocaleString('en-IN')} rent + ₹${result.waterCharge} water + ₹${RENT_WATER_SERVICE_CHARGE} service)_`;
+        }
+
         await ctx.editMessageText(
           `✅ *Rent Status Updated!*\n\n` +
           `🏠 *Room:* ${session.roomId} (${session.roomNo})\n` +
           `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
           `🏷️ *Status:* *${session.targetStatus}*\n` +
           `📅 *Billing Cycle:* ${session.monthKey}\n` +
-          `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}\n` +
+          `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}${breakdownText}\n` +
           `⏱️ *Recorded:* ${new Date().toLocaleDateString('en-IN')}`,
           { parse_mode: 'Markdown' }
         );
@@ -1812,6 +1930,7 @@ function createTelegramBot(token) {
 
 module.exports = {
   createTelegramBot,
+  registerBotCommands,
   computeWaterReadingDelta,
   computeWaterForMonth,
   normalizeRoomIdentifier,
@@ -1825,5 +1944,6 @@ module.exports = {
   getProratedRent,
   isFirstOccupancyMonth,
   isMonthBeforeJoinDate,
-  IMMUTABLE_ROOMS_DATA
+  IMMUTABLE_ROOMS_DATA,
+  BOT_COMMANDS
 };

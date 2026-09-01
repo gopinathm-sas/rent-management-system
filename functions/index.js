@@ -563,9 +563,8 @@ exports.scheduledAutoSetPendingRent = functions.pubsub
     return null;
   });
 
-// Telegram Bot Webhook
 const { webhookCallback } = require('grammy');
-const { createTelegramBot } = require('./telegramBot');
+const { createTelegramBot, registerBotCommands } = require('./telegramBot');
 
 let telegramBotInstance = null;
 function getTelegramBotInstance() {
@@ -573,6 +572,7 @@ function getTelegramBotInstance() {
   if (!token) return null;
   if (!telegramBotInstance) {
     telegramBotInstance = createTelegramBot(token);
+    registerBotCommands(telegramBotInstance).catch(() => {});
   }
   return telegramBotInstance;
 }
