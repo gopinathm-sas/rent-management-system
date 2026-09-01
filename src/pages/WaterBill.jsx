@@ -16,7 +16,7 @@ import {
     RENT_WATER_SERVICE_CHARGE
 } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2, Trash2, Undo2 } from 'lucide-react';
 import { doc, updateDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getMeterReadingFromImage } from '../services/gemini';
@@ -44,6 +44,29 @@ export default function WaterBill() {
     const [inputValue, setInputValue] = useState('');
     const [isResetChecked, setIsResetChecked] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    // Redo / Undo Backup State for Cleared Month
+    const [clearedBackup, setClearedBackup] = useState(() => {
+        try {
+            const saved = sessionStorage.getItem('water_readings_backup');
+            return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+            return null;
+        }
+    });
+
+    const saveBackup = (backup) => {
+        setClearedBackup(backup);
+        try {
+            if (backup) {
+                sessionStorage.setItem('water_readings_backup', JSON.stringify(backup));
+            } else {
+                sessionStorage.removeItem('water_readings_backup');
+            }
+        } catch (e) {
+            // ignore storage quota errors
+        }
+    };
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading water details...</div>;
 
@@ -177,7 +200,7 @@ export default function WaterBill() {
 
         const isConfirmed = await confirm({
             title: `Clear ${activeMonthName} ${activeYearNum} Readings?`,
-            message: `This will permanently clear the water meter readings for all ${countWithReadings} room(s) recorded in ${activeMonthName} ${activeYearNum} (Active Billing Month: Current Month - 1).\n\nThis cannot be undone. Are you sure you want to proceed?`,
+            message: `This will permanently clear the water meter readings for all ${countWithReadings} room(s) recorded in ${activeMonthName} ${activeYearNum} (Active Billing Month: Current Month - 1).\n\nYou can use the "Redo / Restore" button to recover them if needed. Proceed?`,
             confirmText: 'Yes, Clear All',
             cancelText: 'Cancel',
             type: 'danger'
@@ -186,6 +209,17 @@ export default function WaterBill() {
         if (!isConfirmed) return;
 
         try {
+            // Save snapshot backup for Redo / Restore
+            const backupReadings = {};
+            tenantList.forEach(t => {
+                if (t.id && t.waterReadings && t.waterReadings[activeMonthKey] !== undefined && t.waterReadings[activeMonthKey] !== null) {
+                    backupReadings[t.id] = {
+                        reading: t.waterReadings[activeMonthKey],
+                        meterReset: !!(t.waterMeterReset?.[activeMonthKey])
+                    };
+                }
+            });
+
             const batch = writeBatch(db);
             tenantList.forEach(t => {
                 if (t.id && t.waterReadings && t.waterReadings[activeMonthKey] !== undefined) {
@@ -198,11 +232,47 @@ export default function WaterBill() {
             });
 
             await batch.commit();
+            saveBackup({
+                monthKey: activeMonthKey,
+                monthName: activeMonthName,
+                year: activeYearNum,
+                readings: backupReadings
+            });
+
             setEditingCell(null);
-            showToast(`Successfully cleared all water readings for ${activeMonthName} ${activeYearNum}`, 'success');
+            showToast(`Cleared ${activeMonthName} readings. You can click "Redo / Restore" to undo anytime!`, 'success');
         } catch (err) {
             console.error('Error clearing month readings:', err);
             showToast(`Failed to clear readings: ${err.message}`, 'error');
+        }
+    };
+
+    // Redo / Restore cleared readings
+    const handleRestoreClearedMonth = async () => {
+        if (!clearedBackup || !clearedBackup.readings || Object.keys(clearedBackup.readings).length === 0) {
+            showToast("No cleared readings available to restore.", "info");
+            return;
+        }
+
+        const { monthKey, readings, monthName, year: backupYear } = clearedBackup;
+        const count = Object.keys(readings).length;
+
+        try {
+            const batch = writeBatch(db);
+            Object.entries(readings).forEach(([tenantId, data]) => {
+                const tenantRef = doc(db, 'properties', tenantId);
+                batch.update(tenantRef, {
+                    [`waterReadings.${monthKey}`]: data.reading,
+                    [`waterMeterReset.${monthKey}`]: data.meterReset
+                });
+            });
+
+            await batch.commit();
+            saveBackup(null);
+            showToast(`Successfully restored ${count} water reading(s) for ${monthName} ${backupYear}!`, "success");
+        } catch (err) {
+            console.error("Error restoring readings:", err);
+            showToast(`Failed to restore readings: ${err.message}`, "error");
         }
     };
 
@@ -271,10 +341,22 @@ export default function WaterBill() {
                     <h2 className="text-3xl font-extrabold text-slate-900">Water Bill</h2>
                     <p className="text-xs text-slate-500 mt-0.5">Track and compute monthly room water meter readings</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <div className="flex items-center gap-2 text-sm text-slate-700 bg-slate-100 px-3.5 py-1.5 rounded-2xl font-bold">
                         <span>Year: {year}</span>
                     </div>
+
+                    {/* Redo / Restore Cleared Month Readings Button */}
+                    {clearedBackup && year === clearedBackup.year && (
+                        <button
+                            onClick={handleRestoreClearedMonth}
+                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-2xl transition flex items-center gap-1.5 shadow-sm active:scale-95 animate-in fade-in"
+                            title={`Redo / Restore cleared readings for ${clearedBackup.monthName} ${clearedBackup.year}`}
+                        >
+                            <Undo2 size={14} className="text-emerald-700" />
+                            <span>Redo / Restore {clearedBackup.monthName}</span>
+                        </button>
+                    )}
 
                     {/* Clear Active Month Water Readings Button (Current Month - 1) */}
                     {year === activeBilling.year && (
