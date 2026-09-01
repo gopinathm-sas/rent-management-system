@@ -121,6 +121,12 @@ service cloud.firestore {
       allow update, delete: if isAdminUser();
     }
 
+    match /whatsappAudit/{auditId} {
+      allow read: if isStaffOrViewer();
+      allow create: if isStaff();
+      allow update, delete: if isAdminUser();
+    }
+
     // Tenant upload link (Option 2)
     match /tenantUploadInvites/{inviteId} {
       // Admin creates/manages invites

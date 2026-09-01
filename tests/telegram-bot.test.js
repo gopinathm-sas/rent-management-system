@@ -19,6 +19,10 @@ const {
   normalizeRoomIdentifier,
   parseBulkReadingLines,
   parseRentStatusMessage,
+  parseReportingQuery,
+  parseMonthFromText,
+  formatTenantWhatsAppBill,
+  normalizePhoneNumber,
   getDefaultWaterRateForRoom,
   getWaterMonthKey,
   getPrevYearMonth,
@@ -26,7 +30,8 @@ const {
   getProratedRent,
   isFirstOccupancyMonth,
   isMonthBeforeJoinDate,
-  IMMUTABLE_ROOMS_DATA
+  IMMUTABLE_ROOMS_DATA,
+  BOT_COMMANDS
 } = require('../functions/telegramBot');
 
 describe('Telegram Bot - Room Identifier Normalization', () => {
@@ -226,6 +231,95 @@ describe('Telegram Bot - Rent Status Message Parser', () => {
   });
 });
 
+describe('Telegram Bot - Feature 4: Reporting Queries Parser', () => {
+  test('should parse /pending and free-text pending queries', () => {
+    expect(parseReportingQuery('/pending')).toEqual({ type: 'pending', raw: '/pending' });
+    expect(parseReportingQuery('which rooms are pending')).toEqual({ type: 'pending', raw: 'which rooms are pending' });
+    expect(parseReportingQuery("who hasn't paid")).toEqual({ type: 'pending', raw: "who hasn't paid" });
+    expect(parseReportingQuery('unpaid rooms')).toEqual({ type: 'pending', raw: 'unpaid rooms' });
+  });
+
+  test('should parse /rentonly and free-text rent only queries', () => {
+    expect(parseReportingQuery('/rentonly')).toEqual({ type: 'rent_only', raw: '/rentonly' });
+    expect(parseReportingQuery("who's paid rent only")).toEqual({ type: 'rent_only', raw: "who's paid rent only" });
+    expect(parseReportingQuery('which rooms owe water')).toEqual({ type: 'rent_only', raw: 'which rooms owe water' });
+  });
+
+  test('should parse /summary and free-text summary queries', () => {
+    expect(parseReportingQuery('/summary')).toEqual({ type: 'summary', raw: '/summary' });
+    expect(parseReportingQuery('give me a summary')).toEqual({ type: 'summary', raw: 'give me a summary' });
+    expect(parseReportingQuery("how's this month looking")).toEqual({ type: 'summary', raw: "how's this month looking" });
+  });
+
+  test('should parse /total and free-text revenue queries', () => {
+    expect(parseReportingQuery('/total')).toEqual({ type: 'total', raw: '/total' });
+    expect(parseReportingQuery('current month total rent')).toEqual({ type: 'total', raw: 'current month total rent' });
+    expect(parseReportingQuery('how much collected this month')).toEqual({ type: 'total', raw: 'how much collected this month' });
+  });
+
+  test('should parse /unit and free-text unit status queries', () => {
+    const u1 = parseReportingQuery('/unit G01');
+    expect(u1).toEqual({ type: 'unit', roomNo: '01', roomId: 'G01', raw: '/unit G01' });
+
+    const u2 = parseReportingQuery('G01 status');
+    expect(u2).toEqual({ type: 'unit', roomNo: '01', roomId: 'G01', raw: 'G01 status' });
+
+    const u3 = parseReportingQuery("how's 102 doing");
+    expect(u3).toEqual({ type: 'unit', roomNo: '04', roomId: '102', raw: "how's 102 doing" });
+  });
+
+  test('should parse month extraction from queries', () => {
+    const m1 = parseMonthFromText('/summary Jul', 2026, 7);
+    expect(m1.monthKey).toBe('2026-Jul');
+
+    const m2 = parseMonthFromText('total rent for September', 2026, 7);
+    expect(m2.monthKey).toBe('2026-Sep');
+
+    const m3 = parseMonthFromText('/pending 2026-Jan', 2026, 7);
+    expect(m3.monthKey).toBe('2026-Jan');
+  });
+});
+
+describe('Telegram Bot - Feature 3: WhatsApp Notification & Formatting', () => {
+  test('should normalize phone numbers to international format', () => {
+    expect(normalizePhoneNumber('9876543210')).toBe('919876543210');
+    expect(normalizePhoneNumber('+91 98765 43210')).toBe('919876543210');
+    expect(normalizePhoneNumber('919876543210')).toBe('919876543210');
+    expect(normalizePhoneNumber('invalid')).toBeNull();
+    expect(normalizePhoneNumber('')).toBeNull();
+    expect(normalizePhoneNumber(null)).toBeNull();
+  });
+
+  test('should format WhatsApp bill with water and base rent breakdown', () => {
+    const tenant = {
+      tenant: 'Srinath',
+      roomId: 'G01',
+      roomNo: '01',
+      rent: 6533,
+      waterRate: 0.25,
+      phone: '9876543210',
+      waterReadings: {
+        '2026-Jul': 100,
+        '2026-Aug': 116.7 // 16.7 meter units = 167 units = ₹42
+      }
+    };
+
+    const bill = formatTenantWhatsAppBill(tenant, 2026, 7); // Aug 2026
+    expect(bill.monthKey).toBe('2026-Aug');
+    expect(bill.tenantName).toBe('Srinath');
+    expect(bill.baseRent).toBe(6533);
+    expect(bill.waterUnits).toBe(167);
+    expect(bill.waterCharge).toBe(42);
+    expect(bill.serviceCharge).toBe(60);
+    expect(bill.total).toBe(6533 + 42 + 60); // 6635
+    expect(bill.formattedText).toContain('Srinath');
+    expect(bill.formattedText).toContain('2026-Aug');
+    expect(bill.formattedText).toContain('₹6,533');
+    expect(bill.formattedText).toContain('167 units');
+    expect(bill.formattedText).toContain('₹6,635');
+  });
+});
+
 describe('Telegram Bot - Rent Status Business Logic & Helpers', () => {
   test('should check if month is before join date (dash-cell check)', () => {
     const joinDate = '2026-08-15';
@@ -303,13 +397,19 @@ describe('Telegram Bot - Water Calculation & Delta Logic', () => {
 });
 
 describe('Telegram Bot - Command Registration', () => {
-  test('should instantiate bot and register all commands including /rent', () => {
+  test('should instantiate bot and register all commands including /rent, /notify, /pending, /summary, /total', () => {
     const bot = createTelegramBot('dummy_token_12345');
     expect(bot).toBeDefined();
     expect(bot.command).toHaveBeenCalledWith('start', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('reading', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('bulk', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('rent', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('notify', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('pending', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('rentonly', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('summary', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('total', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('unit', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('status', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('help', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('cancel', expect.any(Function));

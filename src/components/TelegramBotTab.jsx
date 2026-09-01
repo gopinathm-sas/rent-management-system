@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Bot, Send, Key, UserCheck, Trash2, Copy, Check, Clock, RefreshCw, AlertCircle, ShieldCheck, Droplets, CreditCard, ArrowRight } from 'lucide-react';
+import { Bot, Send, Key, UserCheck, Trash2, Copy, Check, Clock, RefreshCw, AlertCircle, ShieldCheck, Droplets, CreditCard, ArrowRight, MessageSquare } from 'lucide-react';
 
 function generateRandomCode(length = 6) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omit easily confused 0, O, 1, I
@@ -17,7 +17,8 @@ export default function TelegramBotTab({ showToast }) {
     const [authCodes, setAuthCodes] = useState([]);
     const [waterAuditLogs, setWaterAuditLogs] = useState([]);
     const [rentAuditLogs, setRentAuditLogs] = useState([]);
-    const [auditFilter, setAuditFilter] = useState('all'); // 'all', 'water', 'rent'
+    const [whatsappAuditLogs, setWhatsappAuditLogs] = useState([]);
+    const [auditFilter, setAuditFilter] = useState('all'); // 'all', 'water', 'rent', 'whatsapp'
     const [loading, setLoading] = useState(true);
 
     // Code generator form state
@@ -53,9 +54,16 @@ export default function TelegramBotTab({ showToast }) {
         const unsubRent = onSnapshot(rentQuery, (snap) => {
             const list = snap.docs.map(d => ({ id: d.id, type: 'rent', ...d.data() }));
             setRentAuditLogs(list);
+        }, (err) => console.error("Error fetching rentStatusAudit:", err));
+
+        // 5. WhatsApp Audit log
+        const waQuery = query(collection(db, 'whatsappAudit'), orderBy('createdAt', 'desc'), limit(20));
+        const unsubWa = onSnapshot(waQuery, (snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, type: 'whatsapp', ...d.data() }));
+            setWhatsappAuditLogs(list);
             setLoading(false);
         }, (err) => {
-            console.error("Error fetching rentStatusAudit:", err);
+            console.error("Error fetching whatsappAudit:", err);
             setLoading(false);
         });
 
@@ -64,6 +72,7 @@ export default function TelegramBotTab({ showToast }) {
             unsubCodes();
             unsubWater();
             unsubRent();
+            unsubWa();
         };
     }, []);
 
@@ -126,13 +135,19 @@ export default function TelegramBotTab({ showToast }) {
     };
 
     // Combine and sort logs by timestamp
-    const allAuditLogs = [...waterAuditLogs, ...rentAuditLogs].sort((a, b) => {
+    const allAuditLogs = [...waterAuditLogs, ...rentAuditLogs, ...whatsappAuditLogs].sort((a, b) => {
         const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
         const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
         return timeB - timeA;
     });
 
-    const filteredLogs = auditFilter === 'water' ? waterAuditLogs : (auditFilter === 'rent' ? rentAuditLogs : allAuditLogs);
+    const filteredLogs = auditFilter === 'water' 
+        ? waterAuditLogs 
+        : (auditFilter === 'rent' 
+            ? rentAuditLogs 
+            : (auditFilter === 'whatsapp' 
+                ? whatsappAuditLogs 
+                : allAuditLogs));
 
     return (
         <div className="space-y-8 animate-in fade-in duration-350">
@@ -145,13 +160,13 @@ export default function TelegramBotTab({ showToast }) {
                     <div>
                         <h3 className="text-xl font-bold text-slate-800">Telegram Rental Assistant Bot</h3>
                         <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-                            Submit water meter readings and update rent payment statuses directly via Telegram.
-                            All entries are automatically validated, anomaly-checked, and synced with Firestore in real time.
+                            Submit water meter readings, update rent payment statuses, send WhatsApp bills to tenants, and run quick financial queries directly via Telegram.
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-sky-800">
-                            <span className="bg-sky-100/80 px-2.5 py-1 rounded-lg">Water: /reading, /bulk</span>
-                            <span className="bg-sky-100/80 px-2.5 py-1 rounded-lg">Rent: "G01 Rent Received", "G01 Paid", /rent</span>
-                            <span className="bg-sky-100/80 px-2.5 py-1 rounded-lg">Instant Firestore Sync</span>
+                            <span className="bg-sky-100/80 px-2.5 py-1 rounded-lg">💧 Water: /reading, /bulk</span>
+                            <span className="bg-sky-100/80 px-2.5 py-1 rounded-lg">💰 Rent: "G01 Rent Received", "G01 Paid", /rent</span>
+                            <span className="bg-emerald-100/80 text-emerald-800 px-2.5 py-1 rounded-lg">📲 WhatsApp: /notify &lt;room&gt;, /notify all</span>
+                            <span className="bg-purple-100/80 text-purple-800 px-2.5 py-1 rounded-lg">📊 Queries: /pending, /summary, /total, /unit</span>
                         </div>
                     </div>
                 </div>
@@ -351,7 +366,7 @@ export default function TelegramBotTab({ showToast }) {
                         <h4 className="font-bold text-slate-900 text-lg">Bot Submissions Audit Trail</h4>
                     </div>
 
-                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
+                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto flex-wrap">
                         <button
                             onClick={() => setAuditFilter('all')}
                             className={`px-3 py-1.5 rounded-lg transition ${auditFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
@@ -370,12 +385,18 @@ export default function TelegramBotTab({ showToast }) {
                         >
                             <CreditCard size={12} /> Rent ({rentAuditLogs.length})
                         </button>
+                        <button
+                            onClick={() => setAuditFilter('whatsapp')}
+                            className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${auditFilter === 'whatsapp' ? 'bg-white text-green-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        >
+                            <MessageSquare size={12} /> WhatsApp ({whatsappAuditLogs.length})
+                        </button>
                     </div>
                 </div>
 
                 {filteredLogs.length === 0 ? (
                     <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 text-sm">
-                        No submissions recorded from Telegram bot yet.
+                        No submissions recorded for this filter yet.
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -389,7 +410,7 @@ export default function TelegramBotTab({ showToast }) {
                                     <th className="py-3 px-4">Cycle</th>
                                     <th className="py-3 px-4">Details</th>
                                     <th className="py-3 px-4">Total Amount</th>
-                                    <th className="py-3 px-4">Submitted By</th>
+                                    <th className="py-3 px-4">Triggered By</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -399,6 +420,7 @@ export default function TelegramBotTab({ showToast }) {
                                     }) : 'Recent';
 
                                     const isWater = log.type === 'water';
+                                    const isWhatsApp = log.type === 'whatsapp';
 
                                     return (
                                         <tr key={log.id} className="hover:bg-slate-50/80 transition">
@@ -407,6 +429,10 @@ export default function TelegramBotTab({ showToast }) {
                                                 {isWater ? (
                                                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 font-bold rounded-md flex items-center gap-1 w-fit">
                                                         <Droplets size={10} /> Water
+                                                    </span>
+                                                ) : isWhatsApp ? (
+                                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 font-bold rounded-md flex items-center gap-1 w-fit">
+                                                        <MessageSquare size={10} /> WhatsApp
                                                     </span>
                                                 ) : (
                                                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 font-bold rounded-md flex items-center gap-1 w-fit">
@@ -431,6 +457,16 @@ export default function TelegramBotTab({ showToast }) {
                                                         )}
                                                         <span className="ml-1 text-slate-500">({log.unitsConsumed ?? 0}u)</span>
                                                     </div>
+                                                ) : isWhatsApp ? (
+                                                    <div>
+                                                        <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${log.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                                            {log.status}
+                                                        </span>
+                                                        <span className="ml-1 text-slate-500 text-[11px]">`+{log.phone}`</span>
+                                                        {log.error && (
+                                                            <div className="text-[10px] text-rose-600 font-normal mt-0.5 truncate max-w-xs">{log.error}</div>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-slate-400 line-through text-[11px]">{log.oldStatus || 'Pending'}</span>
@@ -446,12 +482,14 @@ export default function TelegramBotTab({ showToast }) {
                                             <td className="py-3 px-4 font-bold text-emerald-700">
                                                 {isWater
                                                     ? (log.billedAmount !== null ? `₹${log.billedAmount}` : '-')
+                                                    : isWhatsApp
+                                                    ? '-'
                                                     : (log.newTotal !== null ? `₹${log.newTotal.toLocaleString('en-IN')}` : '₹0')
                                                 }
                                             </td>
 
                                             <td className="py-3 px-4 text-slate-600">
-                                                {log.submittedBy?.name || log.submittedBy?.email || 'Telegram'}
+                                                {log.submittedBy?.name || log.submittedBy?.email || log.sentBy?.name || log.sentBy?.email || 'Telegram'}
                                             </td>
                                         </tr>
                                     );
