@@ -4,9 +4,20 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { Capacitor } from '@capacitor/core';
 
+// For same-origin auth redirect in Firebase Hosting (avoids cross-site cookie blocking)
+const getAuthDomain = () => {
+    if (typeof window !== 'undefined' && window.location.hostname) {
+        const host = window.location.hostname;
+        if (host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
+            return host;
+        }
+    }
+    return import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "munirathnam-illam.firebaseapp.com";
+};
+
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    authDomain: getAuthDomain(),
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,

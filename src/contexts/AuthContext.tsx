@@ -105,21 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        try {
-            return await signInWithPopup(auth, googleProvider);
-        } catch (error: any) {
-            const popupFallbackCodes = new Set([
-                'auth/popup-blocked',
-                'auth/cancelled-popup-request',
-                'auth/operation-not-supported-in-this-environment'
-            ]);
-
-            if (popupFallbackCodes.has(error?.code)) {
-                return await signInWithRedirect(auth, googleProvider);
-            }
-
-            throw error;
-        }
+        // Strictly full-page redirect on web (No popup)
+        return await signInWithRedirect(auth, googleProvider);
     }
 
     async function logout(): Promise<void> {
@@ -133,6 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     useEffect(() => {
+        // Handle redirect result if user returned from Google redirect sign-in
+        getRedirectResult(auth)
+            .then((result) => {
+                if (result?.user) {
+                    setCurrentUser(result.user);
+                    setLoading(false);
+                }
+            })
+            .catch((err) => {
+                console.error("Redirect auth error:", err);
+            });
+
         const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
             setLoading(false);
