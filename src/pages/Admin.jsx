@@ -11,6 +11,7 @@ import RoomCard from '../components/RoomCard'; // Reusing RoomCard for consisten
 import { getClearedDocumentUploadFields, hasActiveDocumentUploadData } from '../lib/tenantDocuments';
 import { analyzeBudgetSpreadsheet } from '../services/gemini';
 import { uploadToCloudinary } from '../services/cloudinary';
+import TelegramBotTab from '../components/TelegramBotTab';
 
 export default function Admin() {
     const { rooms, tenants, loading } = useData();
@@ -57,10 +58,20 @@ export default function Admin() {
                     >
                         Stats (Budgeting)
                     </button>
+                    <button
+                        onClick={() => setActiveTab('telegram')}
+                        className={`px-5 py-2.5 font-bold text-sm rounded-xl transition-all ${
+                            activeTab === 'telegram'
+                                ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-100'
+                                : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        Telegram Bot
+                    </button>
                 </div>
             </div>
 
-            {activeTab === 'rooms' ? (
+            {activeTab === 'rooms' && (
                 <>
                     {/* Room Layout Grid */}
                     <div className="space-y-8 bg-stone-50/50 p-6 rounded-3xl border border-stone-100 animate-in fade-in duration-350">
@@ -106,9 +117,17 @@ export default function Admin() {
                         />
                     )}
                 </>
-            ) : (
+            )}
+
+            {activeTab === 'stats' && (
                 <div className="animate-in fade-in duration-350">
                     <BudgetStatsTab tenants={tenants} rooms={rooms} showToast={showToast} />
+                </div>
+            )}
+
+            {activeTab === 'telegram' && (
+                <div className="animate-in fade-in duration-350">
+                    <TelegramBotTab showToast={showToast} />
                 </div>
             )}
         </div>

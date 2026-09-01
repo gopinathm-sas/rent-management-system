@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 function loadIndexHtmlIntoDom() {
-    const htmlPath = path.join(__dirname, '..', 'index.html');
+    const htmlPath = path.join(__dirname, '..', 'index_legacy.html');
     const html = fs.readFileSync(htmlPath, 'utf8');
     document.open();
     document.write(html);

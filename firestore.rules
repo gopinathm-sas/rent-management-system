@@ -100,6 +100,21 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // Telegram Bot Integration
+    match /telegramUsers/{chatId} {
+      allow read, write: if isAdminUser();
+    }
+
+    match /telegramAuthCodes/{code} {
+      allow read, write: if isAdminUser();
+    }
+
+    match /waterReadingsAudit/{auditId} {
+      allow read: if isStaffOrViewer();
+      allow create: if isStaff();
+      allow update, delete: if isAdminUser();
+    }
+
     // Tenant upload link (Option 2)
     match /tenantUploadInvites/{inviteId} {
       // Admin creates/manages invites

@@ -563,3 +563,32 @@ exports.scheduledAutoSetPendingRent = functions.pubsub
     return null;
   });
 
+// Telegram Bot Webhook
+const { webhookCallback } = require('grammy');
+const { createTelegramBot } = require('./telegramBot');
+
+let telegramBotInstance = null;
+function getTelegramBotInstance() {
+  const token = (functions.config().telegram && functions.config().telegram.token) || process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+  if (!telegramBotInstance) {
+    telegramBotInstance = createTelegramBot(token);
+  }
+  return telegramBotInstance;
+}
+
+exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
+  try {
+    const bot = getTelegramBotInstance();
+    if (!bot) {
+      console.warn('TELEGRAM_BOT_TOKEN is not configured in environment or functions config.');
+      return res.status(500).json({ error: 'Telegram Bot Token not configured' });
+    }
+    const handler = webhookCallback(bot, 'express');
+    return handler(req, res);
+  } catch (err) {
+    console.error('Telegram webhook handler error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+

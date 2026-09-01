@@ -16,8 +16,8 @@ import {
     RENT_WATER_SERVICE_CHARGE
 } from '../lib/utils';
 import { IMMUTABLE_ROOMS_DATA } from '../lib/constants';
-import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2 } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { ChevronLeft, ChevronRight, Droplets, RotateCcw, AlertTriangle, Save, Camera, Loader2, Trash2 } from 'lucide-react';
+import { doc, updateDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getMeterReadingFromImage } from '../services/gemini';
 
@@ -115,6 +115,89 @@ export default function WaterBill() {
         }
     };
 
+    // Clear single room water reading
+    const handleClearSingleRoom = async () => {
+        if (!editingCell) return;
+        const { room, monthIndex } = editingCell;
+
+        try {
+            const tenant = findTenantForRoom(tenants, room.roomId);
+            if (!tenant || !tenant.id) throw new Error("Tenant record not found");
+
+            const key = getWaterMonthKey(year, monthIndex);
+            const isConfirmed = await confirm({
+                title: `Clear Room ${room.roomId} Reading?`,
+                message: `Are you sure you want to clear the water meter reading for Room ${room.roomId} in ${MONTHS[monthIndex]} ${year}?`,
+                confirmText: 'Yes, Clear',
+                cancelText: 'Cancel',
+                type: 'danger'
+            });
+
+            if (!isConfirmed) return;
+
+            const updatePayload = {
+                [`waterReadings.${key}`]: deleteField(),
+                [`waterMeterReset.${key}`]: deleteField()
+            };
+
+            await updateDoc(doc(db, 'properties', tenant.id), updatePayload);
+            setEditingCell(null);
+            showToast(`Water reading for Room ${room.roomId} cleared`, "success");
+        } catch (e) {
+            console.error(e);
+            showToast("Error clearing reading: " + e.message, "error");
+        }
+    };
+
+    // Clear all water readings for the current active calendar month
+    const handleClearCurrentMonth = async () => {
+        const now = new Date();
+        const currentMonthIdx = now.getMonth();
+        const currentYearNum = now.getFullYear();
+
+        // Only allow clearing for the current active calendar month
+        const currentMonthKey = getWaterMonthKey(currentYearNum, currentMonthIdx);
+        const monthName = MONTHS[currentMonthIdx];
+
+        const tenantList = Array.isArray(tenants) ? tenants : Object.values(tenants || {});
+        const countWithReadings = tenantList.filter(t => t.waterReadings && t.waterReadings[currentMonthKey] !== undefined && t.waterReadings[currentMonthKey] !== null).length;
+
+        if (countWithReadings === 0) {
+            showToast(`No water meter readings recorded for ${monthName} ${currentYearNum} to clear.`, 'info');
+            return;
+        }
+
+        const isConfirmed = await confirm({
+            title: `Clear ${monthName} ${currentYearNum} Readings?`,
+            message: `This will permanently clear the water meter readings for all ${countWithReadings} room(s) recorded in ${monthName} ${currentYearNum}.\n\nThis cannot be undone. Are you sure you want to proceed?`,
+            confirmText: 'Yes, Clear All',
+            cancelText: 'Cancel',
+            type: 'danger'
+        });
+
+        if (!isConfirmed) return;
+
+        try {
+            const batch = writeBatch(db);
+            tenantList.forEach(t => {
+                if (t.id && t.waterReadings && t.waterReadings[currentMonthKey] !== undefined) {
+                    const tenantRef = doc(db, 'properties', t.id);
+                    batch.update(tenantRef, {
+                        [`waterReadings.${currentMonthKey}`]: deleteField(),
+                        [`waterMeterReset.${currentMonthKey}`]: deleteField()
+                    });
+                }
+            });
+
+            await batch.commit();
+            setEditingCell(null);
+            showToast(`Successfully cleared all water readings for ${monthName} ${currentYearNum}`, 'success');
+        } catch (err) {
+            console.error('Error clearing month readings:', err);
+            showToast(`Failed to clear readings: ${err.message}`, 'error');
+        }
+    };
+
     const handleScanComplete = (reading) => {
         if (reading !== null) {
             setInputValue(reading.toString());
@@ -132,7 +215,6 @@ export default function WaterBill() {
         // If scanning from row action, we need to setup the editing cell first
         if (specificMonthIndex !== null && specificRoom) {
             const tenant = findTenantForRoom(tenants, specificRoom.roomId);
-            const isOccupied = isOccupiedRecord(tenant);
             const key = getWaterMonthKey(year, specificMonthIndex);
             const savedReading = tenant?.waterReadings?.[key];
             const isReset = (tenant?.waterMeterReset || {})[key];
@@ -176,11 +258,27 @@ export default function WaterBill() {
 
     return (
         <div className="space-y-6">
-
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-3xl font-extrabold text-slate-900">Water Bill</h2>
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <span className="font-semibold">Year: {year}</span>
+                <div>
+                    <h2 className="text-3xl font-extrabold text-slate-900">Water Bill</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Track and compute monthly room water meter readings</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-700 bg-slate-100 px-3.5 py-1.5 rounded-2xl font-bold">
+                        <span>Year: {year}</span>
+                    </div>
+
+                    {/* Clear Current Month Water Readings Button */}
+                    {year === new Date().getFullYear() && (
+                        <button
+                            onClick={handleClearCurrentMonth}
+                            className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-2xl transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                            title={`Clear all water meter entries for ${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}`}
+                        >
+                            <Trash2 size={14} />
+                            <span>Clear {MONTHS[new Date().getMonth()]} Entries</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -190,10 +288,19 @@ export default function WaterBill() {
                         <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                             <tr>
                                 <th className="px-4 py-3 border-r border-slate-200 sticky left-0 bg-slate-50 z-10 text-left min-w-[100px]">Room</th>
-                                {MONTHS.map(m => (
-                                    <th key={m} className="px-2 py-3 w-24">{m}</th>
-                                ))}
-
+                                {MONTHS.map((m, idx) => {
+                                    const isCurrent = idx === new Date().getMonth() && year === new Date().getFullYear();
+                                    return (
+                                        <th key={m} className={`px-2 py-3 w-24 ${isCurrent ? 'bg-blue-50/80 text-blue-900 font-black' : ''}`}>
+                                            <div>{m}</div>
+                                            {isCurrent && (
+                                                <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-600 text-white rounded-full uppercase tracking-tighter">
+                                                    Current
+                                                </span>
+                                            )}
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -273,8 +380,6 @@ export default function WaterBill() {
                                                 </td>
                                             );
                                         })}
-
-
                                     </tr>
                                 );
                             })}
@@ -388,90 +493,100 @@ export default function WaterBill() {
                         </div>
 
                         {/* Actions Footer */}
-                        <div className="px-6 pb-6 flex items-center justify-end gap-3">
-                            {/* Close Button */}
-                            <button
-                                onClick={() => setEditingCell(null)}
-                                className="size-12 rounded-2xl flex items-center justify-center bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all"
-                                title="Close"
-                            >
-                                <span className="text-2xl leading-none">&times;</span>
-                            </button>
+                        <div className="px-6 pb-6 flex items-center justify-between gap-3">
+                            {/* Clear Single Room Reading Button */}
+                            {editingCell.currentVal !== null && editingCell.currentVal !== undefined && editingCell.currentVal !== '' ? (
+                                <button
+                                    type="button"
+                                    onClick={handleClearSingleRoom}
+                                    className="size-12 rounded-2xl flex items-center justify-center bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white transition-all border border-rose-200 shadow-sm"
+                                    title="Clear this room's reading"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            ) : <div />}
 
-                            {/* WhatsApp Button */}
-                            {(() => {
-                                const tenant = findTenantForRoom(tenants, editingCell.room.roomId);
-                                const phone = tenant?.phone;
-                                const readingVal = Number(inputValue);
+                            <div className="flex items-center gap-3">
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setEditingCell(null)}
+                                    className="size-12 rounded-2xl flex items-center justify-center bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all"
+                                    title="Close"
+                                >
+                                    <span className="text-2xl leading-none">&times;</span>
+                                </button>
 
-                                let waLink = '#';
-                                let isValidCalc = false;
+                                {/* WhatsApp Button */}
+                                {(() => {
+                                    const tenant = findTenantForRoom(tenants, editingCell.room.roomId);
+                                    const phone = tenant?.phone;
+                                    const readingVal = Number(inputValue);
 
-                                if (!phone) {
-                                    // No phone, disable or show error alert on click (handled by empty href usually)
-                                } else if (inputValue !== '' && Number.isFinite(readingVal)) {
-                                    // Calculate bill
-                                    const prevVal = Number.isFinite(editingCell.prevVal) ? editingCell.prevVal : 0; // fallback 0 if missing? Legacy logic handled missing prev by blocking. 
-                                    // But here let's assume if prevVal is missing, we can't calc unless reset.
+                                    let waLink = '#';
+                                    let isValidCalc = false;
 
-                                    const isReset = isResetChecked; // Prioritize checkbox
+                                    if (!phone) {
+                                        // No phone
+                                    } else if (inputValue !== '' && Number.isFinite(readingVal)) {
+                                        const isReset = isResetChecked;
 
-                                    let units = null;
-                                    if (isReset) {
-                                        units = readingVal * WATER_UNITS_MULTIPLIER;
-                                    } else if (Number.isFinite(editingCell.prevVal)) {
-                                        units = (readingVal - editingCell.prevVal) * WATER_UNITS_MULTIPLIER;
+                                        let units = null;
+                                        if (isReset) {
+                                            units = readingVal * WATER_UNITS_MULTIPLIER;
+                                        } else if (Number.isFinite(editingCell.prevVal)) {
+                                            units = (readingVal - editingCell.prevVal) * WATER_UNITS_MULTIPLIER;
+                                        }
+
+                                        if (units !== null && units >= 0) {
+                                            const rate = Number(tenant?.waterRate);
+                                            const effectiveRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(editingCell.room.roomNo);
+                                            const amount = Math.round(units * effectiveRate);
+
+                                            const monthLabel = `${MONTHS[editingCell.monthIndex]} ${year}`;
+                                            const tenantName = tenant?.tenant || 'Tenant';
+                                            const rentAmount = getEffectiveRent(tenant, year, editingCell.monthIndex);
+                                            const garbageAmount = settings?.defaultServiceCharge ?? RENT_WATER_SERVICE_CHARGE;
+                                            const totalAmount = rentAmount + garbageAmount + amount;
+
+                                            const upiFooter = settings?.upiId
+                                                ? `\n\nPlease transfer the amount to:\n*UPI ID:* ${settings.upiId}${settings.payeeName ? ` (${settings.payeeName})` : ''}${settings.upiPhone ? `\n*GPay / PhonePe:* ${settings.upiPhone}` : ''}\n\n_${settings.paymentNote || 'Please share the payment screenshot once transferred.'}_`
+                                                : '\n\nPlease pay at the earliest.';
+
+                                            const msg = `Hi ${tenantName},\n\nWater Bill - ${monthLabel}\nNo of Ltrs - ${units.toLocaleString('en-IN')}\n\nBreakdown:\n- Rent: ₹${rentAmount.toLocaleString('en-IN')}\n- Garbage Bill: ₹${garbageAmount.toLocaleString('en-IN')}\n- Water Bill: ₹${amount.toLocaleString('en-IN')}\n\n*Total Amount: ₹${totalAmount.toLocaleString('en-IN')}*${upiFooter}`;
+
+                                            waLink = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
+                                            isValidCalc = true;
+                                        }
                                     }
 
-                                    if (units !== null && units >= 0) {
-                                        const rate = Number(tenant?.waterRate);
-                                        const effectiveRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(editingCell.room.roomNo);
-                                        const amount = Math.round(units * effectiveRate);
-
-                                        const monthLabel = `${MONTHS[editingCell.monthIndex]} ${year}`;
-                                        const tenantName = tenant?.tenant || 'Tenant';
-                                        const rentAmount = getEffectiveRent(tenant, year, editingCell.monthIndex);
-                                        const garbageAmount = settings?.defaultServiceCharge ?? RENT_WATER_SERVICE_CHARGE;
-                                        const totalAmount = rentAmount + garbageAmount + amount;
-
-                                        const upiFooter = settings?.upiId
-                                            ? `\n\nPlease transfer the amount to:\n*UPI ID:* ${settings.upiId}${settings.payeeName ? ` (${settings.payeeName})` : ''}${settings.upiPhone ? `\n*GPay / PhonePe:* ${settings.upiPhone}` : ''}\n\n_${settings.paymentNote || 'Please share the payment screenshot once transferred.'}_`
-                                            : '\n\nPlease pay at the earliest.';
-
-                                        const msg = `Hi ${tenantName},\n\nWater Bill - ${monthLabel}\nNo of Ltrs - ${units.toLocaleString('en-IN')}\n\nBreakdown:\n- Rent: ₹${rentAmount.toLocaleString('en-IN')}\n- Garbage Bill: ₹${garbageAmount.toLocaleString('en-IN')}\n- Water Bill: ₹${amount.toLocaleString('en-IN')}\n\n*Total Amount: ₹${totalAmount.toLocaleString('en-IN')}*${upiFooter}`;
-
-                                        waLink = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
-                                        isValidCalc = true;
+                                    // Fallback: Request Reading
+                                    if (!isValidCalc && phone) {
+                                        waLink = `https://wa.me/91${phone}?text=Hi, please send the water meter reading for ${MONTHS[editingCell.monthIndex]} ${year}.`;
                                     }
-                                }
 
-                                // Fallback: Request Reading
-                                if (!isValidCalc && phone) {
-                                    waLink = `https://wa.me/91${phone}?text=Hi, please send the water meter reading for ${MONTHS[editingCell.monthIndex]} ${year}.`;
-                                }
+                                    return (
+                                        <a
+                                            href={phone ? waLink : undefined}
+                                            onClick={(e) => !phone && alert('No phone number for tenant')}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="size-12 rounded-2xl flex items-center justify-center bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all border border-emerald-200"
+                                            title={isValidCalc ? "Send Bill on WhatsApp" : "Request Reading on WhatsApp"}
+                                        >
+                                            <WhatsAppIcon />
+                                        </a>
+                                    );
+                                })()}
 
-                                return (
-                                    <a
-                                        href={phone ? waLink : undefined}
-                                        onClick={(e) => !phone && alert('No phone number for tenant')}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="size-12 rounded-2xl flex items-center justify-center bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all border border-emerald-200"
-                                        title={isValidCalc ? "Send Bill on WhatsApp" : "Request Reading on WhatsApp"}
-                                    >
-                                        <WhatsAppIcon />
-                                    </a>
-                                );
-                            })()}
-
-                            {/* Save Button */}
-                            <button
-                                onClick={handleSave}
-                                className="size-12 rounded-2xl flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-200"
-                                title="Save Recording"
-                            >
-                                <Save size={24} />
-                            </button>
+                                {/* Save Button */}
+                                <button
+                                    onClick={handleSave}
+                                    className="size-12 rounded-2xl flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-200"
+                                    title="Save Recording"
+                                >
+                                    <Save size={24} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

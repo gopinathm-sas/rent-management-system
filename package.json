@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "jest",
+    "bot:dev": "node scripts/telegram-bot-dev.js",
     "copy:web": "node scripts/copy-web-assets.js",
     "cap:sync": "npm run build && npx cap sync",
     "ios": "npm run build && npx cap sync ios && npx cap open ios",
