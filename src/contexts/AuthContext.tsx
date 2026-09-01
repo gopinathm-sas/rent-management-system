@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import {
     onAuthStateChanged,
+    signInWithPopup,
     signInWithRedirect,
     getRedirectResult,
     signOut,
@@ -104,8 +105,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        // Web: Full-page redirect without popup window
-        return await signInWithRedirect(auth, googleProvider);
+        try {
+            return await signInWithPopup(auth, googleProvider);
+        } catch (error: any) {
+            const popupFallbackCodes = new Set([
+                'auth/popup-blocked',
+                'auth/cancelled-popup-request',
+                'auth/operation-not-supported-in-this-environment'
+            ]);
+
+            if (popupFallbackCodes.has(error?.code)) {
+                return await signInWithRedirect(auth, googleProvider);
+            }
+
+            throw error;
+        }
     }
 
     async function logout(): Promise<void> {

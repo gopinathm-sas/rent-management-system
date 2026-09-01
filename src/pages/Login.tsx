@@ -115,6 +115,13 @@ export default function Login() {
         return () => clearInterval(timer);
     }, [cooldown]);
 
+    // Reactive navigation if currentUser is loaded
+    useEffect(() => {
+        if (currentUser) {
+            navigate('/', { replace: true });
+        }
+    }, [currentUser, navigate]);
+
     // If already logged in, navigate to dashboard
     if (currentUser) {
         return <Navigate to="/" replace />;
@@ -183,10 +190,16 @@ export default function Login() {
         setGeneralError('');
         setIsGoogleLoading(true);
         try {
-            await loginWithGoogle();
-        } catch (err) {
+            const res = await loginWithGoogle();
+            if (res?.user || auth.currentUser) {
+                navigate('/', { replace: true });
+            }
+        } catch (err: any) {
             console.error('Google login failed:', err);
-            setGeneralError(formatAuthError(err));
+            if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+                setGeneralError(formatAuthError(err));
+            }
+        } finally {
             setIsGoogleLoading(false);
         }
     };
