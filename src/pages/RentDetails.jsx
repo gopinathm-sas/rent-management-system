@@ -6,6 +6,7 @@ import {
     isOccupiedRecord,
     MONTHS,
     isFutureYearMonth,
+    isLastDayOfMonth,
     isMonthBeforeJoinDate,
     getMonthKey,
     formatMonthLabel,
@@ -83,9 +84,11 @@ export default function RentDetails() {
         if (isMonthBeforeJoinDate(key, tenantData?.joinDate)) return;
 
         const currentD = new Date();
-        const isCurrentOrFuture = isFutureYearMonth(year, monthIndex) || (year === currentD.getFullYear() && monthIndex === currentD.getMonth());
+        const isCurrentMonth = year === currentD.getFullYear() && monthIndex === currentD.getMonth();
+        const isLockedCurrent = isCurrentMonth && !isLastDayOfMonth(currentD) && (!currentStatus || currentStatus === 'None');
+        const isLocked = isFutureYearMonth(year, monthIndex) || isLockedCurrent;
 
-        if (isCurrentOrFuture) return;
+        if (isLocked) return;
 
         // Check if this click would transition to 'Paid' (Rent Only -> Paid)
         // AND this is the first month of occupancy for a new tenant
@@ -233,7 +236,8 @@ export default function RentDetails() {
                                                 const status = history[key] || 'None';
                                                 const currentD = new Date();
                                                 const isCurrentMonth = year === currentD.getFullYear() && idx === currentD.getMonth();
-                                                const isFuture = isFutureYearMonth(year, idx) || isCurrentMonth;
+                                                const isLockedCurrent = isCurrentMonth && !isLastDayOfMonth(currentD) && (!status || status === 'None');
+                                                const isLocked = isFutureYearMonth(year, idx) || isLockedCurrent;
                                                 const isBeforeJoin = isOccupied && isMonthBeforeJoinDate(key, tenant?.joinDate);
 
                                                 let cellContent = <Minus size={14} className="mx-auto text-slate-300" />;
@@ -244,7 +248,7 @@ export default function RentDetails() {
                                                         // Month predates the tenant's join — show neutral locked cell
                                                         cellContent = <Minus size={14} className="mx-auto text-slate-200" />;
                                                         cellClass = "cursor-not-allowed bg-slate-50";
-                                                    } else if (isFuture) {
+                                                    } else if (isLocked) {
                                                         cellContent = <Minus size={14} className="mx-auto text-slate-300" />;
                                                         cellClass = "cursor-not-allowed bg-slate-50";
                                                     } else {
@@ -286,7 +290,7 @@ export default function RentDetails() {
                                                         key={key}
                                                         className={`px-1 py-4 border-r border-slate-100 text-center transition-colors ${cellClass}`}
                                                         onClick={() => handleCellClick(room, idx, status)}
-                                                        title={isOccupied ? (isBeforeJoin ? 'Before join date' : isFuture ? 'Locked' : status) : 'Vacant'}
+                                                        title={isOccupied ? (isBeforeJoin ? 'Before join date' : isLocked ? 'Locked' : status) : 'Vacant'}
                                                     >
                                                         {cellContent}
                                                     </td>

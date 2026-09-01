@@ -456,3 +456,110 @@ exports.scheduledAutoVacateEvictions = functions.pubsub
 
     return null;
   });
+
+const MONTHS_LIST = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getKolkataDateParts(d = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+  });
+  const parts = formatter.formatToParts(d);
+  const year = parseInt(parts.find(p => p.type === 'year').value, 10);
+  const month = parseInt(parts.find(p => p.type === 'month').value, 10);
+  const day = parseInt(parts.find(p => p.type === 'day').value, 10);
+  return { year, monthIndex: month - 1, day };
+}
+
+function isLastDayOfMonthKolkata(d = new Date()) {
+  const { year, monthIndex, day } = getKolkataDateParts(d);
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return day === lastDay;
+}
+
+function isMonthBeforeJoinDateFn(monthKey, joinDate) {
+  if (!joinDate || typeof joinDate !== 'string') return false;
+  const joinParts = joinDate.trim().split('-');
+  if (joinParts.length < 2) return false;
+  const joinYear = parseInt(joinParts[0], 10);
+  const joinMonthIndex = parseInt(joinParts[1], 10) - 1;
+  if (isNaN(joinYear) || isNaN(joinMonthIndex)) return false;
+
+  const [yearStr, monStr] = monthKey.split('-');
+  const cellYear = parseInt(yearStr, 10);
+  const cellMonthIndex = MONTHS_LIST.indexOf(monStr);
+  if (isNaN(cellYear) || cellMonthIndex === -1) return false;
+
+  if (cellYear < joinYear) return true;
+  if (cellYear === joinYear && cellMonthIndex < joinMonthIndex) return true;
+  return false;
+}
+
+function isEvictionMonthFn(tenant, year, monthIndex) {
+  if (!tenant || !tenant.isEvictionConfirmed || !tenant.evictionNoticeDate) return false;
+  const nDate = new Date(tenant.evictionNoticeDate);
+  const cellDate = new Date(year, monthIndex, 1);
+  const noticeMonthStart = new Date(nDate.getFullYear(), nDate.getMonth(), 1);
+  return cellDate >= noticeMonthStart;
+}
+
+exports.scheduledAutoSetPendingRent = functions.pubsub
+  .schedule('every 60 minutes')
+  .timeZone('Asia/Kolkata')
+  .onRun(async () => {
+    const { year: currentYear, monthIndex: currentMonthIndex } = getKolkataDateParts();
+    const isLastDay = isLastDayOfMonthKolkata();
+
+    const snap = await admin.firestore()
+      .collection('properties')
+      .where('status', '==', 'Occupied')
+      .get();
+
+    if (snap.empty) return null;
+
+    const batch = admin.firestore().batch();
+    let count = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      if (data.isEvictionConfirmed) continue;
+
+      const history = data.paymentHistory || {};
+      const updates = {};
+
+      // 1. Current month: if today is the last day of the month
+      if (isLastDay) {
+        const currentKey = `${currentYear}-${MONTHS_LIST[currentMonthIndex]}`;
+        const hasStatus = history[currentKey];
+        if (!hasStatus && !isMonthBeforeJoinDateFn(currentKey, data.joinDate) && !isEvictionMonthFn(data, currentYear, currentMonthIndex)) {
+          updates[`paymentHistory.${currentKey}`] = 'Pending';
+        }
+      }
+
+      // 2. Past elapsed months in the current year
+      for (let i = 0; i < currentMonthIndex; i++) {
+        const pastKey = `${currentYear}-${MONTHS_LIST[i]}`;
+        const hasStatus = history[pastKey];
+        if (!hasStatus && !isMonthBeforeJoinDateFn(pastKey, data.joinDate) && !isEvictionMonthFn(data, currentYear, i)) {
+          updates[`paymentHistory.${pastKey}`] = 'Pending';
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+        updates.updatedBy = 'scheduled-auto-pending';
+        batch.update(doc.ref, updates);
+        count += 1;
+      }
+    }
+
+    if (count > 0) {
+      await batch.commit();
+      console.log(`Auto-set pending rent for ${count} tenant(s)`);
+    }
+
+    return null;
+  });
+

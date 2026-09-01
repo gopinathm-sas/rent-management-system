@@ -3,10 +3,10 @@ import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 
 
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE } from '../lib/constants';
-import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent } from '../lib/utils';
+import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent, isLastDayOfMonth, getMonthKey, isMonthBeforeJoinDate, isEvictionMonth } from '../lib/utils';
 import { Tenant, Expense, RoomData } from '../types';
 
 interface DataContextType {
@@ -57,7 +57,55 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         if (!currentUser) return;
 
-        // Tenants Subscription
+        const autoSetPendingRentForTenants = async (tenantMap: Record<string, Tenant>) => {
+            try {
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth();
+                const isLastDay = isLastDayOfMonth(now);
+
+                const updates: { tenantId: string; payload: Record<string, any> }[] = [];
+
+                Object.values(tenantMap).forEach(tenant => {
+                    if (!tenant?.id || tenant.status !== 'Occupied' || tenant.isEvictionConfirmed) return;
+
+                    const payload: Record<string, any> = {};
+
+                    // Check current month if today is the last day of the month
+                    if (isLastDay) {
+                        const key = getMonthKey(currentYear, currentMonth);
+                        const hasStatus = tenant.paymentHistory && tenant.paymentHistory[key];
+                        if (!hasStatus && !isMonthBeforeJoinDate(key, tenant.joinDate) && !isEvictionMonth(tenant, currentYear, currentMonth)) {
+                            payload[`paymentHistory.${key}`] = 'Pending';
+                        }
+                    }
+
+                    // Check past elapsed months in current year
+                    for (let i = 0; i < currentMonth; i++) {
+                        const key = getMonthKey(currentYear, i);
+                        const hasStatus = tenant.paymentHistory && tenant.paymentHistory[key];
+                        if (!hasStatus && !isMonthBeforeJoinDate(key, tenant.joinDate) && !isEvictionMonth(tenant, currentYear, i)) {
+                            payload[`paymentHistory.${key}`] = 'Pending';
+                        }
+                    }
+
+                    if (Object.keys(payload).length > 0) {
+                        updates.push({ tenantId: tenant.id, payload });
+                    }
+                });
+
+                if (updates.length > 0) {
+                    const batch = writeBatch(db);
+                    updates.forEach(({ tenantId, payload }) => {
+                        const ref = doc(db, 'properties', tenantId);
+                        batch.update(ref, payload);
+                    });
+                    await batch.commit();
+                }
+            } catch (err) {
+                console.warn('Auto-set pending rent check failed:', err);
+            }
+        };
 
         const qTenants = query(collection(db, 'properties'));
         const unsubTenants = onSnapshot(qTenants, (snapshot) => {
@@ -67,7 +115,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
             setTenants(data);
             setLoadingState(prev => ({ ...prev, tenants: false }));
-            setLoadingState(prev => ({ ...prev, tenants: false }));
+            autoSetPendingRentForTenants(data);
         }, (error) => {
             console.error("Error fetching tenants:", error);
             showToast(`Error fetching tenants: ${error.message}`, 'error');

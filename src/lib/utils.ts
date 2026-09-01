@@ -46,6 +46,13 @@ export function isFutureYearMonth(year: number, monthIndex: number, now: Date = 
     return false;
 }
 
+export function isLastDayOfMonth(date: Date = new Date()): boolean {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const tomorrow = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    return tomorrow.getDate() === 1;
+}
+
+
 /**
  * Returns true if the given monthKey ("YYYY-Mon", e.g. "2026-Jan") falls entirely
  * BEFORE the month in which the tenant joined.
