@@ -979,15 +979,6 @@ function createTelegramBot(token) {
     const curStatus = tenant.paymentHistory?.[monthKey] || 'Pending';
     const curTotal = tenant.paymentTotals?.[monthKey] || 0;
 
-    // Check "None" Month (Inactive / pre-occupancy)
-    if (curStatus === 'None') {
-      await ctx.reply(
-        `⚠️ Room *${roomId}* has status *None* for *${monthKey}* (unit was not active/applicable for this month).`,
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
     // Check Already Set
     if (curStatus === targetStatus && (enteredAmount === null || enteredAmount === curTotal)) {
       await ctx.reply(
