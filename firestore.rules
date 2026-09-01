@@ -73,6 +73,12 @@ service cloud.firestore {
       allow read, write: if isAdminUser();
     }
 
+    // Global Application Settings (UPI details, billing defaults, property info)
+    match /settings/{settingId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
     // Personal budgeting stats
     match /budgetStats/{docId} {
       allow read, write: if isAdminUser();
