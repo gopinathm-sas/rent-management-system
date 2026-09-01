@@ -1,5 +1,18 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, GoogleAuthProvider, signInWithCredential, User, UserCredential } from 'firebase/auth';
+import {
+    onAuthStateChanged,
+    signInWithRedirect,
+    getRedirectResult,
+    signOut,
+    GoogleAuthProvider,
+    signInWithCredential,
+    sendSignInLinkToEmail,
+    isSignInWithEmailLink,
+    signInWithEmailLink,
+    User,
+    UserCredential,
+    ActionCodeSettings
+} from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -9,6 +22,8 @@ import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 interface AuthContextType {
     currentUser: User | null;
     loginWithGoogle: () => Promise<UserCredential | void>;
+    sendMagicLink: (email: string) => Promise<void>;
+    completeMagicLinkSignIn: (email: string, href?: string) => Promise<UserCredential>;
     logout: () => Promise<void>;
     loading: boolean;
     isAppLocked: boolean;
@@ -21,8 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function useAuth() {
     const context = useContext(AuthContext);
     if (!context) {
-        //        throw new Error('useAuth must be used within an AuthProvider'); // Temporarily allow undefined for debugging if needed, but best strict
-        return context as unknown as AuthContextType; // Allow it (unsafe) or strict? Let's go strict but keep it safe if it fails
+        return context as unknown as AuthContextType;
     }
     return context;
 }
@@ -63,6 +77,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    async function sendMagicLink(email: string): Promise<void> {
+        const actionCodeSettings: ActionCodeSettings = {
+            url: `${window.location.origin}/login`,
+            handleCodeInApp: true,
+        };
+        await sendSignInLinkToEmail(auth, email.trim(), actionCodeSettings);
+        window.localStorage.setItem('emailForSignIn', email.trim());
+    }
+
+    async function completeMagicLinkSignIn(email: string, href: string = window.location.href): Promise<UserCredential> {
+        const result = await signInWithEmailLink(auth, email.trim(), href);
+        window.localStorage.removeItem('emailForSignIn');
+        return result;
+    }
+
     async function loginWithGoogle(): Promise<UserCredential | void> {
         if (Capacitor.isNativePlatform()) {
             try {
@@ -75,23 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        try {
-            return await signInWithPopup(auth, googleProvider);
-        } catch (error: any) {
-            const popupFallbackCodes = new Set([
-                'auth/popup-blocked',
-                'auth/popup-closed-by-user',
-                'auth/cancelled-popup-request',
-                'auth/operation-not-supported-in-this-environment'
-            ]);
-
-            if (popupFallbackCodes.has(error?.code)) {
-                await signInWithRedirect(auth, googleProvider);
-                return;
-            }
-
-            throw error;
-        }
+        // Web: Full-page redirect without popup window
+        return await signInWithRedirect(auth, googleProvider);
     }
 
     async function logout(): Promise<void> {
@@ -183,6 +197,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const value: AuthContextType = {
         currentUser,
         loginWithGoogle,
+        sendMagicLink,
+        completeMagicLinkSignIn,
         logout,
         loading,
         isAppLocked,
