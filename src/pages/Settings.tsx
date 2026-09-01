@@ -306,20 +306,26 @@ export default function Settings() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    {/* Default Water Rate */}
-                                    <div className="space-y-1.5">
-                                        <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                                            Default Water Rate per Liter (₹)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            value={formData.defaultWaterRate ?? 0.25}
-                                            onChange={(e) => handleChange('defaultWaterRate', parseFloat(e.target.value) || 0)}
-                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm text-slate-800 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition font-mono"
-                                        />
-                                        <p className="text-[11px] text-slate-400">Default rate is 0.25 (₹250 per 1,000 Liters)</p>
+                                    {/* Water Rate Rules Overview */}
+                                    <div className="p-4 bg-blue-50/70 border border-blue-100 rounded-2xl space-y-2">
+                                        <div className="flex items-center gap-2 text-xs font-black text-blue-900 uppercase tracking-wider">
+                                            <Droplets size={14} className="text-blue-600" /> Room Water Rate Policy
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                                            <div className="bg-white p-3 rounded-xl border border-blue-100">
+                                                <span className="text-slate-500 font-bold block text-[11px]">Standard Rooms (G01 - 303)</span>
+                                                <span className="text-sm font-black text-slate-900 font-mono">₹0.25 / Liter</span>
+                                                <span className="text-[10px] text-slate-400 block mt-0.5">(₹250 per 1,000 Liters)</span>
+                                            </div>
+                                            <div className="bg-white p-3 rounded-xl border border-emerald-200 bg-emerald-50/30">
+                                                <span className="text-emerald-800 font-bold block text-[11px]">Discounted 4th Floor (11, 12, 13)</span>
+                                                <span className="text-sm font-black text-emerald-700 font-mono">₹0.20 / Liter</span>
+                                                <span className="text-[10px] text-emerald-600/80 block mt-0.5">(₹200 per 1,000 Liters)</span>
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 pt-1">
+                                            Custom rates can also be set individually for any tenant in their Room Details modal.
+                                        </p>
                                     </div>
 
                                     {/* Default Garbage / Service Charge */}

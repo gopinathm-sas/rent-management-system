@@ -204,7 +204,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 rent = getProratedRent(rent, tenantData.joinDate, deductionDays);
             }
 
-            const effectiveWaterRate = Number(tenantData?.waterRate) || (settings.defaultWaterRate ?? getDefaultWaterRateForRoom(tenantData.roomNo));
+            const effectiveWaterRate = Number(tenantData?.waterRate) || getDefaultWaterRateForRoom(tenantData.roomNo);
             const waterCalculation = computeWaterForMonth(tenantData, year, monthIndex, effectiveWaterRate);
             const waterCharge = waterCalculation?.amount || 0;
             const serviceCharge = settings.defaultServiceCharge ?? RENT_WATER_SERVICE_CHARGE;
