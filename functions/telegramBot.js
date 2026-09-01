@@ -10,6 +10,7 @@ const DEFAULT_WATER_RATE = 0.25;
 const DISCOUNTED_WATER_RATE = 0.20;
 const DISCOUNTED_WATER_ROOMS = new Set(['11', '12', '13']);
 const WATER_UNITS_MULTIPLIER = 10;
+const RENT_WATER_SERVICE_CHARGE = 60;
 const MONTHS_LIST = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const IMMUTABLE_ROOMS_DATA = {
@@ -66,6 +67,7 @@ function getActiveWaterCycleDateParts() {
     baselineKey: getWaterMonthKey(baselineYM.year, baselineYM.monthIndex),
     currentCalendarYear: year,
     currentCalendarMonthIndex: monthIndex,
+    currentCalendarKey: getWaterMonthKey(year, monthIndex),
     day,
     dateObj
   };
@@ -104,6 +106,84 @@ function computeWaterReadingDelta(currentReading, prevReading, isMeterReset, wat
   return { meterDelta, units, amount, isMeterReset: false, isNearZero };
 }
 
+function computeWaterForMonth(tenantData, year, monthIndex, waterRate) {
+  const readings = (tenantData && tenantData.waterReadings) || {};
+  const resetMap = (tenantData && tenantData.waterMeterReset) || {};
+  const currentKey = getWaterMonthKey(year, monthIndex);
+  const prev = getPrevYearMonth(year, monthIndex);
+  const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
+
+  const currentReading = readings[currentKey];
+  const prevReading = readings[prevKey];
+
+  const hasCurrent = currentReading !== null && currentReading !== undefined && currentReading !== '';
+  const hasPrev = prevReading !== null && prevReading !== undefined && prevReading !== '';
+
+  const currentNum = hasCurrent ? Number(currentReading) : NaN;
+  const prevNum = hasPrev ? Number(prevReading) : NaN;
+
+  const isMeterReset = Boolean(resetMap[currentKey]);
+  const rate = Number.isFinite(waterRate) ? waterRate : DEFAULT_WATER_RATE;
+
+  if (isMeterReset) {
+    if (!Number.isFinite(currentNum)) return { units: null, amount: null, meterReset: true };
+    const units = currentNum * WATER_UNITS_MULTIPLIER;
+    const amount = Math.round(units * rate);
+    return { units, amount, meterReset: true };
+  }
+
+  if (!Number.isFinite(currentNum) || !Number.isFinite(prevNum)) {
+    return { units: null, amount: null, meterReset: false };
+  }
+
+  const units = (currentNum - prevNum) * WATER_UNITS_MULTIPLIER;
+  const amount = Math.round(units * rate);
+  return { units, amount, meterReset: false };
+}
+
+function isMonthBeforeJoinDate(key, joinDate) {
+  if (!joinDate) return false;
+  const [yearStr, monthName] = key.split('-');
+  const year = parseInt(yearStr, 10);
+  const monthIndex = MONTHS_LIST.indexOf(monthName);
+  if (monthIndex === -1) return false;
+
+  const join = new Date(joinDate);
+  if (Number.isNaN(join.getTime())) return false;
+  const joinYear = join.getFullYear();
+  const joinMonth = join.getMonth();
+
+  return year < joinYear || (year === joinYear && monthIndex < joinMonth);
+}
+
+function isFirstOccupancyMonth(tenant, year, monthIndex) {
+  if (!tenant || !tenant.joinDate) return false;
+  const join = new Date(tenant.joinDate);
+  if (Number.isNaN(join.getTime())) return false;
+  return join.getFullYear() === year && join.getMonth() === monthIndex;
+}
+
+function getProratedRent(baseRent, joinDate, deductionDays = 0) {
+  if (!joinDate) return baseRent;
+  const date = new Date(joinDate);
+  const day = date.getDate();
+  if (day === 1 && (!deductionDays || deductionDays === 0)) return baseRent;
+
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let daysToCharge;
+  if (deductionDays && deductionDays > 0) {
+    daysToCharge = Math.max(0, totalDaysInMonth - deductionDays);
+  } else {
+    daysToCharge = (totalDaysInMonth - day) + 1;
+  }
+
+  const dailyRate = baseRent / totalDaysInMonth;
+  return Math.round(dailyRate * daysToCharge);
+}
+
 // Room Lookup Helpers
 function normalizeRoomIdentifier(input) {
   if (!input) return null;
@@ -122,6 +202,10 @@ function normalizeRoomIdentifier(input) {
     return { roomNo: IMMUTABLE_ROOMS_DATA[padded].roomNo, roomId: IMMUTABLE_ROOMS_DATA[padded].roomId };
   }
   return null;
+}
+
+function getValidRoomListString() {
+  return Object.values(IMMUTABLE_ROOMS_DATA).map(r => r.roomId).join(', ');
 }
 
 // Bulk Reading Parser
@@ -144,11 +228,7 @@ function parseBulkReadingLines(text, maxLines = 20) {
       continue;
     }
 
-    // Strip leading list bullets/numbers (e.g. "1. ", "• ", "- ")
     const cleaned = line.replace(/^(\d+[\.\)]|[\*\-\•])\s*/, '').trim();
-
-    // Match unit identifier and reading value
-    // Supports: "G01: 1041.2", "102 = 998.0", "201 - 1204.5", "01 1041.2", "Room 102: 500"
     const match = cleaned.match(/^([a-zA-Z0-9#\s]+?)[\s:=–-]+(\d+(?:\.\d+)?)$/);
     if (!match) {
       errorLines.push({
@@ -180,7 +260,6 @@ function parseBulkReadingLines(text, maxLines = 20) {
       continue;
     }
 
-    // Check duplicate in same batch
     if (seenUnits.has(normalized.roomNo)) {
       errorLines.push({
         raw: line,
@@ -200,6 +279,107 @@ function parseBulkReadingLines(text, maxLines = 20) {
   }
 
   return { validLines, errorLines };
+}
+
+// Rent Status Message Parser
+function parseRentStatusMessage(text, defaultYear, defaultMonthIndex) {
+  if (!text || typeof text !== 'string') return { ok: false, reason: 'empty' };
+
+  let raw = text.trim();
+
+  // Strip leading /rent command if present
+  if (raw.toLowerCase().startsWith('/rent')) {
+    raw = raw.replace(/^\/rent\s*/i, '').trim();
+  }
+
+  if (!raw) return { ok: false, reason: 'empty' };
+
+  // Split tokens to extract room code first
+  // Supported prefixes: "Room G01", "Unit 01", "G01", "102", "01"
+  const tokens = raw.split(/\s+/);
+  let roomToken = tokens[0];
+  let remainingTokens = tokens.slice(1);
+
+  if (/^(ROOM|UNIT|#)$/i.test(roomToken) && tokens.length > 1) {
+    roomToken = `${tokens[0]} ${tokens[1]}`;
+    remainingTokens = tokens.slice(2);
+  }
+
+  const normalized = normalizeRoomIdentifier(roomToken);
+  if (!normalized) {
+    return { ok: false, reason: 'unknown_room', unitStr: roomToken, raw };
+  }
+
+  const restText = remainingTokens.join(' ').trim();
+  if (!restText) {
+    return { ok: false, reason: 'missing_status', roomNo: normalized.roomNo, roomId: normalized.roomId };
+  }
+
+  // Parse Month if mentioned (e.g. Aug, August, Sep, 2026-Aug)
+  let targetYear = defaultYear;
+  let targetMonthIndex = defaultMonthIndex;
+  let cleanedRest = restText;
+
+  // Check for explicit YYYY-Mon (e.g. 2026-Aug)
+  const ymdMatch = cleanedRest.match(/\b(\d{4})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i);
+  if (ymdMatch) {
+    targetYear = parseInt(ymdMatch[1], 10);
+    const mName = ymdMatch[2].slice(0, 3);
+    const idx = MONTHS_LIST.findIndex(m => m.toLowerCase() === mName.toLowerCase());
+    if (idx !== -1) targetMonthIndex = idx;
+    cleanedRest = cleanedRest.replace(ymdMatch[0], '').trim();
+  } else {
+    // Check for month name (e.g. "Aug", "August")
+    const monthPattern = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/i;
+    const mMatch = cleanedRest.match(monthPattern);
+    if (mMatch) {
+      const prefix = mMatch[1].slice(0, 3).toLowerCase();
+      const idx = MONTHS_LIST.findIndex(m => m.toLowerCase() === prefix);
+      if (idx !== -1) targetMonthIndex = idx;
+      cleanedRest = cleanedRest.replace(mMatch[0], '').trim();
+    }
+  }
+
+  // Parse optional trailing amount (e.g. "6533", "₹8500")
+  let enteredAmount = null;
+  const amtMatch = cleanedRest.match(/(?:₹|\bRS\.?\s*)?(\d+(?:\.\d+)?)\s*$/i);
+  if (amtMatch) {
+    enteredAmount = Number(amtMatch[1]);
+    cleanedRest = cleanedRest.slice(0, amtMatch.index).trim();
+  }
+
+  // Identify Target Status
+  let targetStatus = null;
+
+  // 1. Paid (Rent + Water)
+  if (/^(paid|fully\s*paid|rent\s*(and|\+)\s*water\s*(received|paid)|rent\s*&\s*water\s*(received|paid))$/i.test(cleanedRest)) {
+    targetStatus = 'Paid';
+  }
+  // 2. Rent Only
+  else if (/^(rent\s*received|rent\s*only|rent\s*paid|rent)$/i.test(cleanedRest)) {
+    targetStatus = 'Rent Only';
+  }
+  // 3. Pending
+  else if (/^(pending|due|not\s*paid|unpaid)$/i.test(cleanedRest)) {
+    targetStatus = 'Pending';
+  }
+
+  if (!targetStatus) {
+    return { ok: false, reason: 'unknown_status', roomNo: normalized.roomNo, roomId: normalized.roomId, rawPhrase: restText };
+  }
+
+  const monthKey = getWaterMonthKey(targetYear, targetMonthIndex);
+
+  return {
+    ok: true,
+    roomNo: normalized.roomNo,
+    roomId: normalized.roomId,
+    targetStatus,
+    year: targetYear,
+    monthIndex: targetMonthIndex,
+    monthKey,
+    enteredAmount
+  };
 }
 
 // Session & Auth Helpers
@@ -243,7 +423,7 @@ async function getOccupiedTenants() {
   return { tenantsByRoomNo, tenantsByRoomId, allTenants: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
 }
 
-// Core Save Logic
+// Core Save Water Reading Logic
 async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, isReset, telegramUser, anomalyTag = null }) {
   const rateRaw = Number(tenant.waterRate);
   const waterRate = Number.isFinite(rateRaw) ? rateRaw : getDefaultWaterRateForRoom(roomNo);
@@ -300,6 +480,82 @@ async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, 
   };
 }
 
+// Core Save Rent Status Logic
+async function saveRentStatus({ tenant, roomNo, roomId, monthKey, year, monthIndex, targetStatus, enteredAmount, telegramUser }) {
+  let baseRent = Number(tenant?.rent) || 0;
+
+  if (isFirstOccupancyMonth(tenant, year, monthIndex) && tenant?.joinDate) {
+    baseRent = getProratedRent(baseRent, tenant.joinDate);
+  }
+
+  let finalTotal = 0;
+  let waterCharge = 0;
+
+  if (targetStatus === 'Paid') {
+    const effectiveWaterRate = Number(tenant?.waterRate) || getDefaultWaterRateForRoom(roomNo);
+    const waterCalc = computeWaterForMonth(tenant, year, monthIndex, effectiveWaterRate);
+    waterCharge = waterCalc?.amount || 0;
+    const serviceCharge = RENT_WATER_SERVICE_CHARGE;
+
+    // Use enteredAmount if provided, else calculated total
+    finalTotal = enteredAmount !== null && Number.isFinite(enteredAmount)
+      ? enteredAmount
+      : (baseRent + waterCharge + serviceCharge);
+  } else if (targetStatus === 'Rent Only') {
+    finalTotal = enteredAmount !== null && Number.isFinite(enteredAmount)
+      ? enteredAmount
+      : baseRent;
+  } else {
+    finalTotal = 0;
+  }
+
+  const oldStatus = tenant?.paymentHistory?.[monthKey] || 'Pending';
+  const oldTotal = tenant?.paymentTotals?.[monthKey] || 0;
+
+  const updatePayload = {
+    [`paymentHistory.${monthKey}`]: targetStatus,
+    [`paymentTotals.${monthKey}`]: finalTotal,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: `telegram:${telegramUser.email || telegramUser.chatId}`
+  };
+
+  await admin.firestore().collection('properties').doc(tenant.id).update(updatePayload);
+
+  // Write audit trail
+  await admin.firestore().collection('rentStatusAudit').add({
+    tenantId: tenant.id,
+    roomId: roomId,
+    roomNo: roomNo,
+    tenantName: tenant.tenant || 'Unknown',
+    monthKey: monthKey,
+    oldStatus: oldStatus,
+    newStatus: targetStatus,
+    oldTotal: oldTotal,
+    newTotal: finalTotal,
+    expectedRent: baseRent,
+    waterCharge: waterCharge,
+    enteredAmount: enteredAmount !== null ? enteredAmount : null,
+    submittedBy: {
+      chatId: String(telegramUser.chatId),
+      email: telegramUser.email || null,
+      role: telegramUser.role || 'Owner',
+      name: [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ') || telegramUser.username || 'Telegram User',
+      username: telegramUser.username || null
+    },
+    source: 'telegram_bot',
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  return {
+    oldStatus,
+    oldTotal,
+    newStatus: targetStatus,
+    newTotal: finalTotal,
+    baseRent,
+    waterCharge
+  };
+}
+
 // Factory to create and configure the Bot instance
 function createTelegramBot(token) {
   if (!token) {
@@ -342,13 +598,17 @@ function createTelegramBot(token) {
     await ctx.reply(
       `👋 *Welcome to Munirathnam Illam Rental Bot, ${name}!* 🏢\n\n` +
       `You have full access as *Owner*.\n\n` +
-      `*⚡ Quick Commands:*\n` +
-      `• /reading — Interactive room selection & reading entry\n` +
-      `• \`/reading <room> <val>\` — Single quick entry (e.g. \`/reading G01 105.4\`)\n` +
-      `• /bulk — Bulk submit multiple unit readings at once\n` +
-      `• /status — View current month's water readings status\n` +
-      `• /help — Full usage guide and rules\n\n` +
-      `_Tap /reading or /bulk to start._`,
+      `*⚡ Water Meter Readings:*\n` +
+      `• /reading — Interactive room picker\n` +
+      `• \`/reading <room> <val>\` — Single entry (e.g. \`/reading G01 105.4\`)\n` +
+      `• /bulk — Bulk paste multiple unit readings\n` +
+      `• /status — View current month's water readings\n\n` +
+      `*💰 Rent Status Updates:*\n` +
+      `• \`G01 Rent Received\` — Mark Rent Only (base rent)\n` +
+      `• \`G01 Paid\` — Mark Paid (rent + water + service)\n` +
+      `• \`G01 Pending\` — Revert to Pending\n` +
+      `• /rent — Interactive rent status menu\n\n` +
+      `_Type any command or message to begin._`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -356,24 +616,21 @@ function createTelegramBot(token) {
   // /help command
   bot.command('help', async (ctx) => {
     await ctx.reply(
-      `📖 *Munirathnam Illam Water Meter Bot Guide*\n\n` +
-      `*Commands:*\n` +
-      `• /reading — Interactive unit selection & reading entry\n` +
-      `• \`/reading <unit> <val>\` — Shorthand entry (e.g. \`/reading G01 104.5\` or \`/reading 01 104.5\`)\n` +
+      `📖 *Munirathnam Illam Bot Guide*\n\n` +
+      `*🚰 Water Meter Commands:*\n` +
+      `• /reading — Interactive unit selection\n` +
+      `• \`/reading <unit> <val>\` — Shorthand (e.g. \`/reading G01 104.5\`)\n` +
       `• /bulk — Paste multiple unit readings at once\n` +
-      `• /status — Overview of recorded readings for current billing month\n` +
-      `• /cancel — Cancel current active operation\n\n` +
-      `*Bulk Entry Format:*\n` +
-      `Send lines formatted as \`Unit: Reading\`, e.g.:\n` +
-      `\`G01: 1041.2\`\n` +
-      `\`102: 998.0\`\n` +
-      `\`201: 1204.5\`\n\n` +
-      `*Rules & Auto-Validation:*\n` +
-      `• Non-negative numeric readings (decimals supported).\n` +
-      `• If reading is lower than previous month, confirms meter reset.\n` +
-      `• Flags zero / near-zero usage ($\le 0.1$) for pattern/fault detection.\n` +
-      `• Large consumption jumps (>50 meter units) trigger a confirmation warning.\n` +
-      `• Existing readings for the cycle prompt before overwrite.`,
+      `• /status — View recorded water meter readings\n\n` +
+      `*💰 Rent Payment Status Messages:*\n` +
+      `• \`<Unit> Rent Received\` ➔ Sets *Rent Only* (e.g. \`G01 Rent Received 6533\`)\n` +
+      `• \`<Unit> Paid\` ➔ Sets *Paid* (e.g. \`G01 Paid 9060\` or \`102 Paid\`)\n` +
+      `• \`<Unit> Pending\` ➔ Sets *Pending* (e.g. \`G01 Pending\`)\n` +
+      `• \`/rent <unit> <status> [month] [amount]\` (e.g. \`/rent G01 Paid Aug 8500\`)\n\n` +
+      `*Rules & Protections:*\n` +
+      `• Downgrading from Paid to Rent Only/Pending requires explicit confirmation.\n` +
+      `• Amount mismatches against expected rent prompt for confirmation.\n` +
+      `• Pre-tenancy months cannot be modified.`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -382,7 +639,7 @@ function createTelegramBot(token) {
   bot.command('cancel', async (ctx) => {
     const chatId = ctx.chat.id;
     await clearSession(chatId);
-    await ctx.reply("❌ Active operation cancelled. Use /reading or /bulk to start over.");
+    await ctx.reply("❌ Active operation cancelled. Send /reading, /bulk, or /rent to start over.");
   });
 
   // /unlink command
@@ -463,6 +720,48 @@ function createTelegramBot(token) {
     );
   });
 
+  // /rent command (Interactive Menu or Direct Command)
+  bot.command('rent', async (ctx) => {
+    const rawText = (ctx.message?.text || '').trim();
+    const parts = rawText.split(/\s+/).filter(Boolean);
+
+    // If arguments provided: /rent <room> <status> [month] [amount]
+    if (parts.length >= 3) {
+      return await handleRentStatusUpdate(ctx, rawText);
+    }
+
+    // Interactive Menu
+    const { allTenants } = await getOccupiedTenants();
+    const sortedRooms = Object.values(IMMUTABLE_ROOMS_DATA).sort((a, b) =>
+      String(a.roomNo).localeCompare(String(b.roomNo), undefined, { numeric: true })
+    );
+
+    const { cycleKey } = getActiveWaterCycleDateParts();
+
+    const keyboard = new InlineKeyboard();
+    let col = 0;
+
+    sortedRooms.forEach((r) => {
+      const tenant = allTenants.find(t => t.roomNo === r.roomNo || t.roomId === r.roomId);
+      const isOccupied = Boolean(tenant);
+      const curStatus = tenant?.paymentHistory?.[cycleKey] || 'Pending';
+      const icon = curStatus === 'Paid' ? '🟢' : (curStatus === 'Rent Only' ? '🟣' : (isOccupied ? '🟠' : '⚪'));
+
+      keyboard.text(`${icon} ${r.roomId}`, `sel_rent_room:${r.roomNo}`);
+      col++;
+      if (col % 3 === 0) keyboard.row();
+    });
+
+    keyboard.row().text("❌ Cancel", "flow_cancel");
+
+    await ctx.reply(
+      `💰 *Select a room to update Rent Status (${cycleKey}):*\n\n` +
+      `🟢 = Paid | 🟣 = Rent Only | 🟠 = Pending | ⚪ = Vacant\n\n` +
+      `_Or type directly: \`G01 Rent Received\` / \`102 Paid\`_`,
+      { parse_mode: 'Markdown', reply_markup: keyboard }
+    );
+  });
+
   // Helper to start reading flow for a specific room
   async function promptReadingForRoom(ctx, room, tenant) {
     const chatId = ctx.chat.id;
@@ -515,7 +814,7 @@ function createTelegramBot(token) {
       const normalized = normalizeRoomIdentifier(roomIdentifier);
 
       if (!normalized) {
-        await ctx.reply(`❌ Unknown room: "${roomIdentifier}". Use valid codes like G01, 102, 201, 01, etc.`);
+        await ctx.reply(`❌ Unknown room: "${roomIdentifier}". Valid units: ${getValidRoomListString()}`);
         return;
       }
 
@@ -561,6 +860,162 @@ function createTelegramBot(token) {
     );
   });
 
+  // Rent Status Update Handler (Natural Phrase or Command)
+  async function handleRentStatusUpdate(ctx, text) {
+    const chatId = ctx.chat.id;
+    const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
+    const { cycleYear, cycleMonthIndex } = getActiveWaterCycleDateParts();
+
+    const parsed = parseRentStatusMessage(text, cycleYear, cycleMonthIndex);
+
+    if (!parsed.ok) {
+      if (parsed.reason === 'unknown_room') {
+        await ctx.reply(
+          `❌ I don't recognize unit "${parsed.unitStr}".\n\n` +
+          `🏢 *Managed Units:*\n${getValidRoomListString()}`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      if (parsed.reason === 'unknown_status' || parsed.reason === 'missing_status') {
+        await ctx.reply(
+          `❓ I didn't recognize that status for Room *${parsed.roomId || ''}*.\n\n` +
+          `*Accepted Status Options:*\n` +
+          `• *Rent Only:* \`${parsed.roomId || 'G01'} Rent Received\`\n` +
+          `• *Paid (Rent + Water):* \`${parsed.roomId || 'G01'} Paid\`\n` +
+          `• *Pending (Reset):* \`${parsed.roomId || 'G01'} Pending\`\n\n` +
+          `_Or use: \`/rent ${parsed.roomId || 'G01'} <status> [month] [amount]\`_`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      await ctx.reply("❌ Invalid format. Use e.g. `G01 Rent Received` or `G01 Paid 9060`.", { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const { roomNo, roomId, targetStatus, year, monthIndex, monthKey, enteredAmount } = parsed;
+
+    const { tenantsByRoomNo } = await getOccupiedTenants();
+    const tenant = tenantsByRoomNo[roomNo];
+
+    if (!tenant) {
+      await ctx.reply(`⚠️ Room *${roomId}* is currently marked as Vacant. No active tenant is assigned.`, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    // Check Dash-Cell (Pre-tenancy Month)
+    if (isMonthBeforeJoinDate(monthKey, tenant.joinDate)) {
+      await ctx.reply(
+        `⚠️ Room *${roomId}* tenant (*${tenant.tenant}*) joined on *${tenant.joinDate}*.\n` +
+        `Month *${monthKey}* is before their move-in date and cannot be modified.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const curStatus = tenant.paymentHistory?.[monthKey] || 'Pending';
+    const curTotal = tenant.paymentTotals?.[monthKey] || 0;
+
+    // Check Already Set
+    if (curStatus === targetStatus && (enteredAmount === null || enteredAmount === curTotal)) {
+      await ctx.reply(
+        `ℹ️ Room *${roomId}* is already marked as *${targetStatus}* for *${monthKey}* (Total: ₹${curTotal.toLocaleString('en-IN')}).`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // Check Downgrade Protection (Paid -> Rent Only or Pending)
+    if (curStatus === 'Paid' && (targetStatus === 'Rent Only' || targetStatus === 'Pending')) {
+      await setSession(chatId, {
+        step: 'awaiting_rent_confirmation',
+        action: 'downgrade',
+        roomNo,
+        roomId,
+        tenantId: tenant.id,
+        monthKey,
+        year,
+        monthIndex,
+        targetStatus,
+        enteredAmount
+      });
+
+      const kb = new InlineKeyboard()
+        .text(`✅ Yes, Change to ${targetStatus}`, `conf_rent_save:${roomNo}`)
+        .text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(
+        `⚠️ *Downgrade Confirmation Required!*\n\n` +
+        `Room *${roomId}* is currently marked *Paid* (₹${curTotal.toLocaleString('en-IN')}) for *${monthKey}*.\n\n` +
+        `Are you sure you want to change it to *${targetStatus}*?`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Check Amount Discrepancy (if enteredAmount differs from expected base rent)
+    const expectedRent = Number(tenant.rent) || 0;
+    if (enteredAmount !== null && targetStatus === 'Rent Only' && enteredAmount !== expectedRent) {
+      await setSession(chatId, {
+        step: 'awaiting_rent_confirmation',
+        action: 'amount_mismatch',
+        roomNo,
+        roomId,
+        tenantId: tenant.id,
+        monthKey,
+        year,
+        monthIndex,
+        targetStatus,
+        enteredAmount
+      });
+
+      const kb = new InlineKeyboard()
+        .text(`✅ Confirm ₹${enteredAmount}`, `conf_rent_save:${roomNo}`)
+        .text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(
+        `⚠️ *Amount Mismatch Warning!*\n\n` +
+        `Expected base rent for *${roomId}* is *₹${expectedRent.toLocaleString('en-IN')}*, but you entered *₹${enteredAmount.toLocaleString('en-IN')}*.\n\n` +
+        `Confirm recording ₹${enteredAmount.toLocaleString('en-IN')} for *${monthKey}*?`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Save Directly
+    try {
+      const result = await saveRentStatus({
+        tenant,
+        roomNo,
+        roomId,
+        monthKey,
+        year,
+        monthIndex,
+        targetStatus,
+        enteredAmount,
+        telegramUser
+      });
+
+      await clearSession(chatId);
+
+      await ctx.reply(
+        `✅ *Rent Status Updated!*\n\n` +
+        `🏠 *Room:* ${roomId} (${roomNo})\n` +
+        `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
+        `🏷️ *Status:* *${targetStatus}*\n` +
+        `📅 *Billing Cycle:* ${monthKey}\n` +
+        `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}\n` +
+        `⏱️ *Recorded:* ${new Date().toLocaleDateString('en-IN')}`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      console.error("Error saving rent status:", err);
+      await ctx.reply("❌ Error saving rent status: " + err.message);
+    }
+  }
+
   // Callback query handler (Inline keyboard clicks)
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
@@ -570,11 +1025,11 @@ function createTelegramBot(token) {
     if (data === 'flow_cancel') {
       await clearSession(chatId);
       await ctx.answerCallbackQuery({ text: "Cancelled" });
-      await ctx.editMessageText("❌ Operation cancelled. Send /reading or /bulk to start again.");
+      await ctx.editMessageText("❌ Operation cancelled.");
       return;
     }
 
-    // Room Selection
+    // Room Selection (Water Reading)
     if (data.startsWith('sel_room:')) {
       const roomNo = data.split(':')[1];
       const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
@@ -597,7 +1052,116 @@ function createTelegramBot(token) {
       return;
     }
 
-    // Single Reading Confirmation Actions
+    // Rent Room Selection (Interactive /rent flow)
+    if (data.startsWith('sel_rent_room:')) {
+      const roomNo = data.split(':')[1];
+      const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+      const { cycleKey } = getActiveWaterCycleDateParts();
+
+      const { tenantsByRoomNo } = await getOccupiedTenants();
+      const tenant = tenantsByRoomNo[roomNo];
+
+      if (!tenant) {
+        await ctx.answerCallbackQuery({ text: `Room ${roomData?.roomId} is vacant` });
+        await ctx.reply(`⚠️ Room *${roomData?.roomId}* is vacant.`);
+        return;
+      }
+
+      await ctx.answerCallbackQuery();
+
+      const kb = new InlineKeyboard()
+        .text("🟣 Rent Only", `set_rent:${roomNo}:Rent Only`)
+        .text("🟢 Paid", `set_rent:${roomNo}:Paid`)
+        .row()
+        .text("🟠 Pending", `set_rent:${roomNo}:Pending`)
+        .text("❌ Cancel", "flow_cancel");
+
+      const cur = tenant.paymentHistory?.[cycleKey] || 'Pending';
+
+      await ctx.reply(
+        `🏠 *Room ${roomData.roomId}* (${tenant.tenant})\n` +
+        `📅 *Cycle:* ${cycleKey}\n` +
+        `📌 *Current Status:* ${cur}\n\n` +
+        `Select target status:`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Set Rent Status via Interactive Button
+    if (data.startsWith('set_rent:')) {
+      const parts = data.split(':');
+      const roomNo = parts[1];
+      const targetStatus = parts[2];
+      const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+      const { cycleKey, cycleYear, cycleMonthIndex } = getActiveWaterCycleDateParts();
+
+      const { tenantsByRoomNo } = await getOccupiedTenants();
+      const tenant = tenantsByRoomNo[roomNo];
+
+      if (!tenant) {
+        await ctx.answerCallbackQuery({ text: "Tenant missing" });
+        return;
+      }
+
+      await ctx.answerCallbackQuery();
+      return await handleRentStatusUpdate(ctx, `/rent ${roomData.roomId} ${targetStatus} ${cycleKey}`);
+    }
+
+    // Rent Confirmation Action (Downgrade or Mismatch Confirmed)
+    if (data.startsWith('conf_rent_save:')) {
+      const roomNo = data.split(':')[1];
+      const session = await getSession(chatId);
+
+      if (!session || session.step !== 'awaiting_rent_confirmation' || session.roomNo !== roomNo) {
+        await ctx.answerCallbackQuery({ text: "Session expired" });
+        await ctx.reply("⏳ Session expired. Please send the command again.");
+        return;
+      }
+
+      const { tenantsByRoomNo } = await getOccupiedTenants();
+      const tenant = tenantsByRoomNo[roomNo];
+
+      if (!tenant) {
+        await ctx.answerCallbackQuery({ text: "Tenant record missing" });
+        return;
+      }
+
+      try {
+        const result = await saveRentStatus({
+          tenant,
+          roomNo: session.roomNo,
+          roomId: session.roomId,
+          monthKey: session.monthKey,
+          year: session.year,
+          monthIndex: session.monthIndex,
+          targetStatus: session.targetStatus,
+          enteredAmount: session.enteredAmount,
+          telegramUser
+        });
+
+        await clearSession(chatId);
+        await ctx.answerCallbackQuery({ text: "Status updated!" });
+
+        await ctx.editMessageText(
+          `✅ *Rent Status Updated!*\n\n` +
+          `🏠 *Room:* ${session.roomId} (${session.roomNo})\n` +
+          `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
+          `🏷️ *Status:* *${session.targetStatus}*\n` +
+          `📅 *Billing Cycle:* ${session.monthKey}\n` +
+          `💰 *Total Recorded:* ₹${result.newTotal.toLocaleString('en-IN')}\n` +
+          `⏱️ *Recorded:* ${new Date().toLocaleDateString('en-IN')}`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (err) {
+        console.error("Rent confirmation save failed:", err);
+        await ctx.answerCallbackQuery({ text: "Save failed" });
+        await ctx.reply("❌ Error saving rent status: " + err.message);
+      }
+      return;
+    }
+
+    // Single Water Reading Confirmation Actions
     if (data.startsWith('conf:')) {
       const [, action] = data.split(':');
       const session = await getSession(chatId);
@@ -670,7 +1234,7 @@ function createTelegramBot(token) {
     if (data.startsWith('conf_bulk:')) {
       const parts = data.split(':');
       const roomNo = parts[1];
-      const action = parts[2]; // 'save', 'reset', 'cancel'
+      const action = parts[2];
 
       const session = await getSession(chatId);
       if (!session || session.step !== 'awaiting_bulk_confirmations' || !session.flaggedItems) {
@@ -715,7 +1279,6 @@ function createTelegramBot(token) {
           anomalyTag: item.reason
         });
 
-        // Remove from session flagged list
         session.flaggedItems.splice(itemIndex, 1);
         await setSession(chatId, session);
 
@@ -738,7 +1301,7 @@ function createTelegramBot(token) {
     await ctx.answerCallbackQuery();
   });
 
-  // Direct shorthand entry handler
+  // Direct shorthand reading handler
   async function handleDirectReadingEntry(ctx, room, tenant, readingStr) {
     const chatId = ctx.chat.id;
     const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
@@ -1050,7 +1613,7 @@ function createTelegramBot(token) {
     }
   }
 
-  // Text message handler
+  // Text message router
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text.trim();
@@ -1058,176 +1621,190 @@ function createTelegramBot(token) {
 
     const session = await getSession(chatId);
 
-    // If text contains multiple lines or session is awaiting_bulk_input -> treat as Bulk Entry
+    // 1. Bulk Input Mode (or multiline text)
     if (session?.step === 'awaiting_bulk_input' || text.includes('\n')) {
       return await processBulkReadings(ctx, text);
     }
 
-    if (!session || session.step !== 'awaiting_reading_value') {
-      // Unsolicited text without active flow
-      await ctx.reply(
-        "💡 *How to enter water meter readings:*\n\n" +
-        "• Send /reading to pick a room from the interactive menu.\n" +
-        "• Send \`/reading <room> <val>\` for single entry (e.g. \`/reading G01 104.5\`).\n" +
-        "• Or send /bulk to paste multiple units at once.",
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
-    const readingNum = Number(text);
-    if (!Number.isFinite(readingNum) || readingNum < 0) {
-      await ctx.reply("❌ Invalid format. Please enter a valid non-negative number (e.g. `1041.5`) or send /cancel to abort.", { parse_mode: 'Markdown' });
-      return;
-    }
-
-    const { roomNo, roomId, tenantId, tenantName, currentMonthKey, prevVal, existingCurrent } = session;
-    const { tenantsByRoomNo } = await getOccupiedTenants();
-    const tenant = tenantsByRoomNo[roomNo];
-
-    if (!tenant) {
-      await clearSession(chatId);
-      await ctx.reply("❌ Tenant record not found. Operation cancelled.");
-      return;
-    }
-
-    // Check Lower than Previous -> Ask Reset
-    if (prevVal !== null && readingNum < prevVal) {
-      await setSession(chatId, {
-        step: 'awaiting_confirmation',
-        roomNo,
-        roomId,
-        tenantId,
-        tenantName,
-        currentMonthKey,
-        readingNum,
-        prevVal
-      });
-
-      const kb = new InlineKeyboard()
-        .text("🔄 Yes, Meter Reset", "conf:reset")
-        .text("❌ Cancel", "conf:cancel");
-
-      await ctx.reply(
-        `⚠️ *Potential Meter Reset Detected!*\n\n` +
-        `Reading \`${readingNum}\` is LOWER than last recorded reading \`${prevVal}\` for Room *${roomId}*.\n\n` +
-        `Is this a meter replacement or reset?`,
-        { parse_mode: 'Markdown', reply_markup: kb }
-      );
-      return;
-    }
-
-    // Check Large Jump (> 50 meter units = 500 units)
-    if (prevVal !== null && (readingNum - prevVal) > 50) {
-      await setSession(chatId, {
-        step: 'awaiting_confirmation',
-        roomNo,
-        roomId,
-        tenantId,
-        tenantName,
-        currentMonthKey,
-        readingNum,
-        prevVal
-      });
-
-      const kb = new InlineKeyboard()
-        .text("✅ Confirm & Save", "conf:save")
-        .text("❌ Cancel", "conf:cancel");
-
-      await ctx.reply(
-        `⚠️ *Large Consumption Warning!*\n\n` +
-        `Reading \`${readingNum}\` is +${(readingNum - prevVal).toFixed(1)} higher than previous (\`${prevVal}\`).\n\n` +
-        `This equals *${Math.round((readingNum - prevVal) * WATER_UNITS_MULTIPLIER)} water units*.\n` +
-        `Are you sure this reading is correct?`,
-        { parse_mode: 'Markdown', reply_markup: kb }
-      );
-      return;
-    }
-
-    // Check Zero / Near-Zero Consumption
-    if (prevVal !== null && readingNum >= prevVal && (readingNum - prevVal) <= 0.1) {
-      await setSession(chatId, {
-        step: 'awaiting_confirmation',
-        roomNo,
-        roomId,
-        tenantId,
-        tenantName,
-        currentMonthKey,
-        readingNum,
-        prevVal
-      });
-
-      const kb = new InlineKeyboard()
-        .text("✅ Yes, Save Zero Usage", "conf:save")
-        .text("❌ Cancel", "conf:cancel");
-
-      await ctx.reply(
-        `⚠️ *Zero/Near-Zero Consumption Detected!*\n\n` +
-        `Reading \`${readingNum}\` indicates *0 units consumed* since last cycle (\`${prevVal}\`) for occupied Room *${roomId}*.\n\n` +
-        `Confirm this reading?`,
-        { parse_mode: 'Markdown', reply_markup: kb }
-      );
-      return;
-    }
-
-    // Check Overwrite
-    if (existingCurrent !== null && existingCurrent !== readingNum) {
-      await setSession(chatId, {
-        step: 'awaiting_confirmation',
-        roomNo,
-        roomId,
-        tenantId,
-        tenantName,
-        currentMonthKey,
-        readingNum,
-        prevVal
-      });
-
-      const kb = new InlineKeyboard()
-        .text("📝 Overwrite Reading", "conf:save")
-        .text("❌ Cancel", "conf:cancel");
-
-      await ctx.reply(
-        `⚠️ *Existing Reading Warning!*\n\n` +
-        `Room *${roomId}* already has a reading of \`${existingCurrent}\` for *${currentMonthKey}*.\n\n` +
-        `Do you want to overwrite it with \`${readingNum}\`?`,
-        { parse_mode: 'Markdown', reply_markup: kb }
-      );
-      return;
-    }
-
-    // Direct save
-    try {
-      const result = await saveWaterReading({
-        tenant,
-        roomNo,
-        roomId,
-        monthKey: currentMonthKey,
-        readingNum,
-        isReset: false,
-        telegramUser
-      });
-
-      await clearSession(chatId);
-
-      const { deltaResult } = result;
-      let reply = `✅ *Water Reading Saved Successfully!*\n\n` +
-                  `🏠 *Room:* ${roomId} (${roomNo})\n` +
-                  `👤 *Tenant:* ${tenantName}\n` +
-                  `📊 *Reading:* \`${readingNum}\`\n` +
-                  `📅 *Billing Cycle:* ${currentMonthKey}\n`;
-
-      if (deltaResult?.meterDelta !== null) {
-        reply += `📈 *Meter Delta:* +${deltaResult.meterDelta.toFixed(1)} units\n`;
-        reply += `💧 *Water Units:* ${deltaResult.units} units\n`;
-        reply += `💰 *Water Charge:* ₹${deltaResult.amount}\n`;
+    // 2. Active Single Reading Value entry
+    if (session?.step === 'awaiting_reading_value') {
+      const readingNum = Number(text);
+      if (!Number.isFinite(readingNum) || readingNum < 0) {
+        await ctx.reply("❌ Invalid format. Please enter a valid non-negative number (e.g. `1041.5`) or send /cancel to abort.", { parse_mode: 'Markdown' });
+        return;
       }
 
-      await ctx.reply(reply, { parse_mode: 'Markdown' });
-    } catch (err) {
-      console.error("Direct save error:", err);
-      await ctx.reply("❌ Error saving reading: " + err.message);
+      const { roomNo, roomId, tenantId, tenantName, currentMonthKey, prevVal, existingCurrent } = session;
+      const { tenantsByRoomNo } = await getOccupiedTenants();
+      const tenant = tenantsByRoomNo[roomNo];
+
+      if (!tenant) {
+        await clearSession(chatId);
+        await ctx.reply("❌ Tenant record not found. Operation cancelled.");
+        return;
+      }
+
+      // Check Lower than Previous -> Ask Reset
+      if (prevVal !== null && readingNum < prevVal) {
+        await setSession(chatId, {
+          step: 'awaiting_confirmation',
+          roomNo,
+          roomId,
+          tenantId,
+          tenantName,
+          currentMonthKey,
+          readingNum,
+          prevVal
+        });
+
+        const kb = new InlineKeyboard()
+          .text("🔄 Yes, Meter Reset", "conf:reset")
+          .text("❌ Cancel", "conf:cancel");
+
+        await ctx.reply(
+          `⚠️ *Potential Meter Reset Detected!*\n\n` +
+          `Reading \`${readingNum}\` is LOWER than last recorded reading \`${prevVal}\` for Room *${roomId}*.\n\n` +
+          `Is this a meter replacement or reset?`,
+          { parse_mode: 'Markdown', reply_markup: kb }
+        );
+        return;
+      }
+
+      // Check Large Jump (> 50 meter units = 500 units)
+      if (prevVal !== null && (readingNum - prevVal) > 50) {
+        await setSession(chatId, {
+          step: 'awaiting_confirmation',
+          roomNo,
+          roomId,
+          tenantId,
+          tenantName,
+          currentMonthKey,
+          readingNum,
+          prevVal
+        });
+
+        const kb = new InlineKeyboard()
+          .text("✅ Confirm & Save", "conf:save")
+          .text("❌ Cancel", "conf:cancel");
+
+        await ctx.reply(
+          `⚠️ *Large Consumption Warning!*\n\n` +
+          `Reading \`${readingNum}\` is +${(readingNum - prevVal).toFixed(1)} higher than previous (\`${prevVal}\`).\n\n` +
+          `This equals *${Math.round((readingNum - prevVal) * WATER_UNITS_MULTIPLIER)} water units*.\n` +
+          `Are you sure this reading is correct?`,
+          { parse_mode: 'Markdown', reply_markup: kb }
+        );
+        return;
+      }
+
+      // Check Zero / Near-Zero Consumption
+      if (prevVal !== null && readingNum >= prevVal && (readingNum - prevVal) <= 0.1) {
+        await setSession(chatId, {
+          step: 'awaiting_confirmation',
+          roomNo,
+          roomId,
+          tenantId,
+          tenantName,
+          currentMonthKey,
+          readingNum,
+          prevVal
+        });
+
+        const kb = new InlineKeyboard()
+          .text("✅ Yes, Save Zero Usage", "conf:save")
+          .text("❌ Cancel", "conf:cancel");
+
+        await ctx.reply(
+          `⚠️ *Zero/Near-Zero Consumption Detected!*\n\n` +
+          `Reading \`${readingNum}\` indicates *0 units consumed* since last cycle (\`${prevVal}\`) for occupied Room *${roomId}*.\n\n` +
+          `Confirm this reading?`,
+          { parse_mode: 'Markdown', reply_markup: kb }
+        );
+        return;
+      }
+
+      // Check Overwrite
+      if (existingCurrent !== null && existingCurrent !== readingNum) {
+        await setSession(chatId, {
+          step: 'awaiting_confirmation',
+          roomNo,
+          roomId,
+          tenantId,
+          tenantName,
+          currentMonthKey,
+          readingNum,
+          prevVal
+        });
+
+        const kb = new InlineKeyboard()
+          .text("📝 Overwrite Reading", "conf:save")
+          .text("❌ Cancel", "conf:cancel");
+
+        await ctx.reply(
+          `⚠️ *Existing Reading Warning!*\n\n` +
+          `Room *${roomId}* already has a reading of \`${existingCurrent}\` for *${currentMonthKey}*.\n\n` +
+          `Do you want to overwrite it with \`${readingNum}\`?`,
+          { parse_mode: 'Markdown', reply_markup: kb }
+        );
+        return;
+      }
+
+      // Direct save
+      try {
+        const result = await saveWaterReading({
+          tenant,
+          roomNo,
+          roomId,
+          monthKey: currentMonthKey,
+          readingNum,
+          isReset: false,
+          telegramUser
+        });
+
+        await clearSession(chatId);
+
+        const { deltaResult } = result;
+        let reply = `✅ *Water Reading Saved Successfully!*\n\n` +
+                    `🏠 *Room:* ${roomId} (${roomNo})\n` +
+                    `👤 *Tenant:* ${tenantName}\n` +
+                    `📊 *Reading:* \`${readingNum}\`\n` +
+                    `📅 *Billing Cycle:* ${currentMonthKey}\n`;
+
+        if (deltaResult?.meterDelta !== null) {
+          reply += `📈 *Meter Delta:* +${deltaResult.meterDelta.toFixed(1)} units\n`;
+          reply += `💧 *Water Units:* ${deltaResult.units} units\n`;
+          reply += `💰 *Water Charge:* ₹${deltaResult.amount}\n`;
+        }
+
+        await ctx.reply(reply, { parse_mode: 'Markdown' });
+      } catch (err) {
+        console.error("Direct save error:", err);
+        await ctx.reply("❌ Error saving reading: " + err.message);
+      }
+      return;
     }
+
+    // 3. Rent Status Check: Does message match Rent phrase or start with /rent?
+    // Matches e.g. "G01 Rent Received", "102 Paid", "401 Pending", "G01 Rent Received 6533"
+    const rentRegex = /^(?:[a-zA-Z0-9#\s]+?)\s+(?:rent\s*(?:received|only|paid|and\s*water|&\s*water|\+\s*water)|paid|fully\s*paid|pending|due|not\s*paid|unpaid)(?:\s+.*)?$/i;
+    if (text.toLowerCase().startsWith('/rent') || rentRegex.test(text)) {
+      return await handleRentStatusUpdate(ctx, text);
+    }
+
+    // 4. Default Help Response for unrecognized input
+    await ctx.reply(
+      "💡 *How would you like to update?*\n\n" +
+      "*🚰 Water Meter Readings:*\n" +
+      "• Send /reading to pick a room from the menu.\n" +
+      "• Send \`/reading <room> <val>\` for single entry (e.g. \`/reading G01 104.5\`).\n" +
+      "• Send /bulk to paste multiple units at once.\n\n" +
+      "*💰 Rent Payment Status:*\n" +
+      "• Send \`G01 Rent Received\` ➔ Marks Rent Only\n" +
+      "• Send \`G01 Paid\` ➔ Marks Paid (Rent + Water)\n" +
+      "• Send \`G01 Pending\` ➔ Reverts to Pending\n" +
+      "• Send /rent for interactive rent menu.",
+      { parse_mode: 'Markdown' }
+    );
   });
 
   return bot;
@@ -1236,12 +1813,17 @@ function createTelegramBot(token) {
 module.exports = {
   createTelegramBot,
   computeWaterReadingDelta,
+  computeWaterForMonth,
   normalizeRoomIdentifier,
   parseBulkReadingLines,
+  parseRentStatusMessage,
   getDefaultWaterRateForRoom,
   getWaterMonthKey,
   getPrevYearMonth,
   getActiveWaterCycleDateParts,
   getKolkataDateParts,
+  getProratedRent,
+  isFirstOccupancyMonth,
+  isMonthBeforeJoinDate,
   IMMUTABLE_ROOMS_DATA
 };

@@ -1,23 +1,22 @@
-# 🤖 Telegram Water Meter Bot Setup Guide
+# 🤖 Telegram Rental Manager Bot Setup Guide
 
-**Munirathnam Illam Rental Manager** includes a Telegram Bot integration allowing authorized staff and managers to submit monthly water meter readings directly via Telegram chat. Readings are validated, checked for anomalies, and synced with Firestore in real time.
+**Munirathnam Illam Rental Manager** includes a Telegram Bot integration allowing authorized staff and managers to:
+1. **Submit water meter readings** (interactive picker, shorthand, or `/bulk` multiline paste).
+2. **Update rent payment statuses** (natural phrases like `G01 Rent Received`, `102 Paid 8500`, `201 Pending`, or `/rent`).
+
+All entries are validated against business rules, checked for anomalies, and synced with Firestore in real time.
 
 ---
 
-## 1. Create Bot with @BotFather
+## 1. Create / Configure Bot in @BotFather
 
-1. Open Telegram and search for [@BotFather](https://t.me/BotFather).
-2. Send `/newbot`.
-3. Choose a name: `Munirathnam Illam Water Bot`.
-4. Choose a username (must end in `bot`), e.g., `MunirathnamIllamBot`.
-5. Copy the **HTTP API Token** provided by BotFather (e.g., `7123456789:AAH...`).
-
-### Set Bot Commands in BotFather
-Send `/setcommands` to `@BotFather`, select your bot, and paste:
+1. Open Telegram and message [@BotFather](https://t.me/BotFather).
+2. Send `/setcommands`, select your bot, and paste:
 ```text
-reading - Submit water meter reading for a room
-bulk - Bulk submit multiple room readings at once
-status - View current month water readings status
+reading - Submit water meter reading for a unit
+bulk - Bulk submit multiple unit water readings
+rent - Update rent payment status for a unit
+status - View current cycle water readings status
 help - How to use the bot
 cancel - Cancel active conversation flow
 ```
@@ -26,112 +25,69 @@ cancel - Cancel active conversation flow
 
 ## 2. Configuration & Secrets
 
-### For Local Testing (`.env`)
-Add the token to your `.env` file in the project root:
-```env
-TELEGRAM_BOT_TOKEN="7123456789:AAH..."
-```
-
 ### For Production (Firebase Cloud Functions)
 Set the secret in Firebase Functions config:
 ```bash
-firebase functions:config:set telegram.token="7123456789:AAH..."
+npx firebase functions:config:set telegram.token="<YOUR_BOT_TOKEN>" --project live
 ```
-*(Or set `TELEGRAM_BOT_TOKEN` in the Cloud Functions runtime environment).*
 
----
-
-## 3. Local Testing Runner (Polling Mode)
-
-To run the bot locally without needing public URLs or webhooks:
-```bash
-npm run bot:dev
-```
-The terminal will display:
-```text
-🤖 Starting Munirathnam Illam Telegram Bot (Polling Mode)...
-[Firebase] Initialized with project ID: munirathnam-illam
-✅ Bot @MunirathnamIllamBot is running and listening for messages!
+### For Local Testing (`.env`)
+Add to `.env` in the project root:
+```env
+TELEGRAM_BOT_TOKEN="<YOUR_BOT_TOKEN>"
 ```
 
 ---
 
-## 4. Production Webhook Deployment
+## 3. Webhook Setup (Production 24/7)
 
-When ready to deploy the Cloud Function:
+When deployed to Firebase Cloud Functions:
 ```bash
-# 1. Deploy the Cloud Function
-firebase deploy --only functions:telegramWebhook
-
-# 2. Register the Webhook with Telegram API
-curl -F "url=https://<REGION>-<PROJECT_ID>.cloudfunctions.net/telegramWebhook" \
-     https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook
-```
-
-To verify webhook status anytime:
-```bash
-curl https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo
+curl -F "url=https://us-central1-munirathnam-illam.cloudfunctions.net/telegramWebhook" \
+     https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook
 ```
 
 ---
 
-## 5. How to Submit Readings
+## 4. How to Update Rent Payment Status
 
-### Option A: Bulk Entry (Recommended for multiple rooms)
-Send `/bulk` or directly paste a multiline text list into the chat:
+You can send natural chat phrases directly to the bot:
+
+| Intent | Phrasing Examples | Action / Recorded Total |
+|---|---|---|
+| **Rent Only** | `G01 Rent Received`<br>`G01 Rent Only`<br>`102 Rent Paid 6500`<br>`G01 Rent Received Aug 6533` | Marks unit **Rent Only**.<br>Total = base rent (₹6,533). |
+| **Paid** (Rent + Water) | `G01 Paid`<br>`G01 Fully Paid`<br>`102 Rent and Water Received`<br>`201 Paid 9060` | Marks unit **Paid**.<br>Total = rent + water charge + service charge (₹60). |
+| **Pending** (Reset) | `G01 Pending`<br>`102 Due`<br>`201 Not Paid`<br>`301 Unpaid` | Reverts unit to **Pending**.<br>Total = ₹0. |
+| **Command Fallback** | `/rent G01 Paid`<br>`/rent 102 Rent Only Aug 6500` | Strict syntax for unambiguous updates. |
+
+### Built-in Safety & Protections:
+* **No-op check:** If the unit is already in the requested status, the bot informs you without redundant writes.
+* **Downgrade protection:** Transitioning from `Paid` ➔ `Rent Only` or `Pending` triggers an inline confirmation button to prevent accidental revenue reductions.
+* **Amount discrepancy warning:** If a custom amount entered in chat differs from the expected base rent on file (`tenant.rent`), the bot asks for confirmation before recording.
+* **Dash-cell check:** Rejects updates for months prior to the tenant's move-in date (`joinDate`).
+
+---
+
+## 5. How to Submit Water Meter Readings
+
+### Option A: Bulk Entry (Multiline paste)
+Send `/bulk` or directly paste a list into chat:
 ```text
 G01: 1041.2
 102: 998.0
 201: 1204.5
 401: 520.0
 ```
-* **Format:** `Unit: Reading` (supports `:`, `=`, `-`, or spaces).
-* **Execution:** Clean lines are saved immediately to Firestore; flagged anomalies (meter resets, zero usage, high jumps) show one-tap confirmation buttons below the batch summary.
+* Clean lines save immediately.
+* Flagged lines (meter reset, high jump, zero usage) display one-tap confirmation buttons.
 
-### Option B: Interactive Menu
-1. Send `/reading`.
-2. Bot displays an interactive keyboard of all rooms with indicators:
-   - `✅` = Already recorded for this month
-   - `💧` = Occupied & Pending
-   - `⚪` = Vacant
-3. Tap a room (e.g. `[💧 G01]`).
-4. Bot shows the tenant name and last recorded reading, and asks for the new value.
-5. Reply with `1041.2`.
+### Option B: Interactive Picker
+Send `/reading` ➔ tap a room button ➔ reply with the number.
 
-### Option C: Quick Shorthand Entry
-Directly send:
-```text
-/reading G01 1041.2
-# or
-/reading 01 1041.2
-```
+### Option C: Shorthand
+Send `/reading G01 1041.2`.
 
 ---
 
-## 6. Built-in Validation Rules
-
-| Check | Trigger Condition | Bot Action |
-|---|---|---|
-| **Lower than previous** | New reading < baseline reading | Asks if this is a meter replacement/reset (`[🔄 Yes, Meter Reset]`). |
-| **Zero / Near-Zero Usage** | Reading $\Delta \le 0.1$ units on occupied unit | Prompts confirmation to ensure meter is not stuck or faulty. |
-| **Large consumption jump** | Meter delta > 50 units (500L) | Shows warning with consumption and asks for explicit confirmation. |
-| **Duplicate for current cycle** | Reading already exists for current month | Shows existing value and asks whether to overwrite. |
-| **Invalid number** | Letters, negative numbers | Prompts user with friendly retry instructions. |
-
----
-
-## 7. Summary of Modified / Added Files
-
-* **Cloud Functions:**
-  * [`functions/telegramBot.js`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/functions/telegramBot.js) — Core Telegram bot logic, bulk entry parser, zero-usage detection, validation, state management, and Firestore mutations.
-  * [`functions/index.js`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/functions/index.js) — Exported `telegramWebhook` HTTPS Cloud Function.
-  * [`functions/package.json`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/functions/package.json) — `grammy` dependency.
-* **Security & Database:**
-  * [`firestore.rules`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/firestore.rules) — Rules for `telegramUsers`, `telegramAuthCodes`, and `waterReadingsAudit`.
-* **Admin Web UI:**
-  * [`src/components/TelegramBotTab.jsx`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/src/components/TelegramBotTab.jsx) — Admin UI with linking code generator, audit trail table with anomaly/zero-usage badges.
-  * [`src/pages/Admin.jsx`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/src/pages/Admin.jsx) — Integrated Telegram Bot tab.
-* **Developer Tools & Tests:**
-  * [`scripts/telegram-bot-dev.js`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/scripts/telegram-bot-dev.js) — Standalone polling runner (`npm run bot:dev`).
-  * [`package.json`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/package.json) — Added `bot:dev` script.
-  * [`tests/telegram-bot.test.js`](file:///Users/apple/Desktop/Munirathnam%20Illam%20Rental%20Manager/tests/telegram-bot.test.js) — Automated Jest unit tests covering bulk parsing, zero-usage detection, calculations, and room normalizations.
+## 6. Admin Portal
+View linked accounts and full real-time audit trails for both water readings and rent status updates under **Admin ➔ Telegram Bot**.
