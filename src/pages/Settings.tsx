@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useUI } from '../contexts/UIContext';
+import { useSearchParams } from 'react-router-dom';
 import {
     Settings as SettingsIcon,
     CreditCard,
@@ -14,18 +15,24 @@ import {
     Phone,
     Info,
     RotateCcw,
-    Smartphone
+    Smartphone,
+    Database
 } from 'lucide-react';
 import { DEFAULT_APP_SETTINGS } from '../lib/constants';
 import { AppSettings } from '../types';
+import AdminMigration from './AdminMigration';
 
 export default function Settings() {
     const { settings, updateSettings, loading } = useData();
     const { showToast } = useUI();
+    const [searchParams] = useSearchParams();
+    const tabParam = searchParams.get('tab');
 
     const [formData, setFormData] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<'payment' | 'billing' | 'property'>('payment');
+    const [activeTab, setActiveTab] = useState<'payment' | 'billing' | 'property' | 'migration'>(
+        tabParam === 'migration' ? 'migration' : 'payment'
+    );
 
     useEffect(() => {
         if (settings) {
@@ -153,10 +160,26 @@ export default function Settings() {
                     <Building2 size={16} />
                     <span>Property Profile</span>
                 </button>
+                <button
+                    onClick={() => setActiveTab('migration')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-xs transition-all ${
+                        activeTab === 'migration'
+                            ? 'bg-emerald-100 text-emerald-950 shadow-sm ring-1 ring-emerald-300'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                >
+                    <Database size={16} />
+                    <span>Data Tools & Migration</span>
+                </button>
             </div>
 
             {/* Content Form & Live Preview Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {activeTab === 'migration' ? (
+                <div className="w-full">
+                    <AdminMigration />
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Form Fields Column (7 cols) */}
                 <div className="lg:col-span-7 space-y-6">
                     <form onSubmit={handleSave} className="space-y-6">
@@ -465,6 +488,7 @@ export default function Settings() {
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 }

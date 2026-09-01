@@ -64,7 +64,6 @@ export default function Layout({ children }: LayoutProps) {
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
-                    <NavItem to="/admin/migrate" icon={Database} label="Migration" />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" />
                 </nav>
 

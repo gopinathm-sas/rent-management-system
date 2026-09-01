@@ -91,11 +91,7 @@ function App() {
                                     <Layout><Admin /></Layout>
                                 </ProtectedRoute>
                             } />
-                            <Route path="/admin/migrate" element={
-                                <ProtectedRoute>
-                                    <Layout><AdminMigration /></Layout>
-                                </ProtectedRoute>
-                            } />
+                            <Route path="/admin/migrate" element={<Navigate to="/settings?tab=migration" replace />} />
                             <Route path="/settings" element={
                                 <ProtectedRoute>
                                     <Layout><Settings /></Layout>
