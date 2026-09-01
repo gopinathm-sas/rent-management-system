@@ -4,6 +4,7 @@ import {
     MONTHS,
     getMonthKey,
     computeWaterForMonth,
+    findTenantForRoom,
     getDefaultWaterRateForRoom,
     RENT_WATER_SERVICE_CHARGE,
     getRentRevisionDetails
@@ -159,11 +160,54 @@ export default function Analytics() {
             if (isAll || isYr) {
                 const roomWaterMap = {};
                 const paidRoomsSet = new Set();
+                const roomList = Object.keys(IMMUTABLE_ROOMS_DATA).map(key => rooms?.[key] || IMMUTABLE_ROOMS_DATA[key]);
 
-                tenantList.forEach(t => {
-                    const waterRate = t.waterRate || getDefaultWaterRateForRoom(t.roomNo);
+                // 1. Water Consumption (independent of rent payment status)
+                roomList.forEach(room => {
+                    const t = findTenantForRoom(tenants, room.roomId);
+                    if (!t) return;
+
+                    const rate = Number(t.waterRate);
+                    const waterRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(room.roomNo);
                     let roomTotalLiters = 0;
                     let roomTotalWaterCost = 0;
+
+                    const readingKeys = Object.keys(t.waterReadings || {});
+                    readingKeys.forEach(wKey => {
+                        if (isYr && !wKey.startsWith(yrFilterStr + '-')) {
+                            return;
+                        }
+                        if (wKey && wKey.includes('-')) {
+                            const [yStr, mStr] = wKey.split('-');
+                            const yP = parseInt(yStr, 10);
+                            const mP = MONTHS.indexOf(mStr);
+                            if (!isNaN(yP) && mP !== -1) {
+                                const waterCalc = computeWaterForMonth(t, yP, mP, waterRate);
+                                if (waterCalc && waterCalc.units !== null) {
+                                    const units = Math.max(0, waterCalc.units);
+                                    const cost = Math.max(0, waterCalc.amount || 0);
+                                    totalLiters += units;
+                                    roomTotalLiters += units;
+                                    roomTotalWaterCost += cost;
+                                }
+                            }
+                        }
+                    });
+
+                    if (roomTotalLiters > 0 || readingKeys.length > 0) {
+                        roomWaterMap[room.roomNo] = {
+                            roomNo: room.roomNo || t.roomNo || 'N/A',
+                            tenant: t.tenant || 'Occupant',
+                            liters: roomTotalLiters,
+                            cost: roomTotalWaterCost
+                        };
+                    }
+                });
+
+                // 2. Financial Collections (Paid / Rent Only)
+                tenantList.forEach(t => {
+                    const rate = Number(t.waterRate);
+                    const waterRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(t.roomNo);
 
                     if (t.paymentTotals) {
                         Object.entries(t.paymentTotals).forEach(([monthKey, paidAmt]) => {
@@ -185,13 +229,6 @@ export default function Analytics() {
                                     if (!isNaN(yP) && mP !== -1) {
                                         const waterCalc = computeWaterForMonth(t, yP, mP, waterRate);
                                         const roomWaterCost = waterCalc?.amount || 0;
-                                        const roomWaterUnits = waterCalc?.units || 0;
-
-                                        if (roomWaterUnits > 0) {
-                                            totalLiters += roomWaterUnits;
-                                            roomTotalLiters += roomWaterUnits;
-                                            roomTotalWaterCost += roomWaterCost;
-                                        }
 
                                         if (status === 'Paid') {
                                             svcRev += RENT_WATER_SERVICE_CHARGE;
@@ -208,15 +245,6 @@ export default function Analytics() {
                                 }
                             }
                         });
-                    }
-
-                    if (roomTotalLiters > 0) {
-                        roomWaterMap[t.roomNo] = {
-                            roomNo: t.roomNo || 'N/A',
-                            tenant: t.tenant || 'Occupant',
-                            liters: roomTotalLiters,
-                            cost: roomTotalWaterCost
-                        };
                     }
                 });
 
@@ -269,6 +297,31 @@ export default function Analytics() {
                 }
             }
 
+            // 1. Water Consumption (independent of rent payment status)
+            const roomList = Object.keys(IMMUTABLE_ROOMS_DATA).map(key => rooms?.[key] || IMMUTABLE_ROOMS_DATA[key]);
+            roomList.forEach(room => {
+                const t = findTenantForRoom(tenants, room.roomId);
+                if (!t) return;
+
+                const rate = Number(t.waterRate);
+                const waterRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(room.roomNo);
+                const waterCalc = computeWaterForMonth(t, y, mIdx, waterRate);
+
+                if (waterCalc && waterCalc.units !== null) {
+                    const roomWaterUnits = Math.max(0, waterCalc.units);
+                    const roomWaterCost = Math.max(0, waterCalc.amount || 0);
+
+                    totalLiters += roomWaterUnits;
+                    roomWaterList.push({
+                        roomNo: room.roomNo || t.roomNo || 'N/A',
+                        tenant: t.tenant || 'Occupant',
+                        liters: roomWaterUnits,
+                        cost: roomWaterCost
+                    });
+                }
+            });
+
+            // 2. Financial Collections (Paid / Rent Only)
             tenantList.forEach(t => {
                 const paidAmt = t.paymentTotals?.[mKey];
                 const status = t.paymentHistory?.[mKey];
@@ -278,20 +331,10 @@ export default function Analytics() {
                     rev += amt;
                     paidCount++;
 
-                    const waterRate = t.waterRate || getDefaultWaterRateForRoom(t.roomNo);
+                    const rate = Number(t.waterRate);
+                    const waterRate = Number.isFinite(rate) ? rate : getDefaultWaterRateForRoom(t.roomNo);
                     const waterCalc = computeWaterForMonth(t, y, mIdx, waterRate);
                     const roomWaterCost = waterCalc?.amount || 0;
-                    const roomWaterUnits = waterCalc?.units || 0;
-
-                    if (roomWaterUnits > 0) {
-                        totalLiters += roomWaterUnits;
-                        roomWaterList.push({
-                            roomNo: t.roomNo || 'N/A',
-                            tenant: t.tenant || 'Occupant',
-                            liters: roomWaterUnits,
-                            cost: roomWaterCost
-                        });
-                    }
 
                     if (status === 'Paid') {
                         svcRev += RENT_WATER_SERVICE_CHARGE;
