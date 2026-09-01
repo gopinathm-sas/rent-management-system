@@ -90,3 +90,28 @@ export interface Room {
     status: 'Occupied' | 'Vacant';
     tenantId?: string;
 }
+
+export interface AppSettings {
+    // Payment & UPI Details
+    upiId: string;
+    payeeName: string;
+    upiPhone: string;
+    paymentNote: string;
+
+    // Bank Account Details (Optional Fallback)
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+    bankAccountHolder?: string;
+
+    // Billing & Utility Defaults
+    defaultWaterRate?: number;
+    defaultServiceCharge?: number;
+    defaultUnitsMultiplier?: number;
+    rentRevisionPct?: number;
+
+    // Property Profile
+    propertyName?: string;
+    ownerPhone?: string;
+    ownerEmail?: string;
+}

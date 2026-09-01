@@ -78,7 +78,7 @@ function KpiCard({ label, value, hint, icon: Icon, tone = 'slate', to, footer }:
 }
 
 export default function Dashboard() {
-    const { tenants, expenses, rooms, loading, globalYear, setGlobalYear } = useData();
+    const { tenants, expenses, rooms, settings, loading, globalYear, setGlobalYear } = useData();
     const { showToast } = useUI();
 
     // Derived state for local calculation if needed, but we use globalYear
@@ -364,7 +364,11 @@ export default function Dashboard() {
                                             : item.pendingMonths[0];
 
                                         const fullMonthsText = item.pendingMonths.join(', ');
-                                        const msg = `Hi ${item.tenantName},\n\nYour rent for ${fullMonthsText} is pending.\n\nBreakdown:\n- Rent: ${formatINR(item.totalRentPending)}\n- Water Bill: ${formatINR(item.totalWaterPending)}\n- Garbage Bill: ${formatINR(item.totalGarbagePending)}\n\n*Total Amount: ${formatINR(item.totalPending)}*\n\nPlease pay at the earliest.`;
+                                        const upiFooter = settings?.upiId
+                                            ? `\n\nPlease transfer the amount to:\n*UPI ID:* ${settings.upiId}${settings.payeeName ? ` (${settings.payeeName})` : ''}${settings.upiPhone ? `\n*GPay / PhonePe:* ${settings.upiPhone}` : ''}\n\n_${settings.paymentNote || 'Please share the payment screenshot once transferred.'}_`
+                                            : '\n\nPlease pay at the earliest.';
+
+                                        const msg = `Hi ${item.tenantName},\n\nYour rent for ${fullMonthsText} is pending.\n\nBreakdown:\n- Rent: ${formatINR(item.totalRentPending)}\n- Water Bill: ${formatINR(item.totalWaterPending)}\n- Garbage Bill: ${formatINR(item.totalGarbagePending)}\n\n*Total Amount: ${formatINR(item.totalPending)}*${upiFooter}`;
                                         const waLink = `https://wa.me/91${item.phone}?text=${encodeURIComponent(msg)}`;
 
                                         return (

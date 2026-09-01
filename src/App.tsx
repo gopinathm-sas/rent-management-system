@@ -15,6 +15,7 @@ import Admin from './pages/Admin';
 import AdminMigration from './pages/AdminMigration';
 import TenantUpload from './pages/TenantUpload';
 import Analytics from './pages/Analytics';
+import Settings from './pages/Settings';
 
 import BiometricLock from './components/BiometricLock';
 import Login from './pages/Login';
@@ -86,6 +87,11 @@ function App() {
                             <Route path="/admin/migrate" element={
                                 <ProtectedRoute>
                                     <Layout><AdminMigration /></Layout>
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/settings" element={
+                                <ProtectedRoute>
+                                    <Layout><Settings /></Layout>
                                 </ProtectedRoute>
                             } />
                         </Routes>

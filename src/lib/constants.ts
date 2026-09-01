@@ -1,4 +1,4 @@
-import { RoomData } from '../types';
+import { RoomData, AppSettings } from '../types';
 
 export const IMMUTABLE_ROOMS_DATA: Record<string, RoomData> = {
     '01': { roomNo: '01', roomId: 'G01', keyNo: '124', ebServNo: '19781', ebAcNo: '5097784' },
@@ -23,3 +23,21 @@ export const DISCOUNTED_WATER_ROOMS = ['11', '12', '13']; // Set check done via 
 
 export const WATER_UNITS_MULTIPLIER = 10;
 export const RENT_WATER_SERVICE_CHARGE = 60;
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+    upiId: '',
+    payeeName: 'Munirathnam Illam',
+    upiPhone: '',
+    paymentNote: 'Please share the payment screenshot once transferred.',
+    bankName: '',
+    bankAccountNumber: '',
+    bankIfsc: '',
+    bankAccountHolder: '',
+    defaultWaterRate: 0.25,
+    defaultServiceCharge: 60,
+    defaultUnitsMultiplier: 10,
+    rentRevisionPct: 10,
+    propertyName: 'Munirathnam Illam',
+    ownerPhone: '',
+    ownerEmail: ''
+};

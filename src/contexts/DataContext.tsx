@@ -2,12 +2,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 
-
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE } from '../lib/constants';
+import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
 import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent, isLastDayOfMonth, getMonthKey, isMonthBeforeJoinDate, isEvictionMonth } from '../lib/utils';
-import { Tenant, Expense, RoomData } from '../types';
+import { Tenant, Expense, RoomData, AppSettings } from '../types';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
@@ -15,6 +14,7 @@ interface DataContextType {
     error: Error | null;
     debugUser: { email: string };
     rooms: Record<string, RoomData>;
+    settings: AppSettings;
     loading: boolean;
     globalYear: number;
     setGlobalYear: (year: number) => void;
@@ -25,6 +25,7 @@ interface DataContextType {
     deleteExpense: (id: string) => Promise<void>;
     updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
     createTenant: (data: Omit<Tenant, 'id'>) => Promise<void>;
+    updateSettings: (data: Partial<AppSettings>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -40,6 +41,7 @@ export function useData() {
 export function DataProvider({ children }: { children: ReactNode }) {
     const [tenants, setTenants] = useState<Record<string, Tenant>>({}); // This maps to 'properties' collection
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [loadingState, setLoadingState] = useState({
         tenants: true,
         expenses: true,
@@ -48,13 +50,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const loading = Object.values(loadingState).some(v => v);
     const [rooms, setRooms] = useState<Record<string, RoomData>>(IMMUTABLE_ROOMS_DATA);
 
-
     // Subscriptions
     const { currentUser } = useAuth();
     const { showToast } = useUI();
 
     useEffect(() => {
-
         if (!currentUser) return;
 
         const autoSetPendingRentForTenants = async (tenantMap: Record<string, Tenant>) => {
@@ -80,13 +80,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
                         }
                     }
 
-                    // Check past elapsed months in current year
-                    for (let i = 0; i < currentMonth; i++) {
-                        const key = getMonthKey(currentYear, i);
-                        const hasStatus = tenant.paymentHistory && tenant.paymentHistory[key];
-                        if (!hasStatus && !isMonthBeforeJoinDate(key, tenant.joinDate) && !isEvictionMonth(tenant, currentYear, i)) {
-                            payload[`paymentHistory.${key}`] = 'Pending';
-                        }
+                    // Check previous month
+                    const prevDate = new Date(currentYear, currentMonth - 1, 1);
+                    const prevKey = getMonthKey(prevDate.getFullYear(), prevDate.getMonth());
+                    const hasPrevStatus = tenant.paymentHistory && tenant.paymentHistory[prevKey];
+                    if (!hasPrevStatus && !isMonthBeforeJoinDate(prevKey, tenant.joinDate) && !isEvictionMonth(tenant, prevDate.getFullYear(), prevDate.getMonth())) {
+                        payload[`paymentHistory.${prevKey}`] = 'Pending';
                     }
 
                     if (Object.keys(payload).length > 0) {
@@ -95,33 +94,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 });
 
                 if (updates.length > 0) {
-                    const batch = writeBatch(db);
-                    updates.forEach(({ tenantId, payload }) => {
-                        const ref = doc(db, 'properties', tenantId);
-                        batch.update(ref, payload);
-                    });
-                    await batch.commit();
+                    await Promise.all(
+                        updates.map(({ tenantId, payload }) => updateDoc(doc(db, 'properties', tenantId), payload))
+                    );
                 }
             } catch (err) {
-                console.warn('Auto-set pending rent check failed:', err);
+                console.error("Auto set pending rent error:", err);
             }
         };
 
-        const qTenants = query(collection(db, 'properties'));
-        const unsubTenants = onSnapshot(qTenants, (snapshot) => {
-            const data: Record<string, Tenant> = {};
+        // Tenants Subscription
+        const unsubTenants = onSnapshot(collection(db, 'properties'), (snapshot) => {
+            const tenantMap: Record<string, Tenant> = {};
             snapshot.forEach(doc => {
-                data[doc.id] = { id: doc.id, ...doc.data() } as Tenant;
+                const data = doc.data() as Tenant;
+                tenantMap[doc.id] = { ...data, id: doc.id };
             });
-            setTenants(data);
+            setTenants(tenantMap);
             setLoadingState(prev => ({ ...prev, tenants: false }));
-            autoSetPendingRentForTenants(data);
+
+            // Trigger automatic pending status assignment check
+            autoSetPendingRentForTenants(tenantMap);
         }, (error) => {
             console.error("Error fetching tenants:", error);
             showToast(`Error fetching tenants: ${error.message}`, 'error');
             setLoadingState(prev => ({ ...prev, tenants: false }));
         });
-
 
         // Expenses Subscription
         const qExpenses = query(collection(db, 'expenses'), orderBy('date', 'desc'));
@@ -132,19 +130,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
             setExpenses(list);
             setLoadingState(prev => ({ ...prev, expenses: false }));
-            setLoadingState(prev => ({ ...prev, expenses: false }));
         }, (error) => {
             console.error("Error fetching expenses:", error);
             showToast(`Error fetching expenses: ${error.message}`, 'error');
             setLoadingState(prev => ({ ...prev, expenses: false }));
         });
 
-
         // Rooms Subscription (Dynamic with Fallback)
         const qRooms = query(collection(db, 'rooms'));
         const unsubRooms = onSnapshot(qRooms, (snapshot) => {
             if (snapshot.empty) {
-                console.warn("Rooms collection empty. Using hardcoded fallback.");
                 setRooms(IMMUTABLE_ROOMS_DATA);
             } else {
                 const roomData = { ...IMMUTABLE_ROOMS_DATA };
@@ -165,23 +160,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 sortedKeys.forEach(k => sortedRooms[k] = roomData[k]);
 
                 setRooms(sortedRooms);
-
             }
-            setLoadingState(prev => ({ ...prev, rooms: false }));
             setLoadingState(prev => ({ ...prev, rooms: false }));
         }, (error) => {
             console.error("Error fetching rooms:", error);
-            // Rooms might fail if collection doesn't exist, warn but maybe simple toast
             showToast(`Error fetching rooms: ${error.message}`, 'warning');
             setRooms(IMMUTABLE_ROOMS_DATA);
             setLoadingState(prev => ({ ...prev, rooms: false }));
         });
 
+        // Settings Subscription
+        const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {
+            if (docSnap.exists()) {
+                setSettings({ ...DEFAULT_APP_SETTINGS, ...docSnap.data() } as AppSettings);
+            } else {
+                setSettings(DEFAULT_APP_SETTINGS);
+            }
+        }, (error) => {
+            console.error("Error fetching settings:", error);
+        });
 
         return () => {
             unsubTenants();
             unsubExpenses();
             unsubRooms();
+            unsubSettings();
         };
     }, [currentUser]);
 
@@ -198,52 +201,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
             // Prorate rent for first month of occupancy (joined mid-month)
             if (isFirstOccupancyMonth(tenantData, year, monthIndex) && tenantData?.joinDate) {
-                const joinDay = new Date(tenantData.joinDate).getDate();
-                if (joinDay > 1) {
-                    rent = getProratedRent(rent, tenantData.joinDate, year, monthIndex, deductionDays || 0);
-                }
+                rent = getProratedRent(rent, tenantData.joinDate, deductionDays);
             }
 
-            const waterRate = (tenantData?.waterRate !== null && tenantData?.waterRate !== undefined && String(tenantData?.waterRate).trim() !== '') ? Number(tenantData?.waterRate) : getDefaultWaterRateForRoom(tenantData?.roomNo);
-            const water = computeWaterForMonth(tenantData, year, monthIndex, waterRate);
+            const effectiveWaterRate = Number(tenantData?.waterRate) || (settings.defaultWaterRate ?? getDefaultWaterRateForRoom(tenantData.roomNo));
+            const waterCalculation = computeWaterForMonth(tenantData, year, monthIndex, effectiveWaterRate);
+            const waterCharge = waterCalculation?.amount || 0;
+            const serviceCharge = settings.defaultServiceCharge ?? RENT_WATER_SERVICE_CHARGE;
 
-            if (!Number.isFinite(water?.amount)) {
-                throw new Error('Please enter water readings for this month AND previous month (Water Bill screen) before marking Paid.');
-            }
-            if (Number(water?.units) < 0) {
-                throw new Error('Water units cannot be negative. Please check readings.');
-            }
+            const total = rent + waterCharge + serviceCharge;
 
-            // @ts-ignore - amount is clearly number here if finite
-            const total = Math.round((rent + Number(water.amount) + RENT_WATER_SERVICE_CHARGE) * 100) / 100;
             updatePayload[`paymentHistory.${key}`] = 'Paid';
             updatePayload[`paymentTotals.${key}`] = total;
+        } else if (newStatus === 'Rent Only') {
+            let rent = Number(tenantData?.rent) || 0;
+            if (isFirstOccupancyMonth(tenantData, year, monthIndex) && tenantData?.joinDate) {
+                rent = getProratedRent(rent, tenantData.joinDate, deductionDays);
+            }
+            updatePayload[`paymentHistory.${key}`] = 'Rent Only';
+            updatePayload[`paymentTotals.${key}`] = rent;
         } else if (newStatus === 'None') {
-            updatePayload[`paymentHistory.${key}`] = null;
-            updatePayload[`paymentTotals.${key}`] = null;
+            updatePayload[`paymentHistory.${key}`] = 'None';
+            updatePayload[`paymentTotals.${key}`] = 0;
         } else {
-            updatePayload[`paymentHistory.${key}`] = newStatus;
-            updatePayload[`paymentTotals.${key}`] = null;
+            updatePayload[`paymentHistory.${key}`] = 'Pending';
+            updatePayload[`paymentTotals.${key}`] = 0;
         }
 
-        if (!tenantData?.id) throw new Error("Tenant ID missing");
         await updateDoc(doc(db, 'properties', tenantData.id), updatePayload);
     };
 
-    /**
-     * Restores an exact previous payment snapshot for one tenant/month.
-     *
-     * Deliberately NOT a backwards cycle: stepping Paid -> None discards
-     * `paymentTotals[key]`, and that figure can encode a prorated first month or a
-     * manual deduction that cannot be recomputed from the tenant record alone. Undo
-     * therefore replays the captured values verbatim.
-     */
     const revertRentStatus = async (tenantId: string, key: string, prevStatus: string | null, prevTotal: number | null) => {
-        if (!tenantId) throw new Error('Tenant ID missing');
-
-        // 'None' is persisted as an absent value, matching updateRentStatus.
-        const statusValue = !prevStatus || prevStatus === 'None' ? null : prevStatus;
-        const totalValue = Number.isFinite(Number(prevTotal)) ? Number(prevTotal) : null;
+        const statusValue = prevStatus === null ? 'None' : prevStatus;
+        const totalValue = prevTotal === null ? 0 : prevTotal;
 
         await updateDoc(doc(db, 'properties', tenantId), {
             [`paymentHistory.${key}`]: statusValue,
@@ -271,6 +261,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await addDoc(collection(db, 'properties'), data);
     };
 
+    const updateSettingsHandler = async (data: Partial<AppSettings>) => {
+        await setDoc(doc(db, 'settings', 'global'), data, { merge: true });
+        setSettings(prev => ({ ...prev, ...data }));
+    };
+
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
     const [error] = useState<Error | null>(null);
 
@@ -280,6 +275,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         error,
         debugUser: { email: 'Check AuthContext' },
         rooms,
+        settings,
         loading,
         globalYear,
         setGlobalYear,
@@ -289,7 +285,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         updateExpense: updateExpenseHandler,
         deleteExpense: deleteExpenseHandler,
         updateTenant: updateTenantHandler,
-        createTenant: createTenantHandler
+        createTenant: createTenantHandler,
+        updateSettings: updateSettingsHandler
     };
 
     return (

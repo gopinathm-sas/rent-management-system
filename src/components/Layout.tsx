@@ -11,7 +11,8 @@ import {
     LogOut,
     User as UserIcon,
     Database,
-    BarChart3
+    BarChart3,
+    Settings as SettingsIcon
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -64,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/admin/migrate" icon={Database} label="Migration" />
+                    <NavItem to="/settings" icon={SettingsIcon} label="Settings" />
                 </nav>
 
                 <div className="pt-6 border-t border-stone-100">
@@ -80,6 +82,13 @@ export default function Layout({ children }: LayoutProps) {
                                     <p className="text-sm font-bold text-slate-700 truncate">{currentUser.displayName}</p>
                                     <p className="text-[10px] font-medium text-slate-400 truncate">Admin Access</p>
                                 </div>
+                                <Link
+                                    to="/settings"
+                                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                                    title="Settings"
+                                >
+                                    <SettingsIcon size={16} />
+                                </Link>
                                 <button
                                     onClick={logout}
                                     className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
@@ -107,6 +116,13 @@ export default function Layout({ children }: LayoutProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Link
+                            to="/settings"
+                            className="p-1.5 rounded-xl bg-stone-100 text-slate-600 hover:text-slate-900 transition-colors"
+                            title="Settings"
+                        >
+                            <SettingsIcon size={18} />
+                        </Link>
                         {currentUser && (
                             <img src={currentUser.photoURL || ''} className="w-8 h-8 rounded-full border border-stone-200 shadow-sm" />
                         )}

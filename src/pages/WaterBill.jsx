@@ -35,7 +35,7 @@ const WhatsAppIcon = ({ size = 24, className = "" }) => (
 );
 
 export default function WaterBill() {
-    const { rooms, tenants, loading, globalYear } = useData();
+    const { rooms, tenants, settings, loading, globalYear } = useData();
     const { showToast, confirm } = useUI();
     const year = globalYear;
 
@@ -431,10 +431,14 @@ export default function WaterBill() {
                                         const monthLabel = `${MONTHS[editingCell.monthIndex]} ${year}`;
                                         const tenantName = tenant?.tenant || 'Tenant';
                                         const rentAmount = getEffectiveRent(tenant, year, editingCell.monthIndex);
-                                        const garbageAmount = RENT_WATER_SERVICE_CHARGE;
+                                        const garbageAmount = settings?.defaultServiceCharge ?? RENT_WATER_SERVICE_CHARGE;
                                         const totalAmount = rentAmount + garbageAmount + amount;
 
-                                        const msg = `Hi ${tenantName},\n\nWater Bill - ${monthLabel}\nNo of Ltrs - ${units.toLocaleString('en-IN')}\n\nBreakdown:\n- Rent: ₹${rentAmount.toLocaleString('en-IN')}\n- Garbage Bill: ₹${garbageAmount.toLocaleString('en-IN')}\n- Water Bill: ₹${amount.toLocaleString('en-IN')}\n\n*Total Amount: ₹${totalAmount.toLocaleString('en-IN')}*\n\nPlease pay at the earliest.`;
+                                        const upiFooter = settings?.upiId
+                                            ? `\n\nPlease transfer the amount to:\n*UPI ID:* ${settings.upiId}${settings.payeeName ? ` (${settings.payeeName})` : ''}${settings.upiPhone ? `\n*GPay / PhonePe:* ${settings.upiPhone}` : ''}\n\n_${settings.paymentNote || 'Please share the payment screenshot once transferred.'}_`
+                                            : '\n\nPlease pay at the earliest.';
+
+                                        const msg = `Hi ${tenantName},\n\nWater Bill - ${monthLabel}\nNo of Ltrs - ${units.toLocaleString('en-IN')}\n\nBreakdown:\n- Rent: ₹${rentAmount.toLocaleString('en-IN')}\n- Garbage Bill: ₹${garbageAmount.toLocaleString('en-IN')}\n- Water Bill: ₹${amount.toLocaleString('en-IN')}\n\n*Total Amount: ₹${totalAmount.toLocaleString('en-IN')}*${upiFooter}`;
 
                                         waLink = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
                                         isValidCalc = true;
