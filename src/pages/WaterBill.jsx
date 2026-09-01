@@ -149,27 +149,35 @@ export default function WaterBill() {
         }
     };
 
-    // Clear all water readings for the current active calendar month
-    const handleClearCurrentMonth = async () => {
-        const now = new Date();
-        const currentMonthIdx = now.getMonth();
-        const currentYearNum = now.getFullYear();
+    // Active billing month for water meter readings is always current month - 1 (e.g., in September, active readings are for August)
+    const getActiveBillingMonth = () => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        return {
+            monthIndex: d.getMonth(),
+            year: d.getFullYear(),
+            monthName: MONTHS[d.getMonth()],
+            key: `${d.getFullYear()}-${MONTHS[d.getMonth()]}`
+        };
+    };
 
-        // Only allow clearing for the current active calendar month
-        const currentMonthKey = getWaterMonthKey(currentYearNum, currentMonthIdx);
-        const monthName = MONTHS[currentMonthIdx];
+    const activeBilling = getActiveBillingMonth();
+
+    // Clear all water readings for the active billing month (current month - 1)
+    const handleClearCurrentMonth = async () => {
+        const { monthIndex: activeMonthIdx, year: activeYearNum, monthName: activeMonthName, key: activeMonthKey } = getActiveBillingMonth();
 
         const tenantList = Array.isArray(tenants) ? tenants : Object.values(tenants || {});
-        const countWithReadings = tenantList.filter(t => t.waterReadings && t.waterReadings[currentMonthKey] !== undefined && t.waterReadings[currentMonthKey] !== null).length;
+        const countWithReadings = tenantList.filter(t => t.waterReadings && t.waterReadings[activeMonthKey] !== undefined && t.waterReadings[activeMonthKey] !== null).length;
 
         if (countWithReadings === 0) {
-            showToast(`No water meter readings recorded for ${monthName} ${currentYearNum} to clear.`, 'info');
+            showToast(`No water meter readings recorded for ${activeMonthName} ${activeYearNum} to clear.`, 'info');
             return;
         }
 
         const isConfirmed = await confirm({
-            title: `Clear ${monthName} ${currentYearNum} Readings?`,
-            message: `This will permanently clear the water meter readings for all ${countWithReadings} room(s) recorded in ${monthName} ${currentYearNum}.\n\nThis cannot be undone. Are you sure you want to proceed?`,
+            title: `Clear ${activeMonthName} ${activeYearNum} Readings?`,
+            message: `This will permanently clear the water meter readings for all ${countWithReadings} room(s) recorded in ${activeMonthName} ${activeYearNum} (Active Billing Month: Current Month - 1).\n\nThis cannot be undone. Are you sure you want to proceed?`,
             confirmText: 'Yes, Clear All',
             cancelText: 'Cancel',
             type: 'danger'
@@ -180,18 +188,18 @@ export default function WaterBill() {
         try {
             const batch = writeBatch(db);
             tenantList.forEach(t => {
-                if (t.id && t.waterReadings && t.waterReadings[currentMonthKey] !== undefined) {
+                if (t.id && t.waterReadings && t.waterReadings[activeMonthKey] !== undefined) {
                     const tenantRef = doc(db, 'properties', t.id);
                     batch.update(tenantRef, {
-                        [`waterReadings.${currentMonthKey}`]: deleteField(),
-                        [`waterMeterReset.${currentMonthKey}`]: deleteField()
+                        [`waterReadings.${activeMonthKey}`]: deleteField(),
+                        [`waterMeterReset.${activeMonthKey}`]: deleteField()
                     });
                 }
             });
 
             await batch.commit();
             setEditingCell(null);
-            showToast(`Successfully cleared all water readings for ${monthName} ${currentYearNum}`, 'success');
+            showToast(`Successfully cleared all water readings for ${activeMonthName} ${activeYearNum}`, 'success');
         } catch (err) {
             console.error('Error clearing month readings:', err);
             showToast(`Failed to clear readings: ${err.message}`, 'error');
@@ -268,15 +276,15 @@ export default function WaterBill() {
                         <span>Year: {year}</span>
                     </div>
 
-                    {/* Clear Current Month Water Readings Button */}
-                    {year === new Date().getFullYear() && (
+                    {/* Clear Active Month Water Readings Button (Current Month - 1) */}
+                    {year === activeBilling.year && (
                         <button
                             onClick={handleClearCurrentMonth}
                             className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-2xl transition flex items-center gap-1.5 shadow-sm active:scale-95"
-                            title={`Clear all water meter entries for ${MONTHS[new Date().getMonth()]} ${new Date().getFullYear()}`}
+                            title={`Clear all water meter entries for ${activeBilling.monthName} ${activeBilling.year} (Active Billing: Current Month - 1)`}
                         >
                             <Trash2 size={14} />
-                            <span>Clear {MONTHS[new Date().getMonth()]} Entries</span>
+                            <span>Clear {activeBilling.monthName} Entries</span>
                         </button>
                     )}
                 </div>
@@ -289,13 +297,13 @@ export default function WaterBill() {
                             <tr>
                                 <th className="px-4 py-3 border-r border-slate-200 sticky left-0 bg-slate-50 z-10 text-left min-w-[100px]">Room</th>
                                 {MONTHS.map((m, idx) => {
-                                    const isCurrent = idx === new Date().getMonth() && year === new Date().getFullYear();
+                                    const isActiveMonth = idx === activeBilling.monthIndex && year === activeBilling.year;
                                     return (
-                                        <th key={m} className={`px-2 py-3 w-24 ${isCurrent ? 'bg-blue-50/80 text-blue-900 font-black' : ''}`}>
+                                        <th key={m} className={`px-2 py-3 w-24 ${isActiveMonth ? 'bg-blue-50/80 text-blue-900 font-black' : ''}`}>
                                             <div>{m}</div>
-                                            {isCurrent && (
+                                            {isActiveMonth && (
                                                 <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-600 text-white rounded-full uppercase tracking-tighter">
-                                                    Current
+                                                    Active
                                                 </span>
                                             )}
                                         </th>
