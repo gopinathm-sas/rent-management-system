@@ -571,7 +571,8 @@ const BOT_COMMANDS = [
 async function registerBotCommands(bot) {
   try {
     await bot.api.setMyCommands(BOT_COMMANDS);
-    console.log('[Telegram Bot] Native commands menu registered successfully.');
+    await bot.api.setChatMenuButton({ menu_button: { type: 'commands' } });
+    console.log('[Telegram Bot] Native commands menu and Menu button registered successfully.');
   } catch (err) {
     console.warn('[Telegram Bot] Warning registering commands menu:', err.message);
   }
