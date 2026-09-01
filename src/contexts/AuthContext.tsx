@@ -120,27 +120,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     useEffect(() => {
-        // Handle redirect result if user returned from Google redirect sign-in
-        getRedirectResult(auth)
-            .then((result) => {
-                if (result?.user) {
+        let isMounted = true;
+        let unsubscribeAuth: (() => void) | null = null;
+
+        async function initializeAuthentication() {
+            try {
+                // Await redirect result first before marking auth as loaded
+                const result = await getRedirectResult(auth);
+                if (result?.user && isMounted) {
                     setCurrentUser(result.user);
-                    setLoading(false);
                 }
-            })
-            .catch((err) => {
-                console.error("Redirect auth error:", err);
-            });
-
-        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-            setCurrentUser(user);
-            setLoading(false);
-
-            if (!user) {
-                // If logged out, unlock (login screen handles protection)
-                setIsAppLocked(false);
+            } catch (error) {
+                console.error("Redirect auth error:", error);
             }
-        });
+
+            if (isMounted) {
+                unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+                    if (isMounted) {
+                        setCurrentUser(user);
+                        setLoading(false);
+
+                        if (!user) {
+                            // If logged out, unlock (login screen handles protection)
+                            setIsAppLocked(false);
+                        }
+                    }
+                });
+            }
+        }
+
+        initializeAuthentication();
 
         // App Lifecycle for Locking
         let appListener: any;
@@ -159,16 +168,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
         }
 
-        // Safety fallback
+        // Safety fallback timer to prevent indefinite loading
         const safetyTimer = setTimeout(() => {
-            setLoading((l) => {
-                if (l) return false;
-                return l;
-            });
+            if (isMounted) {
+                setLoading(false);
+            }
         }, 5000);
 
         return () => {
-            unsubscribeAuth();
+            isMounted = false;
+            if (unsubscribeAuth) unsubscribeAuth();
             if (appListener && appListener.remove) appListener.remove();
             clearTimeout(safetyTimer);
         };
