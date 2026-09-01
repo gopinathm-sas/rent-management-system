@@ -367,7 +367,15 @@ export default function TelegramBotTab({ showToast }) {
                                             <td className="py-3 px-4 font-mono text-slate-600">{log.monthKey}</td>
                                             <td className="py-3 px-4 font-mono font-bold text-indigo-700">
                                                 {log.reading}
-                                                {log.isMeterReset && <span className="ml-1 text-[10px] text-amber-600 bg-amber-50 px-1 py-0.5 rounded">Reset</span>}
+                                                {log.isMeterReset && (
+                                                    <span className="ml-1 text-[10px] text-amber-700 bg-amber-100/80 px-1.5 py-0.5 rounded font-semibold">Reset</span>
+                                                )}
+                                                {log.isNearZero && (
+                                                    <span className="ml-1 text-[10px] text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded font-semibold">0 Usage</span>
+                                                )}
+                                                {log.anomalyTag && log.anomalyTag !== 'zero_consumption' && (
+                                                    <span className="ml-1 text-[10px] text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded font-semibold">{log.anomalyTag}</span>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4 text-slate-600">
                                                 {log.unitsConsumed !== null ? `${log.unitsConsumed} units` : '-'}

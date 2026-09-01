@@ -27,21 +27,34 @@ Build a Telegram bot integration that lets an authorized user submit a water met
 - Accept the reading as a plain number (support decimals if the existing schema does).
 - Reject non-numeric input with a clear error message and let the user retry, don't crash or hang the conversation state.
 
-### 4. Validation Rules (apply before saving)
+### 4. Bulk Entry (for users managing multiple units)
+- Support submitting several readings in a single message instead of one at a time, using a simple line-per-unit format, e.g.:
+  ```
+  101: 1041.2
+  102: 998.0
+  103: 1204.5
+  ```
+- Parse each line independently — a malformed line (bad unit code, non-numeric value) should not abort the whole batch. Instead, process every valid line and return a per-line summary: which succeeded, which were flagged for confirmation (per the anomaly rules below), and which failed with a reason.
+- If any lines in the batch trigger an anomaly warning (unusually high jump or near-zero consumption), ask for confirmation on just those specific lines rather than the whole batch, so the clean entries aren't held up.
+- Only show unit codes the linked user is actually authorized to submit for; reject (with a clear message) any line referencing a unit outside their permission scope, without failing the rest of the batch.
+- Reuse the exact same single-reading validation/save logic per line internally — bulk entry should be a thin wrapper around the same pipeline, not a separate code path.
+
+### 5. Validation Rules (apply before saving)
 - **Not less than the previous reading** for that same meter (water meters are cumulative — flag or reject if the new value is lower than the last recorded value, since that likely indicates a meter replacement or a typo).
 - **Sanity-check the jump size**: if the new reading is dramatically higher than the previous reading (e.g., more than X units/percent above typical consumption for that unit), don't auto-reject — instead ask the user to confirm ("This is unusually high compared to last month's reading of Y. Confirm this is correct? Yes/No") before saving.
 - **Prevent duplicate submissions** for the same meter within the same billing period — if a reading already exists for the current cycle, warn the user and ask whether they want to overwrite/correct it (and if so, log it as a correction, not a silent overwrite, if the schema supports an audit trail).
+- **Flag zero or near-zero consumption**: if the new reading implies little to no usage since the last cycle, don't reject it outright, but flag it for confirmation ("This shows almost no water usage since last month — is the unit vacant, or could the meter be faulty? Confirm this is correct? Yes/No"). Log flagged-zero readings the same way as flagged-high readings so the owner can review patterns over time (e.g., a meter that's been near-zero for several cycles in a row is worth investigating).
 - All validation error/confirmation messages should be human-friendly, not raw exceptions.
 
-### 5. Saving the Reading
+### 6. Saving the Reading
 - Persist through the same service/repository layer the manual entry UI already uses (don't bypass business logic by writing directly to the DB from the bot handler) so validation, billing triggers, and any hooks stay consistent.
 - Store metadata: which Telegram user submitted it, timestamp, and the linked app user, in whatever audit/history mechanism the app already has (or add one if none exists).
 
-### 6. Confirmation & Feedback
+### 7. Confirmation & Feedback
 - After successful save, bot replies with a clear confirmation: unit name, reading value, date, and (if easy to compute) the consumption delta since the last reading.
 - If something fails (validation, DB error, permission issue), the bot should explain what went wrong and what to do next — never leave the user with silence or a generic error.
 
-### 7. Admin/Owner Visibility
+### 8. Admin/Owner Visibility
 - Optionally notify the owner/admin (via a separate Telegram message or in-app notification) when a reading is submitted via the bot, especially if it triggered an anomaly warning.
 
 ## Technical Requirements
@@ -70,15 +83,33 @@ User: 1041.2
 Bot: ✅ Saved. Unit 101 reading: 1041.2 (consumption since last reading: 16.7 units) — recorded 1 Sep 2026.
 ```
 
+**Bulk entry example:**
+```
+User: /bulk
+Bot: Send readings as "unit: value", one per line.
+
+User:
+101: 1041.2
+102: 998.0
+103: 500.0
+
+Bot:
+✅ Unit 101: 1041.2 saved (16.7 units used)
+✅ Unit 102: 998.0 saved (12.1 units used)
+⚠️ Unit 103: 500.0 — this is a big drop from last reading (1180.0). Confirm this is correct? [Yes] [No]
+```
+
 ## Edge Cases to Handle
 - User sends a reading without going through `/reading` first (no context) → prompt them to start the flow properly.
 - User sends the wrong data type (text instead of number).
 - Same user tries to submit for a unit they aren't authorized for.
 - Bot restarts mid-conversation — conversation state should not be lost in a way that corrupts data (avoid relying purely on in-memory state for anything beyond the current message exchange; persist partial flow state if the framework supports it, or keep the flow stateless/single-message where possible).
 - Multiple staff submitting for the same unit around the same time (avoid race conditions on the "duplicate this cycle" check).
+- Bulk message with mixed valid/invalid lines, duplicate unit codes within the same batch, or a batch that's mostly flagged for confirmation — the per-line summary should make it obvious what needs the user's attention versus what's already done.
+- Very large bulk pastes — consider a reasonable line limit per message and tell the user to split into multiple batches if exceeded.
 
 ## Testing
-- Write tests for: the validation logic (lower reading, huge jump, duplicate cycle), the linking flow, and unauthorized access rejection.
+- Write tests for: the validation logic (lower reading, huge jump, near-zero consumption, duplicate cycle), the linking flow, unauthorized access rejection, and bulk entry (mixed valid/invalid lines, unauthorized unit in a batch, all-flagged batch).
 - Provide a way to test locally against a test bot token before pointing at the production bot.
 
 ## Deliverables

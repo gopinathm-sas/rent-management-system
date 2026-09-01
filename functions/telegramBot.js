@@ -48,6 +48,29 @@ function getPrevYearMonth(year, monthIndex) {
   return { year: year - 1, monthIndex: 11 };
 }
 
+/**
+ * Returns the active billing cycle for water meter readings.
+ * Water meter readings record consumption for the PREVIOUS month's usage
+ * (e.g. In September 2026, the active reading cycle is 2026-Aug, with 2026-Jul as baseline).
+ */
+function getActiveWaterCycleDateParts() {
+  const { year, monthIndex, day, dateObj } = getKolkataDateParts();
+  const cycleYM = getPrevYearMonth(year, monthIndex);
+  const baselineYM = getPrevYearMonth(cycleYM.year, cycleYM.monthIndex);
+  return {
+    cycleYear: cycleYM.year,
+    cycleMonthIndex: cycleYM.monthIndex,
+    cycleKey: getWaterMonthKey(cycleYM.year, cycleYM.monthIndex),
+    baselineYear: baselineYM.year,
+    baselineMonthIndex: baselineYM.monthIndex,
+    baselineKey: getWaterMonthKey(baselineYM.year, baselineYM.monthIndex),
+    currentCalendarYear: year,
+    currentCalendarMonthIndex: monthIndex,
+    day,
+    dateObj
+  };
+}
+
 function getDefaultWaterRateForRoom(roomNo) {
   const room = String(roomNo || '').trim();
   if (DISCOUNTED_WATER_ROOMS.has(room)) return DISCOUNTED_WATER_RATE;
@@ -66,17 +89,19 @@ function computeWaterReadingDelta(currentReading, prevReading, isMeterReset, wat
   if (isMeterReset) {
     const units = cur * WATER_UNITS_MULTIPLIER;
     const amount = Math.round(units * waterRate);
-    return { meterDelta: cur, units, amount, isMeterReset: true };
+    return { meterDelta: cur, units, amount, isMeterReset: true, isNearZero: cur === 0 };
   }
 
   if (!Number.isFinite(prev)) {
-    return { meterDelta: null, units: null, amount: null, isMeterReset: false };
+    return { meterDelta: null, units: null, amount: null, isMeterReset: false, isNearZero: false };
   }
 
   const meterDelta = cur - prev;
   const units = meterDelta * WATER_UNITS_MULTIPLIER;
   const amount = Math.round(units * waterRate);
-  return { meterDelta, units, amount, isMeterReset: false };
+  const isNearZero = meterDelta >= 0 && meterDelta <= 0.1;
+
+  return { meterDelta, units, amount, isMeterReset: false, isNearZero };
 }
 
 // Room Lookup Helpers
@@ -97,6 +122,84 @@ function normalizeRoomIdentifier(input) {
     return { roomNo: IMMUTABLE_ROOMS_DATA[padded].roomNo, roomId: IMMUTABLE_ROOMS_DATA[padded].roomId };
   }
   return null;
+}
+
+// Bulk Reading Parser
+function parseBulkReadingLines(text, maxLines = 20) {
+  if (!text || typeof text !== 'string') return { validLines: [], errorLines: [] };
+
+  const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const validLines = [];
+  const errorLines = [];
+  const seenUnits = new Map();
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+
+    if (i >= maxLines) {
+      errorLines.push({
+        raw: line,
+        error: `Exceeded max batch limit of ${maxLines} lines. Please submit remainder in a separate batch.`
+      });
+      continue;
+    }
+
+    // Strip leading list bullets/numbers (e.g. "1. ", "• ", "- ")
+    const cleaned = line.replace(/^(\d+[\.\)]|[\*\-\•])\s*/, '').trim();
+
+    // Match unit identifier and reading value
+    // Supports: "G01: 1041.2", "102 = 998.0", "201 - 1204.5", "01 1041.2", "Room 102: 500"
+    const match = cleaned.match(/^([a-zA-Z0-9#\s]+?)[\s:=–-]+(\d+(?:\.\d+)?)$/);
+    if (!match) {
+      errorLines.push({
+        raw: line,
+        error: 'Invalid format. Use "Unit: Reading" (e.g. G01: 1041.2)'
+      });
+      continue;
+    }
+
+    const unitStr = match[1].trim();
+    const readingVal = Number(match[2]);
+
+    const normalized = normalizeRoomIdentifier(unitStr);
+    if (!normalized) {
+      errorLines.push({
+        raw: line,
+        unit: unitStr,
+        error: `Unknown room code "${unitStr}"`
+      });
+      continue;
+    }
+
+    if (!Number.isFinite(readingVal) || readingVal < 0) {
+      errorLines.push({
+        raw: line,
+        unit: normalized.roomId,
+        error: 'Reading must be a non-negative number'
+      });
+      continue;
+    }
+
+    // Check duplicate in same batch
+    if (seenUnits.has(normalized.roomNo)) {
+      errorLines.push({
+        raw: line,
+        unit: normalized.roomId,
+        error: `Duplicate room code in batch (already listed earlier as ${seenUnits.get(normalized.roomNo)})`
+      });
+      continue;
+    }
+
+    seenUnits.set(normalized.roomNo, readingVal);
+    validLines.push({
+      raw: line,
+      roomNo: normalized.roomNo,
+      roomId: normalized.roomId,
+      readingNum: readingVal
+    });
+  }
+
+  return { validLines, errorLines };
 }
 
 // Session & Auth Helpers
@@ -141,7 +244,7 @@ async function getOccupiedTenants() {
 }
 
 // Core Save Logic
-async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, isReset, telegramUser }) {
+async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, isReset, telegramUser, anomalyTag = null }) {
   const rateRaw = Number(tenant.waterRate);
   const waterRate = Number.isFinite(rateRaw) ? rateRaw : getDefaultWaterRateForRoom(roomNo);
 
@@ -177,10 +280,12 @@ async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, 
     waterRate: waterRate,
     billedAmount: deltaResult?.amount ?? null,
     isMeterReset: !!isReset,
+    isNearZero: deltaResult?.isNearZero ?? false,
+    anomalyTag: anomalyTag || (deltaResult?.isNearZero ? 'zero_consumption' : null),
     submittedBy: {
       chatId: String(telegramUser.chatId),
       email: telegramUser.email || null,
-      role: telegramUser.role || 'staff',
+      role: telegramUser.role || 'Owner',
       name: [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ') || telegramUser.username || 'Telegram User',
       username: telegramUser.username || null
     },
@@ -228,7 +333,6 @@ function createTelegramBot(token) {
       ctx.state = {};
     }
     ctx.state.telegramUser = telegramUser;
-    ctx.telegramUser = telegramUser;
     return await next();
   });
 
@@ -239,11 +343,12 @@ function createTelegramBot(token) {
       `👋 *Welcome to Munirathnam Illam Rental Bot, ${name}!* 🏢\n\n` +
       `You have full access as *Owner*.\n\n` +
       `*⚡ Quick Commands:*\n` +
-      `• /reading — Submit water meter reading (Interactive menu)\n` +
-      `• \`/reading <room> <value>\` — Direct quick entry (e.g. \`/reading G01 105.4\`)\n` +
+      `• /reading — Interactive room selection & reading entry\n` +
+      `• \`/reading <room> <val>\` — Single quick entry (e.g. \`/reading G01 105.4\`)\n` +
+      `• /bulk — Bulk submit multiple unit readings at once\n` +
       `• /status — View current month's water readings status\n` +
       `• /help — Full usage guide and rules\n\n` +
-      `_Tap /reading to start._`,
+      `_Tap /reading or /bulk to start._`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -255,13 +360,20 @@ function createTelegramBot(token) {
       `*Commands:*\n` +
       `• /reading — Interactive unit selection & reading entry\n` +
       `• \`/reading <unit> <val>\` — Shorthand entry (e.g. \`/reading G01 104.5\` or \`/reading 01 104.5\`)\n` +
+      `• /bulk — Paste multiple unit readings at once\n` +
       `• /status — Overview of recorded readings for current billing month\n` +
       `• /cancel — Cancel current active operation\n\n` +
+      `*Bulk Entry Format:*\n` +
+      `Send lines formatted as \`Unit: Reading\`, e.g.:\n` +
+      `\`G01: 1041.2\`\n` +
+      `\`102: 998.0\`\n` +
+      `\`201: 1204.5\`\n\n` +
       `*Rules & Auto-Validation:*\n` +
-      `• Readings must be non-negative numbers (decimals supported).\n` +
-      `• If reading is lower than previous month, the bot asks if a meter reset occurred.\n` +
-      `• Unusually high jumps (>50 meter units) trigger a confirmation alert.\n` +
-      `• If a reading already exists for this cycle, you'll be asked before overwriting.`,
+      `• Non-negative numeric readings (decimals supported).\n` +
+      `• If reading is lower than previous month, confirms meter reset.\n` +
+      `• Flags zero / near-zero usage ($\le 0.1$) for pattern/fault detection.\n` +
+      `• Large consumption jumps (>50 meter units) trigger a confirmation warning.\n` +
+      `• Existing readings for the cycle prompt before overwrite.`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -270,7 +382,7 @@ function createTelegramBot(token) {
   bot.command('cancel', async (ctx) => {
     const chatId = ctx.chat.id;
     await clearSession(chatId);
-    await ctx.reply("❌ Active operation cancelled. Use /reading to start over.");
+    await ctx.reply("❌ Active operation cancelled. Use /reading or /bulk to start over.");
   });
 
   // /unlink command
@@ -287,76 +399,12 @@ function createTelegramBot(token) {
     await ctx.reply("✅ Your Telegram account has been unlinked.");
   });
 
-  // /link <code> command
-  bot.command('link', async (ctx) => {
-    const chatId = ctx.chat.id;
-    const rawText = ctx.message.text.trim();
-    const parts = rawText.split(/\s+/);
-    const code = parts[1] ? parts[1].toUpperCase().trim() : '';
-
-    if (!code || code.length < 4) {
-      await ctx.reply("❌ Please provide a valid linking code.\nUsage: `/link <code>` (e.g., `/link 8X92KP`)", { parse_mode: 'Markdown' });
-      return;
-    }
-
-    try {
-      const codeRef = admin.firestore().collection('telegramAuthCodes').doc(code);
-      const codeSnap = await codeRef.get();
-
-      if (!codeSnap.exists) {
-        await ctx.reply("❌ Invalid linking code. Please check with your administrator for a new code.");
-        return;
-      }
-
-      const codeData = codeSnap.data();
-
-      // Check expiration (if expiresAt timestamp exists)
-      if (codeData.expiresAt) {
-        const expiresAtMs = typeof codeData.expiresAt.toMillis === 'function'
-          ? codeData.expiresAt.toMillis()
-          : new Date(codeData.expiresAt).getTime();
-        if (Date.now() > expiresAtMs) {
-          await codeRef.delete();
-          await ctx.reply("⏳ This linking code has expired. Please ask the admin to generate a fresh code.");
-          return;
-        }
-      }
-
-      const email = (codeData.email || '').toLowerCase().trim();
-      const role = codeData.role || 'Staff';
-
-      // Save to telegramUsers collection
-      await admin.firestore().collection('telegramUsers').doc(String(chatId)).set({
-        chatId: String(chatId),
-        email: email,
-        role: role,
-        username: ctx.from.username || null,
-        firstName: ctx.from.first_name || null,
-        lastName: ctx.from.last_name || null,
-        linkedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Consume/delete the one-time code
-      await codeRef.delete();
-      await clearSession(chatId);
-
-      await ctx.reply(
-        `✅ *Successfully Linked!*\n\n` +
-        `👤 Account: *${email}*\n` +
-        `🏷️ Role: *${role}*\n\n` +
-        `You can now submit water meter readings via /reading!`,
-        { parse_mode: 'Markdown' }
-      );
-    } catch (err) {
-      console.error('Error linking user:', err);
-      await ctx.reply("⚠️ An error occurred while linking your account. Please try again later.");
-    }
-  });
-
   // /status command
   bot.command('status', async (ctx) => {
-    const { year, monthIndex } = getKolkataDateParts();
-    const currentMonthKey = getWaterMonthKey(year, monthIndex);
+    const rawText = (ctx.message?.text || '').trim();
+    const parts = rawText.split(/\s+/).filter(Boolean);
+    const { cycleKey } = getActiveWaterCycleDateParts();
+    const targetMonthKey = (parts.length >= 2 && parts[1]) ? parts[1].trim() : cycleKey;
 
     const { allTenants } = await getOccupiedTenants();
     const sortedRooms = Object.values(IMMUTABLE_ROOMS_DATA).sort((a, b) =>
@@ -373,10 +421,10 @@ function createTelegramBot(token) {
         return;
       }
 
-      const val = tenant.waterReadings?.[currentMonthKey];
+      const val = tenant.waterReadings?.[targetMonthKey];
       if (val !== undefined && val !== null && val !== '') {
         recordedCount++;
-        const resetNote = tenant.waterMeterReset?.[currentMonthKey] ? ' 🔄 (Reset)' : '';
+        const resetNote = tenant.waterMeterReset?.[targetMonthKey] ? ' 🔄 (Reset)' : '';
         lines.push(`✅ *${room.roomId}*: \`${val}\`${resetNote} _(${tenant.tenant || 'Tenant'})_`);
       } else {
         lines.push(`⏳ *${room.roomId}*: _Pending_ _(${tenant.tenant || 'Tenant'})_`);
@@ -384,10 +432,33 @@ function createTelegramBot(token) {
     });
 
     await ctx.reply(
-      `📊 *Water Meter Status (${currentMonthKey})*\n` +
+      `📊 *Water Meter Status (${targetMonthKey})*\n` +
       `Recorded: *${recordedCount} / ${allTenants.length}* occupied rooms\n\n` +
       lines.join('\n') +
-      `\n\n_Use /reading to enter readings._`,
+      `\n\n_Use /reading or /bulk to enter readings._`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  // /bulk command
+  bot.command('bulk', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const { cycleKey } = getActiveWaterCycleDateParts();
+
+    await setSession(chatId, {
+      step: 'awaiting_bulk_input',
+      cycleKey
+    });
+
+    await ctx.reply(
+      `📝 *Bulk Water Meter Entry (${cycleKey})*\n\n` +
+      `Please paste your readings, one line per unit:\n\n` +
+      `*Example:*\n` +
+      `\`G01: 1041.2\`\n` +
+      `\`102: 998.0\`\n` +
+      `\`201: 1204.5\`\n` +
+      `\`401: 520.0\`\n\n` +
+      `_Send /cancel to abort._`,
       { parse_mode: 'Markdown' }
     );
   });
@@ -395,13 +466,10 @@ function createTelegramBot(token) {
   // Helper to start reading flow for a specific room
   async function promptReadingForRoom(ctx, room, tenant) {
     const chatId = ctx.chat.id;
-    const { year, monthIndex } = getKolkataDateParts();
-    const currentMonthKey = getWaterMonthKey(year, monthIndex);
-    const prevYM = getPrevYearMonth(year, monthIndex);
-    const prevMonthKey = getWaterMonthKey(prevYM.year, prevYM.monthIndex);
+    const { cycleKey, baselineKey } = getActiveWaterCycleDateParts();
 
-    const prevReading = tenant.waterReadings?.[prevMonthKey] ?? null;
-    const existingCurrent = tenant.waterReadings?.[currentMonthKey] ?? null;
+    const prevReading = tenant.waterReadings?.[baselineKey] ?? null;
+    const existingCurrent = tenant.waterReadings?.[cycleKey] ?? null;
 
     await setSession(chatId, {
       step: 'awaiting_reading_value',
@@ -409,24 +477,24 @@ function createTelegramBot(token) {
       roomId: room.roomId,
       tenantId: tenant.id,
       tenantName: tenant.tenant || 'Tenant',
-      currentMonthKey,
-      prevMonthKey,
+      currentMonthKey: cycleKey,
+      prevMonthKey: baselineKey,
       prevVal: prevReading !== null ? Number(prevReading) : null,
       existingCurrent: existingCurrent !== null ? Number(existingCurrent) : null
     });
 
     let msg = `🏠 *Room ${room.roomId}* (${room.roomNo})\n` +
               `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
-              `📅 *Cycle:* ${currentMonthKey}\n\n`;
+              `📅 *Cycle:* ${cycleKey} _(Last Month's Usage)_\n\n`;
 
     if (prevReading !== null) {
-      msg += `📌 *Last Recorded (${prevMonthKey}):* \`${prevReading}\`\n`;
+      msg += `📌 *Last Recorded (${baselineKey}):* \`${prevReading}\`\n`;
     } else {
       msg += `📌 *Last Recorded:* None\n`;
     }
 
     if (existingCurrent !== null) {
-      msg += `⚠️ *Note:* A reading of \`${existingCurrent}\` is already saved for this month.\n`;
+      msg += `⚠️ *Note:* A reading of \`${existingCurrent}\` is already saved for this cycle.\n`;
     }
 
     msg += `\n💬 *Please send the new reading number* (e.g. \`1041.5\`):`;
@@ -467,8 +535,7 @@ function createTelegramBot(token) {
       String(a.roomNo).localeCompare(String(b.roomNo), undefined, { numeric: true })
     );
 
-    const { year, monthIndex } = getKolkataDateParts();
-    const currentMonthKey = getWaterMonthKey(year, monthIndex);
+    const { cycleKey } = getActiveWaterCycleDateParts();
 
     const keyboard = new InlineKeyboard();
     let col = 0;
@@ -476,7 +543,7 @@ function createTelegramBot(token) {
     sortedRooms.forEach((r) => {
       const tenant = allTenants.find(t => t.roomNo === r.roomNo || t.roomId === r.roomId);
       const isOccupied = Boolean(tenant);
-      const isDone = tenant?.waterReadings?.[currentMonthKey] !== undefined && tenant?.waterReadings?.[currentMonthKey] !== null;
+      const isDone = tenant?.waterReadings?.[cycleKey] !== undefined && tenant?.waterReadings?.[cycleKey] !== null;
 
       const label = `${isDone ? '✅' : (isOccupied ? '💧' : '⚪')} ${r.roomId}`;
       keyboard.text(label, `sel_room:${r.roomNo}`);
@@ -487,8 +554,9 @@ function createTelegramBot(token) {
     keyboard.row().text("❌ Cancel", "flow_cancel");
 
     await ctx.reply(
-      `🚰 *Select a room to enter water meter reading (${currentMonthKey}):*\n\n` +
-      `✅ = Done | 💧 = Pending | ⚪ = Vacant`,
+      `🚰 *Select a room to enter water meter reading (${cycleKey}):*\n\n` +
+      `✅ = Done | 💧 = Pending | ⚪ = Vacant\n` +
+      `_💡 Tip: Or use /bulk to paste multiple units at once._`,
       { parse_mode: 'Markdown', reply_markup: keyboard }
     );
   });
@@ -502,7 +570,7 @@ function createTelegramBot(token) {
     if (data === 'flow_cancel') {
       await clearSession(chatId);
       await ctx.answerCallbackQuery({ text: "Cancelled" });
-      await ctx.editMessageText("❌ Operation cancelled. Send /reading to start again.");
+      await ctx.editMessageText("❌ Operation cancelled. Send /reading or /bulk to start again.");
       return;
     }
 
@@ -529,9 +597,9 @@ function createTelegramBot(token) {
       return;
     }
 
-    // Confirmation Actions (Reset, Overwrite, Large Jump Confirmation)
+    // Single Reading Confirmation Actions
     if (data.startsWith('conf:')) {
-      const [, action, nonce] = data.split(':');
+      const [, action] = data.split(':');
       const session = await getSession(chatId);
 
       if (!session || session.step !== 'awaiting_confirmation') {
@@ -540,7 +608,7 @@ function createTelegramBot(token) {
         return;
       }
 
-      const { roomNo, roomId, tenantId, tenantName, currentMonthKey, readingNum, prevVal } = session;
+      const { roomNo, roomId, tenantId, tenantName, currentMonthKey, readingNum } = session;
       const { tenantsByRoomNo } = await getOccupiedTenants();
       const tenant = tenantsByRoomNo[roomNo];
 
@@ -598,6 +666,75 @@ function createTelegramBot(token) {
       return;
     }
 
+    // Bulk Confirmation Item Actions: conf_bulk:<roomNo>:<action>
+    if (data.startsWith('conf_bulk:')) {
+      const parts = data.split(':');
+      const roomNo = parts[1];
+      const action = parts[2]; // 'save', 'reset', 'cancel'
+
+      const session = await getSession(chatId);
+      if (!session || session.step !== 'awaiting_bulk_confirmations' || !session.flaggedItems) {
+        await ctx.answerCallbackQuery({ text: "Bulk session expired" });
+        await ctx.reply("⏳ Session expired. Please send /bulk again.");
+        return;
+      }
+
+      if (action === 'cancel_all') {
+        await clearSession(chatId);
+        await ctx.answerCallbackQuery({ text: "Flagged items cancelled" });
+        await ctx.editMessageText("❌ All pending flagged items were skipped.");
+        return;
+      }
+
+      const itemIndex = session.flaggedItems.findIndex(it => it.roomNo === roomNo);
+      if (itemIndex === -1) {
+        await ctx.answerCallbackQuery({ text: "Item already processed" });
+        return;
+      }
+
+      const item = session.flaggedItems[itemIndex];
+      const { tenantsByRoomNo } = await getOccupiedTenants();
+      const tenant = tenantsByRoomNo[roomNo];
+
+      if (!tenant) {
+        await ctx.answerCallbackQuery({ text: "Tenant record missing" });
+        return;
+      }
+
+      const isReset = action === 'reset';
+
+      try {
+        await saveWaterReading({
+          tenant,
+          roomNo: item.roomNo,
+          roomId: item.roomId,
+          monthKey: session.cycleKey,
+          readingNum: item.readingNum,
+          isReset,
+          telegramUser,
+          anomalyTag: item.reason
+        });
+
+        // Remove from session flagged list
+        session.flaggedItems.splice(itemIndex, 1);
+        await setSession(chatId, session);
+
+        await ctx.answerCallbackQuery({ text: `Saved ${item.roomId}: ${item.readingNum}` });
+
+        if (session.flaggedItems.length === 0) {
+          await clearSession(chatId);
+          await ctx.reply(`🎉 *All flagged bulk items have been confirmed and saved!*`, { parse_mode: 'Markdown' });
+        } else {
+          await ctx.reply(`✅ *Confirmed & Saved:* Room ${item.roomId} = \`${item.readingNum}\`\n\n_${session.flaggedItems.length} item(s) still pending confirmation._`, { parse_mode: 'Markdown' });
+        }
+      } catch (err) {
+        console.error("Bulk item save failed:", err);
+        await ctx.answerCallbackQuery({ text: "Save error" });
+        await ctx.reply(`❌ Error saving Room ${item.roomId}: ` + err.message);
+      }
+      return;
+    }
+
     await ctx.answerCallbackQuery();
   });
 
@@ -612,16 +749,12 @@ function createTelegramBot(token) {
       return;
     }
 
-    const { year, monthIndex } = getKolkataDateParts();
-    const currentMonthKey = getWaterMonthKey(year, monthIndex);
-    const prevYM = getPrevYearMonth(year, monthIndex);
-    const prevMonthKey = getWaterMonthKey(prevYM.year, prevYM.monthIndex);
-
-    const prevReading = tenant.waterReadings?.[prevMonthKey] ?? null;
-    const existingCurrent = tenant.waterReadings?.[currentMonthKey] ?? null;
+    const { cycleKey, baselineKey } = getActiveWaterCycleDateParts();
+    const prevReading = tenant.waterReadings?.[baselineKey] ?? null;
+    const existingCurrent = tenant.waterReadings?.[cycleKey] ?? null;
     const prevVal = prevReading !== null ? Number(prevReading) : null;
 
-    // Check Lower than Previous
+    // Check Lower than Previous -> Meter Reset check
     if (prevVal !== null && readingNum < prevVal) {
       await setSession(chatId, {
         step: 'awaiting_confirmation',
@@ -629,18 +762,18 @@ function createTelegramBot(token) {
         roomId: room.roomId,
         tenantId: tenant.id,
         tenantName: tenant.tenant || 'Tenant',
-        currentMonthKey,
+        currentMonthKey: cycleKey,
         readingNum,
         prevVal
       });
 
       const kb = new InlineKeyboard()
-        .text("🔄 Yes, Meter Reset", "conf:reset:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("🔄 Yes, Meter Reset", "conf:reset")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Potential Meter Reset Detected!*\n\n` +
-        `Reading \`${readingNum}\` is LOWER than last recorded reading \`${prevVal}\` for Room *${room.roomId}* (${prevMonthKey}).\n\n` +
+        `Reading \`${readingNum}\` is LOWER than baseline reading \`${prevVal}\` for Room *${room.roomId}* (${baselineKey}).\n\n` +
         `Is this a meter replacement or reset?`,
         { parse_mode: 'Markdown', reply_markup: kb }
       );
@@ -655,20 +788,46 @@ function createTelegramBot(token) {
         roomId: room.roomId,
         tenantId: tenant.id,
         tenantName: tenant.tenant || 'Tenant',
-        currentMonthKey,
+        currentMonthKey: cycleKey,
         readingNum,
         prevVal
       });
 
       const kb = new InlineKeyboard()
-        .text("✅ Confirm & Save", "conf:save:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("✅ Confirm & Save", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Large Consumption Warning!*\n\n` +
         `Reading \`${readingNum}\` is +${(readingNum - prevVal).toFixed(1)} meter units higher than previous (\`${prevVal}\`).\n\n` +
         `This equals *${Math.round((readingNum - prevVal) * WATER_UNITS_MULTIPLIER)} water units*.\n` +
         `Are you sure this reading is correct?`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Check Zero / Near-Zero Usage
+    if (prevVal !== null && readingNum >= prevVal && (readingNum - prevVal) <= 0.1) {
+      await setSession(chatId, {
+        step: 'awaiting_confirmation',
+        roomNo: room.roomNo,
+        roomId: room.roomId,
+        tenantId: tenant.id,
+        tenantName: tenant.tenant || 'Tenant',
+        currentMonthKey: cycleKey,
+        readingNum,
+        prevVal
+      });
+
+      const kb = new InlineKeyboard()
+        .text("✅ Yes, Save Zero Usage", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
+
+      await ctx.reply(
+        `⚠️ *Zero/Near-Zero Consumption Detected!*\n\n` +
+        `Reading \`${readingNum}\` indicates *0 water units consumed* since last cycle (\`${prevVal}\`) for occupied Room *${room.roomId}*.\n\n` +
+        `Is this correct (vacant period / meter check)?`,
         { parse_mode: 'Markdown', reply_markup: kb }
       );
       return;
@@ -682,18 +841,18 @@ function createTelegramBot(token) {
         roomId: room.roomId,
         tenantId: tenant.id,
         tenantName: tenant.tenant || 'Tenant',
-        currentMonthKey,
+        currentMonthKey: cycleKey,
         readingNum,
         prevVal
       });
 
       const kb = new InlineKeyboard()
-        .text("📝 Overwrite Reading", "conf:save:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("📝 Overwrite Reading", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Existing Reading Warning!*\n\n` +
-        `Room *${room.roomId}* already has a reading of \`${existingCurrent}\` for *${currentMonthKey}*.\n\n` +
+        `Room *${room.roomId}* already has a reading of \`${existingCurrent}\` for *${cycleKey}*.\n\n` +
         `Do you want to overwrite it with \`${readingNum}\`?`,
         { parse_mode: 'Markdown', reply_markup: kb }
       );
@@ -706,7 +865,7 @@ function createTelegramBot(token) {
         tenant,
         roomNo: room.roomNo,
         roomId: room.roomId,
-        monthKey: currentMonthKey,
+        monthKey: cycleKey,
         readingNum,
         isReset: false,
         telegramUser
@@ -717,7 +876,7 @@ function createTelegramBot(token) {
                   `🏠 *Room:* ${room.roomId} (${room.roomNo})\n` +
                   `👤 *Tenant:* ${tenant.tenant || 'Occupied'}\n` +
                   `📊 *Reading:* \`${readingNum}\`\n` +
-                  `📅 *Billing Cycle:* ${currentMonthKey}\n`;
+                  `📅 *Billing Cycle:* ${cycleKey}\n`;
 
       if (deltaResult?.meterDelta !== null) {
         reply += `📈 *Meter Delta:* +${deltaResult.meterDelta.toFixed(1)} units\n`;
@@ -732,7 +891,166 @@ function createTelegramBot(token) {
     }
   }
 
-  // Text message handler (for multi-step input)
+  // Bulk Readings Processor
+  async function processBulkReadings(ctx, text) {
+    const chatId = ctx.chat.id;
+    const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
+    const { cycleKey, baselineKey } = getActiveWaterCycleDateParts();
+
+    const { validLines, errorLines } = parseBulkReadingLines(text, 20);
+
+    if (validLines.length === 0 && errorLines.length === 0) {
+      await ctx.reply("⚠️ No lines detected. Send readings in `Unit: Reading` format (e.g. `G01: 1041.2`).", { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const { tenantsByRoomNo } = await getOccupiedTenants();
+
+    const savedResults = [];
+    const flaggedItems = [];
+    const failedResults = [...errorLines];
+
+    for (const item of validLines) {
+      const tenant = tenantsByRoomNo[item.roomNo];
+      if (!tenant) {
+        failedResults.push({
+          unit: item.roomId,
+          error: `Room ${item.roomId} is currently marked as Vacant.`
+        });
+        continue;
+      }
+
+      const prevReading = tenant.waterReadings?.[baselineKey] ?? null;
+      const existingCurrent = tenant.waterReadings?.[cycleKey] ?? null;
+      const prevVal = prevReading !== null ? Number(prevReading) : null;
+      const readingNum = item.readingNum;
+
+      // 1. Lower than previous -> flag reset
+      if (prevVal !== null && readingNum < prevVal) {
+        flaggedItems.push({
+          ...item,
+          tenantId: tenant.id,
+          prevVal,
+          reason: 'lower_than_prev',
+          reasonText: `Lower than baseline (${readingNum} < ${prevVal})`
+        });
+        continue;
+      }
+
+      // 2. High Jump -> flag jump
+      if (prevVal !== null && (readingNum - prevVal) > 50) {
+        flaggedItems.push({
+          ...item,
+          tenantId: tenant.id,
+          prevVal,
+          reason: 'high_jump',
+          reasonText: `High Jump (+${(readingNum - prevVal).toFixed(1)} units)`
+        });
+        continue;
+      }
+
+      // 3. Zero / Near-Zero Usage -> flag zero
+      if (prevVal !== null && readingNum >= prevVal && (readingNum - prevVal) <= 0.1) {
+        flaggedItems.push({
+          ...item,
+          tenantId: tenant.id,
+          prevVal,
+          reason: 'zero_consumption',
+          reasonText: `Zero consumption (+0 units)`
+        });
+        continue;
+      }
+
+      // 4. Overwrite -> flag overwrite
+      if (existingCurrent !== null && Number(existingCurrent) !== readingNum) {
+        flaggedItems.push({
+          ...item,
+          tenantId: tenant.id,
+          prevVal,
+          reason: 'overwrite',
+          reasonText: `Overwrite existing (${existingCurrent})`
+        });
+        continue;
+      }
+
+      // Clean line: Save immediately
+      try {
+        const result = await saveWaterReading({
+          tenant,
+          roomNo: item.roomNo,
+          roomId: item.roomId,
+          monthKey: cycleKey,
+          readingNum,
+          isReset: false,
+          telegramUser
+        });
+
+        savedResults.push({
+          roomId: item.roomId,
+          readingNum,
+          deltaResult: result.deltaResult
+        });
+      } catch (err) {
+        failedResults.push({
+          unit: item.roomId,
+          error: err.message
+        });
+      }
+    }
+
+    // Build Response Message
+    let msg = `📋 *Bulk Entry Results (${cycleKey})*\n\n`;
+
+    if (savedResults.length > 0) {
+      msg += `*✅ Saved Successfully (${savedResults.length}):*\n`;
+      savedResults.forEach(s => {
+        const delta = s.deltaResult?.meterDelta !== null ? ` (+${s.deltaResult.meterDelta.toFixed(1)}m • ${s.deltaResult.units}u • ₹${s.deltaResult.amount})` : '';
+        msg += `• *${s.roomId}:* \`${s.readingNum}\`${delta}\n`;
+      });
+      msg += `\n`;
+    }
+
+    if (flaggedItems.length > 0) {
+      msg += `*⚠️ Needs Confirmation (${flaggedItems.length}):*\n`;
+      flaggedItems.forEach(f => {
+        msg += `• *${f.roomId}:* \`${f.readingNum}\` — _${f.reasonText}_\n`;
+      });
+      msg += `\n`;
+    }
+
+    if (failedResults.length > 0) {
+      msg += `*❌ Failed / Skipped (${failedResults.length}):*\n`;
+      failedResults.forEach(e => {
+        msg += `• ${e.unit ? `*${e.unit}:* ` : ''}${e.error || e.raw}\n`;
+      });
+      msg += `\n`;
+    }
+
+    // Handle flagged item keyboard
+    if (flaggedItems.length > 0) {
+      await setSession(chatId, {
+        step: 'awaiting_bulk_confirmations',
+        cycleKey,
+        flaggedItems
+      });
+
+      const kb = new InlineKeyboard();
+      flaggedItems.forEach((f, idx) => {
+        const actionType = f.reason === 'lower_than_prev' ? 'reset' : 'save';
+        const label = f.reason === 'lower_than_prev' ? `🔄 Reset ${f.roomId}` : `✅ Confirm ${f.roomId}`;
+        kb.text(label, `conf_bulk:${f.roomNo}:${actionType}`);
+        if ((idx + 1) % 2 === 0) kb.row();
+      });
+      kb.row().text("❌ Skip All Flagged", "conf_bulk:all:cancel_all");
+
+      await ctx.reply(msg + `_Tap buttons below to confirm flagged items:_`, { parse_mode: 'Markdown', reply_markup: kb });
+    } else {
+      await clearSession(chatId);
+      await ctx.reply(msg, { parse_mode: 'Markdown' });
+    }
+  }
+
+  // Text message handler
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text.trim();
@@ -740,12 +1058,18 @@ function createTelegramBot(token) {
 
     const session = await getSession(chatId);
 
+    // If text contains multiple lines or session is awaiting_bulk_input -> treat as Bulk Entry
+    if (session?.step === 'awaiting_bulk_input' || text.includes('\n')) {
+      return await processBulkReadings(ctx, text);
+    }
+
     if (!session || session.step !== 'awaiting_reading_value') {
       // Unsolicited text without active flow
       await ctx.reply(
-        "💡 *Need to submit a water meter reading?*\n\n" +
-        "• Send /reading to pick a room from the menu.\n" +
-        "• Or send \`/reading <room> <reading>\` directly (e.g. \`/reading G01 104.5\`).",
+        "💡 *How to enter water meter readings:*\n\n" +
+        "• Send /reading to pick a room from the interactive menu.\n" +
+        "• Send \`/reading <room> <val>\` for single entry (e.g. \`/reading G01 104.5\`).\n" +
+        "• Or send /bulk to paste multiple units at once.",
         { parse_mode: 'Markdown' }
       );
       return;
@@ -781,8 +1105,8 @@ function createTelegramBot(token) {
       });
 
       const kb = new InlineKeyboard()
-        .text("🔄 Yes, Meter Reset", "conf:reset:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("🔄 Yes, Meter Reset", "conf:reset")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Potential Meter Reset Detected!*\n\n` +
@@ -807,14 +1131,40 @@ function createTelegramBot(token) {
       });
 
       const kb = new InlineKeyboard()
-        .text("✅ Confirm & Save", "conf:save:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("✅ Confirm & Save", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Large Consumption Warning!*\n\n` +
         `Reading \`${readingNum}\` is +${(readingNum - prevVal).toFixed(1)} higher than previous (\`${prevVal}\`).\n\n` +
         `This equals *${Math.round((readingNum - prevVal) * WATER_UNITS_MULTIPLIER)} water units*.\n` +
         `Are you sure this reading is correct?`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Check Zero / Near-Zero Consumption
+    if (prevVal !== null && readingNum >= prevVal && (readingNum - prevVal) <= 0.1) {
+      await setSession(chatId, {
+        step: 'awaiting_confirmation',
+        roomNo,
+        roomId,
+        tenantId,
+        tenantName,
+        currentMonthKey,
+        readingNum,
+        prevVal
+      });
+
+      const kb = new InlineKeyboard()
+        .text("✅ Yes, Save Zero Usage", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
+
+      await ctx.reply(
+        `⚠️ *Zero/Near-Zero Consumption Detected!*\n\n` +
+        `Reading \`${readingNum}\` indicates *0 units consumed* since last cycle (\`${prevVal}\`) for occupied Room *${roomId}*.\n\n` +
+        `Confirm this reading?`,
         { parse_mode: 'Markdown', reply_markup: kb }
       );
       return;
@@ -834,8 +1184,8 @@ function createTelegramBot(token) {
       });
 
       const kb = new InlineKeyboard()
-        .text("📝 Overwrite Reading", "conf:save:1")
-        .text("❌ Cancel", "conf:cancel:1");
+        .text("📝 Overwrite Reading", "conf:save")
+        .text("❌ Cancel", "conf:cancel");
 
       await ctx.reply(
         `⚠️ *Existing Reading Warning!*\n\n` +
@@ -887,9 +1237,11 @@ module.exports = {
   createTelegramBot,
   computeWaterReadingDelta,
   normalizeRoomIdentifier,
+  parseBulkReadingLines,
   getDefaultWaterRateForRoom,
   getWaterMonthKey,
   getPrevYearMonth,
+  getActiveWaterCycleDateParts,
   getKolkataDateParts,
   IMMUTABLE_ROOMS_DATA
 };
