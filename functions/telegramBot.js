@@ -553,17 +553,19 @@ async function clearSession(chatId) {
 }
 
 async function getOccupiedTenants() {
-  const snap = await admin.firestore().collection('properties').where('status', '==', 'Occupied').get();
+  const snap = await admin.firestore().collection('properties').get();
   const tenantsByRoomNo = {};
   const tenantsByRoomId = {};
+  const allTenants = [];
   snap.docs.forEach(doc => {
     const data = { id: doc.id, ...doc.data() };
     const roomNo = String(data.roomNo || '').padStart(2, '0');
     const roomId = String(data.roomId || '').trim();
     if (roomNo) tenantsByRoomNo[roomNo] = data;
     if (roomId) tenantsByRoomId[roomId] = data;
+    allTenants.push(data);
   });
-  return { tenantsByRoomNo, tenantsByRoomId, allTenants: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
+  return { tenantsByRoomNo, tenantsByRoomId, allTenants };
 }
 
 // Core Save Water Reading Logic
@@ -1046,86 +1048,112 @@ function createTelegramBot(token) {
     await ctx.reply(msg, { parse_mode: 'Markdown' });
   }
 
-  async function handleSummaryQuery(ctx, year, monthIndex) {
+  function computeFinancialsForMonth(allTenants, year, monthIndex) {
     const monthKey = getWaterMonthKey(year, monthIndex);
-    const { allTenants } = await getOccupiedTenants();
-
+    let rentCollected = 0;
+    let waterCollected = 0;
+    let totalCollected = 0;
+    let rentPending = 0;
+    let expectedRent = 0;
     let paidCount = 0;
     let rentOnlyCount = 0;
     let pendingCount = 0;
-    let collectedTotal = 0;
-    let expectedTotal = 0;
 
-    allTenants.forEach(t => {
-      if (isMonthBeforeJoinDate(monthKey, t.joinDate)) return;
+    Object.keys(IMMUTABLE_ROOMS_DATA).forEach(roomNo => {
+      const roomData = IMMUTABLE_ROOMS_DATA[roomNo];
+      const tenant = allTenants.find(t => t.roomNo === roomData.roomNo || t.roomId === roomData.roomId);
+      if (!tenant) return;
 
-      const status = t.paymentHistory?.[monthKey] || 'Pending';
-      const actualTotal = Number(t.paymentTotals?.[monthKey]) || 0;
-
-      let baseRent = Number(t.rent) || 0;
-      if (isFirstOccupancyMonth(t, year, monthIndex) && t.joinDate) {
-        baseRent = getProratedRent(baseRent, t.joinDate);
+      const status = tenant.paymentHistory?.[monthKey] || null;
+      const isPreMoveIn = isMonthBeforeJoinDate(monthKey, tenant.joinDate);
+      if (isPreMoveIn && status !== 'Paid' && status !== 'Rent Only') {
+        return;
       }
 
-      const effectiveWaterRate = Number(t.waterRate) || getDefaultWaterRateForRoom(t.roomNo);
-      const waterCalc = computeWaterForMonth(t, year, monthIndex, effectiveWaterRate);
-      const waterCharge = waterCalc?.amount ?? 0;
-      const serviceCharge = RENT_WATER_SERVICE_CHARGE;
-      const expTotal = baseRent + waterCharge + serviceCharge;
+      let baseRent = Number(tenant.rent) || 0;
+      if (isFirstOccupancyMonth(tenant, year, monthIndex) && tenant.joinDate) {
+        baseRent = getProratedRent(baseRent, tenant.joinDate);
+      }
 
-      expectedTotal += expTotal;
-      collectedTotal += actualTotal;
+      expectedRent += baseRent;
 
-      if (status === 'Paid') paidCount++;
-      else if (status === 'Rent Only') rentOnlyCount++;
-      else pendingCount++;
+      const storedTotal = tenant.paymentTotals?.[monthKey];
+      const effectiveWaterRate = Number(tenant.waterRate) || getDefaultWaterRateForRoom(roomNo);
+      const waterCalc = computeWaterForMonth(tenant, year, monthIndex, effectiveWaterRate);
+      const waterAmount = (Number.isFinite(waterCalc?.amount) && (waterCalc.amount || 0) > 0) ? waterCalc.amount || 0 : 0;
+      const waterComponent = (status === 'Paid') ? (waterAmount + RENT_WATER_SERVICE_CHARGE) : 0;
+
+      if (status === 'Paid') {
+        paidCount++;
+        let roomTotal = 0;
+        let roomRent = 0;
+        if (Number.isFinite(Number(storedTotal)) && Number(storedTotal) > 0) {
+          roomTotal = Number(storedTotal);
+          roomRent = Math.max(0, roomTotal - waterComponent);
+        } else {
+          roomRent = baseRent;
+          roomTotal = roomRent + waterComponent;
+        }
+        rentCollected += roomRent;
+        waterCollected += waterComponent;
+        totalCollected += roomTotal;
+      } else if (status === 'Rent Only') {
+        rentOnlyCount++;
+        const roomRent = (Number.isFinite(Number(storedTotal)) && Number(storedTotal) > 0) ? Number(storedTotal) : baseRent;
+        rentCollected += roomRent;
+        totalCollected += roomRent;
+      } else {
+        pendingCount++;
+        rentPending += baseRent;
+      }
     });
 
-    const percent = expectedTotal > 0 ? Math.round((collectedTotal / expectedTotal) * 100) : 0;
+    const collectionPercent = expectedRent > 0 ? Math.round((rentCollected / expectedRent) * 100) : 0;
+
+    return {
+      monthKey,
+      paidCount,
+      rentOnlyCount,
+      pendingCount,
+      rentCollected,
+      waterCollected,
+      totalCollected,
+      rentPending,
+      expectedRent,
+      collectionPercent
+    };
+  }
+
+  async function handleSummaryQuery(ctx, year, monthIndex) {
+    const { allTenants } = await getOccupiedTenants();
+    const fin = computeFinancialsForMonth(allTenants, year, monthIndex);
 
     await ctx.reply(
-      `📊 *Collection Summary for ${monthKey}*\n\n` +
-      `• 🟢 *Paid:* ${paidCount} unit(s)\n` +
-      `• 🟣 *Rent Only:* ${rentOnlyCount} unit(s)\n` +
-      `• 🟠 *Pending:* ${pendingCount} unit(s)\n\n` +
-      `💰 *Total Collected:* *₹${collectedTotal.toLocaleString('en-IN')}*\n` +
-      `🎯 *Total Expected:* *₹${expectedTotal.toLocaleString('en-IN')}*\n` +
-      `📈 *Collection Rate:* *${percent}%*`,
+      `📊 *Collection Summary for ${fin.monthKey}*\n\n` +
+      `• 🟢 *Paid:* ${fin.paidCount} unit(s)\n` +
+      `• 🟣 *Rent Only:* ${fin.rentOnlyCount} unit(s)\n` +
+      `• 🟠 *Pending:* ${fin.pendingCount} unit(s)\n\n` +
+      `💰 *Total Collected:* *₹${fin.totalCollected.toLocaleString('en-IN')}*\n` +
+      `   _(Base Rent: ₹${fin.rentCollected.toLocaleString('en-IN')} + Utilities: ₹${fin.waterCollected.toLocaleString('en-IN')})_\n\n` +
+      `🎯 *Expected Monthly Rent:* *₹${fin.expectedRent.toLocaleString('en-IN')}*\n` +
+      `⏳ *Pending Rent:* *₹${fin.rentPending.toLocaleString('en-IN')}*\n` +
+      `📈 *Collection Rate:* *${fin.collectionPercent}%*`,
       { parse_mode: 'Markdown' }
     );
   }
 
   async function handleTotalQuery(ctx, year, monthIndex) {
-    const monthKey = getWaterMonthKey(year, monthIndex);
     const { allTenants } = await getOccupiedTenants();
-
-    let collectedTotal = 0;
-    let expectedTotal = 0;
-
-    allTenants.forEach(t => {
-      if (isMonthBeforeJoinDate(monthKey, t.joinDate)) return;
-      const actualTotal = Number(t.paymentTotals?.[monthKey]) || 0;
-
-      let baseRent = Number(t.rent) || 0;
-      if (isFirstOccupancyMonth(t, year, monthIndex) && t.joinDate) {
-        baseRent = getProratedRent(baseRent, t.joinDate);
-      }
-      const effectiveWaterRate = Number(t.waterRate) || getDefaultWaterRateForRoom(t.roomNo);
-      const waterCalc = computeWaterForMonth(t, year, monthIndex, effectiveWaterRate);
-      const waterCharge = waterCalc?.amount ?? 0;
-      const serviceCharge = RENT_WATER_SERVICE_CHARGE;
-
-      expectedTotal += (baseRent + waterCharge + serviceCharge);
-      collectedTotal += actualTotal;
-    });
-
-    const percent = expectedTotal > 0 ? Math.round((collectedTotal / expectedTotal) * 100) : 0;
+    const fin = computeFinancialsForMonth(allTenants, year, monthIndex);
 
     await ctx.reply(
-      `💵 *Revenue Total (${monthKey})*\n\n` +
-      `• Collected: *₹${collectedTotal.toLocaleString('en-IN')}*\n` +
-      `• Expected: *₹${expectedTotal.toLocaleString('en-IN')}*\n` +
-      `• Progress: *${percent}%*`,
+      `💵 *Revenue Breakdown (${fin.monthKey})*\n\n` +
+      `• 💰 *Total Collected:* *₹${fin.totalCollected.toLocaleString('en-IN')}*\n` +
+      `   • Rent: ₹${fin.rentCollected.toLocaleString('en-IN')}\n` +
+      `   • Water & Service: ₹${fin.waterCollected.toLocaleString('en-IN')}\n\n` +
+      `• 🎯 *Expected Rent:* *₹${fin.expectedRent.toLocaleString('en-IN')}*\n` +
+      `• ⏳ *Pending Rent:* *₹${fin.rentPending.toLocaleString('en-IN')}*\n` +
+      `• 📈 *Progress:* *${fin.collectionPercent}%*`,
       { parse_mode: 'Markdown' }
     );
   }
