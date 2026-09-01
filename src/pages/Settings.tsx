@@ -318,7 +318,7 @@ export default function Settings() {
                                                 <span className="text-[10px] text-slate-400 block mt-0.5">(₹250 per 1,000 Liters)</span>
                                             </div>
                                             <div className="bg-white p-3 rounded-xl border border-emerald-200 bg-emerald-50/30">
-                                                <span className="text-emerald-800 font-bold block text-[11px]">Discounted 4th Floor (11, 12, 13)</span>
+                                                <span className="text-emerald-800 font-bold block text-[11px]">Discounted 4th Floor (11, 12)</span>
                                                 <span className="text-sm font-black text-emerald-700 font-mono">₹0.20 / Liter</span>
                                                 <span className="text-[10px] text-emerald-600/80 block mt-0.5">(₹200 per 1,000 Liters)</span>
                                             </div>

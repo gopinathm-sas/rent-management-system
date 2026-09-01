@@ -19,7 +19,7 @@ export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "
 
 export const DEFAULT_WATER_RATE = 0.25;
 export const DISCOUNTED_WATER_RATE = 0.20;
-export const DISCOUNTED_WATER_ROOMS = ['11', '12', '13']; // Set check done via includes
+export const DISCOUNTED_WATER_ROOMS = ['11', '12']; // Set check done via includes
 
 export const WATER_UNITS_MULTIPLIER = 10;
 export const RENT_WATER_SERVICE_CHARGE = 60;
