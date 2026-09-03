@@ -907,9 +907,9 @@ function createTelegramBot(token) {
       if (val !== undefined && val !== null && val !== '') {
         recordedCount++;
         const resetNote = tenant.waterMeterReset?.[targetMonthKey] ? ' 🔄 (Reset)' : '';
-        lines.push(`✅ *${room.roomId}*: \`${val}\`${resetNote} _(${tenant.tenant || 'Tenant'})_`);
+        lines.push(`✅ *${room.roomId}* (${room.roomNo}): \`${val}\`${resetNote} _(${tenant.tenant || 'Tenant'})_`);
       } else {
-        lines.push(`⏳ *${room.roomId}*: _Pending_ _(${tenant.tenant || 'Tenant'})_`);
+        lines.push(`⏳ *${room.roomId}* (${room.roomNo}): _Pending_ _(${tenant.tenant || 'Tenant'})_`);
       }
     });
 
@@ -972,7 +972,7 @@ function createTelegramBot(token) {
       const curStatus = tenant?.paymentHistory?.[cycleKey] || 'Pending';
       const icon = curStatus === 'Paid' ? '🟢' : (curStatus === 'Rent Only' ? '🟣' : (isOccupied ? '🟠' : '⚪'));
 
-      keyboard.text(`${icon} ${r.roomId}`, `sel_rent_room:${r.roomNo}`);
+      keyboard.text(`${icon} ${r.roomId} (${r.roomNo})`, `sel_rent_room:${r.roomNo}`);
       col++;
       if (col % 3 === 0) keyboard.row();
     });
@@ -982,6 +982,7 @@ function createTelegramBot(token) {
     await ctx.reply(
       `💰 *Select a room to update Rent Status (${cycleKey}):*\n\n` +
       `🟢 = Paid | 🟣 = Rent Only | 🟠 = Pending | ⚪ = Vacant\n\n` +
+      `_Format: Room ID (Room No) — e.g. G01 (01), 102 (04)_\n` +
       `_Or type directly: \`G01 Rent Received\` / \`102 Paid\`_`,
       { parse_mode: 'Markdown', reply_markup: keyboard }
     );
@@ -1010,7 +1011,8 @@ function createTelegramBot(token) {
               `Total Pending: *${pendingTenants.length} unit(s)*\n\n`;
 
     pendingTenants.forEach(t => {
-      msg += `🔸 *${t.roomId}* — ${t.tenant || 'Tenant'} _(Rent: ₹${Number(t.rent || 0).toLocaleString('en-IN')})_\n`;
+      const rNo = t.roomNo ? ` (${t.roomNo})` : '';
+      msg += `🔸 *${t.roomId}${rNo}* — ${t.tenant || 'Tenant'} _(Rent: ₹${Number(t.rent || 0).toLocaleString('en-IN')})_\n`;
     });
 
     msg += `\n_💡 Send \`${pendingTenants[0].roomId} Rent Received\` to update._`;
@@ -1041,7 +1043,8 @@ function createTelegramBot(token) {
       const serviceCharge = RENT_WATER_SERVICE_CHARGE;
       const outstandingWater = waterCharge + serviceCharge;
 
-      msg += `• *${t.roomId}* — ${t.tenant || 'Tenant'} (Owes Water: ₹${outstandingWater.toLocaleString('en-IN')})\n`;
+      const rNo = t.roomNo ? ` (${t.roomNo})` : '';
+      msg += `• *${t.roomId}${rNo}* — ${t.tenant || 'Tenant'} (Owes Water: ₹${outstandingWater.toLocaleString('en-IN')})\n`;
     });
 
     msg += `\n_💡 Send \`${rentOnlyTenants[0].roomId} Paid\` when full settlement is received._`;
@@ -1190,7 +1193,7 @@ function createTelegramBot(token) {
     const icon = curStatus === 'Paid' ? '🟢' : (curStatus === 'Rent Only' ? '🟣' : '🟠');
 
     await ctx.reply(
-      `🏠 *Room ${roomId} — ${tenant.tenant}*\n` +
+      `🏠 *Room ${roomId}* (Room No: *${roomNo}*) — *${tenant.tenant}*\n` +
       `📅 *Cycle:* ${monthKey}\n\n` +
       `• Status: ${icon} *${curStatus}*\n` +
       `• Recorded Total: *₹${curTotal.toLocaleString('en-IN')}*\n` +
@@ -1463,7 +1466,7 @@ function createTelegramBot(token) {
       const isOccupied = Boolean(tenant);
       const isDone = tenant?.waterReadings?.[cycleKey] !== undefined && tenant?.waterReadings?.[cycleKey] !== null;
 
-      const label = `${isDone ? '✅' : (isOccupied ? '💧' : '⚪')} ${r.roomId}`;
+      const label = `${isDone ? '✅' : (isOccupied ? '💧' : '⚪')} ${r.roomId} (${r.roomNo})`;
       keyboard.text(label, `sel_room:${r.roomNo}`);
       col++;
       if (col % 3 === 0) keyboard.row();
@@ -1474,6 +1477,7 @@ function createTelegramBot(token) {
     await ctx.reply(
       `🚰 *Select a room to enter water meter reading (${cycleKey}):*\n\n` +
       `✅ = Done | 💧 = Pending | ⚪ = Vacant\n` +
+      `_Format: Room ID (Room No) — e.g. G01 (01), 102 (04)_\n` +
       `_💡 Tip: Or use /bulk to paste multiple units at once._`,
       { parse_mode: 'Markdown', reply_markup: keyboard }
     );
@@ -1859,7 +1863,7 @@ function createTelegramBot(token) {
       const cur = tenant.paymentHistory?.[cycleKey] || 'Pending';
 
       await ctx.reply(
-        `🏠 *Room ${roomData.roomId}* (${tenant.tenant})\n` +
+        `🏠 *Room ${roomData.roomId}* (Room No: *${roomData.roomNo}*) — ${tenant.tenant}\n` +
         `📅 *Cycle:* ${cycleKey}\n` +
         `📌 *Current Status:* ${cur}\n\n` +
         `Select target status:`,
