@@ -442,6 +442,274 @@ function parseReportingQuery(text) {
   return null;
 }
 
+// -------------------------------------------------------------
+// FEATURE 5: EXPENSE ENTRY & UNDO HELPERS
+// -------------------------------------------------------------
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  "House Keeping Salary",
+  "Electricity Bill",
+  "Internet Bill",
+  "Painting",
+  "Room Maintenance",
+  "Plumbing & Repairs",
+  "Water Tank",
+  "Advance Payback",
+  "Other"
+];
+
+function levenshteinDistance(s1, s2) {
+  const a = String(s1 || '').toLowerCase().trim();
+  const b = String(s2 || '').toLowerCase().trim();
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function findSimilarCategory(inputCategory, existingCategories = DEFAULT_EXPENSE_CATEGORIES) {
+  if (!inputCategory) return null;
+  const raw = String(inputCategory).trim();
+  const lower = raw.toLowerCase();
+
+  const allCategories = Array.from(new Set([...DEFAULT_EXPENSE_CATEGORIES, ...(existingCategories || [])]));
+
+  // 1. Exact case-insensitive match
+  const exact = allCategories.find(c => c.toLowerCase() === lower);
+  if (exact) {
+    return { match: exact, isExact: true, isTypo: false };
+  }
+
+  // 2. Common Alias match
+  const aliasMap = {
+    'plumbing': 'Plumbing & Repairs',
+    'plumbing repair': 'Plumbing & Repairs',
+    'plumbing repairs': 'Plumbing & Repairs',
+    'plumber': 'Plumbing & Repairs',
+    'leak': 'Plumbing & Repairs',
+    'pipe': 'Plumbing & Repairs',
+    'tap': 'Plumbing & Repairs',
+    'eb': 'Electricity Bill',
+    'eb bill': 'Electricity Bill',
+    'electricity': 'Electricity Bill',
+    'current bill': 'Electricity Bill',
+    'power': 'Electricity Bill',
+    'wifi': 'Internet Bill',
+    'internet': 'Internet Bill',
+    'broadband': 'Internet Bill',
+    'act': 'Internet Bill',
+    'housekeeping': 'House Keeping Salary',
+    'house keeping': 'House Keeping Salary',
+    'cleaning': 'House Keeping Salary',
+    'sweeper': 'House Keeping Salary',
+    'maid': 'House Keeping Salary',
+    'painting': 'Painting',
+    'paint': 'Painting',
+    'maintenance': 'Room Maintenance',
+    'room maintenance': 'Room Maintenance',
+    'repairs': 'Room Maintenance',
+    'water tank': 'Water Tank',
+    'tank': 'Water Tank',
+    'water load': 'Water Tank',
+    'water lorry': 'Water Tank',
+    'advance payback': 'Advance Payback',
+    'advance refund': 'Advance Payback',
+    'deposit refund': 'Advance Payback',
+    'advance return': 'Advance Payback'
+  };
+
+  if (aliasMap[lower]) {
+    return { match: aliasMap[lower], isExact: true, isTypo: false };
+  }
+
+  // 3. Typo / Distance match (both full category string and sub-tokens)
+  let bestMatch = null;
+  let bestDist = Infinity;
+
+  for (const cat of allCategories) {
+    const catLower = cat.toLowerCase();
+    const fullDist = levenshteinDistance(lower, catLower);
+    const maxAllowedDist = catLower.length <= 6 ? 1 : (catLower.length <= 10 ? 2 : 3);
+
+    if (fullDist <= maxAllowedDist && fullDist < bestDist) {
+      bestDist = fullDist;
+      bestMatch = cat;
+    }
+
+    // Check individual sub-words / tokens
+    const tokens = catLower.split(/[\s&,/]+/).filter(Boolean);
+    for (const tok of tokens) {
+      if (tok.length >= 4) {
+        const tokDist = levenshteinDistance(lower, tok);
+        const maxTokDist = tok.length <= 6 ? 1 : 2;
+        if (tokDist <= maxTokDist && tokDist < bestDist) {
+          bestDist = tokDist;
+          bestMatch = cat;
+        }
+      }
+    }
+  }
+
+  if (bestMatch) {
+    return { match: bestMatch, isExact: false, isTypo: true, distance: bestDist };
+  }
+
+  // Default: Capitalize first letter of each word
+  const formatted = raw.replace(/\b\w/g, l => l.toUpperCase());
+  return { match: formatted, isExact: false, isTypo: false };
+}
+
+function parseExpenseDateString(dateStr, defaultYear = new Date().getFullYear()) {
+  if (!dateStr) return null;
+  const raw = dateStr.trim();
+
+  // YYYY-MM-DD
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const d = parseInt(isoMatch[3], 10);
+    if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      return {
+        year: y,
+        monthIndex: m,
+        dateStr: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      };
+    }
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyyMatch = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  if (ddmmyyyyMatch) {
+    const d = parseInt(ddmmyyyyMatch[1], 10);
+    const m = parseInt(ddmmyyyyMatch[2], 10) - 1;
+    let y = parseInt(ddmmyyyyMatch[3], 10);
+    if (y < 100) y += 2000;
+    if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      return {
+        year: y,
+        monthIndex: m,
+        dateStr: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      };
+    }
+  }
+
+  // "15 Aug" or "15 Aug 2026"
+  const dayMonthMatch = raw.match(/^(\d{1,2})\s+([a-zA-Z]{3,9})(?:\s+(\d{4}))?$/i);
+  if (dayMonthMatch) {
+    const d = parseInt(dayMonthMatch[1], 10);
+    const mName = dayMonthMatch[2].toLowerCase();
+    const y = dayMonthMatch[3] ? parseInt(dayMonthMatch[3], 10) : defaultYear;
+    const mIndex = MONTHS_LIST.findIndex(m => m.toLowerCase().startsWith(mName.slice(0, 3)));
+    if (mIndex !== -1 && d >= 1 && d <= 31) {
+      return {
+        year: y,
+        monthIndex: mIndex,
+        dateStr: `${y}-${String(mIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      };
+    }
+  }
+
+  return null;
+}
+
+function parseExpenseInput(text, defaultYear, defaultMonthIndex) {
+  if (!text || typeof text !== 'string') return null;
+  let raw = text.trim();
+
+  // Remove leading /expense if present
+  if (raw.toLowerCase().startsWith('/expense')) {
+    raw = raw.replace(/^\/expense\s*/i, '').trim();
+    if (!raw) {
+      return { ok: false, reason: 'empty_prompt' };
+    }
+  }
+
+  const nowParts = getKolkataDateParts();
+  let targetYear = defaultYear !== undefined ? defaultYear : nowParts.year;
+  let targetMonthIndex = defaultMonthIndex !== undefined ? defaultMonthIndex : nowParts.monthIndex;
+  let customDate = null;
+
+  // Detect optional date expression (e.g. "-- 15 Aug", "on 2026-08-15")
+  const dateSuffixMatch = raw.match(/(?:--|—|\bon\b|\bdated\b)\s*(\d{1,2}[-\/\s]+[a-zA-Z]{3,9}(?:[-\/\s]+\d{2,4})?|\d{4}-\d{2}-\d{2}|\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/i);
+  if (dateSuffixMatch) {
+    const parsedDate = parseExpenseDateString(dateSuffixMatch[1], targetYear);
+    if (parsedDate) {
+      customDate = parsedDate.dateStr;
+      targetYear = parsedDate.year;
+      targetMonthIndex = parsedDate.monthIndex;
+      raw = raw.replace(dateSuffixMatch[0], '').trim();
+    }
+  }
+
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  let amountIndex = -1;
+  let amountVal = null;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const cleanTok = tokens[i].replace(/^[₹Rs\.]+/i, '').replace(/,/g, '');
+    const num = Number(cleanTok);
+    if (Number.isFinite(num) && num > 0 && !cleanTok.includes('-') && !cleanTok.includes('/')) {
+      amountIndex = i;
+      amountVal = num;
+      break;
+    }
+  }
+
+  if (amountIndex === -1) {
+    return {
+      ok: false,
+      reason: 'missing_amount',
+      rawCategory: raw
+    };
+  }
+
+  if (amountIndex === 0) {
+    const remainingText = tokens.slice(1).join(' ').trim();
+    return {
+      ok: false,
+      reason: 'missing_category',
+      amount: amountVal,
+      remainingText
+    };
+  }
+
+  const rawCategory = tokens.slice(0, amountIndex).join(' ').trim();
+  const note = tokens.slice(amountIndex + 1).join(' ').trim();
+
+  const dateStr = customDate || `${nowParts.year}-${String(nowParts.monthIndex + 1).padStart(2, '0')}-${String(nowParts.day).padStart(2, '0')}`;
+  const monthKey = getWaterMonthKey(targetYear, targetMonthIndex);
+
+  return {
+    ok: true,
+    rawCategory,
+    amount: amountVal,
+    note: note || '',
+    date: dateStr,
+    monthKey,
+    year: targetYear,
+    monthIndex: targetMonthIndex
+  };
+}
+
 // WhatsApp Helper & Formatter (Feature 3)
 function normalizePhoneNumber(raw) {
   if (!raw) return null;
@@ -700,6 +968,78 @@ async function saveRentStatus({ tenant, roomNo, roomId, monthKey, year, monthInd
   };
 }
 
+// Expense Firestore Handlers (Feature 5)
+async function getMonthlyExpenseTotal(monthKey) {
+  try {
+    const snap = await admin.firestore().collection('expenses').where('monthKey', '==', monthKey).get();
+    let total = 0;
+    snap.docs.forEach(doc => {
+      total += Number(doc.data().amount) || 0;
+    });
+    return total;
+  } catch (err) {
+    console.error("Error computing monthly expense total:", err);
+    return 0;
+  }
+}
+
+async function getExistingExpenseCategories() {
+  try {
+    const snap = await admin.firestore().collection('expenses').limit(50).get();
+    const set = new Set(DEFAULT_EXPENSE_CATEGORIES);
+    snap.docs.forEach(d => {
+      const cat = d.data()?.category;
+      if (cat && typeof cat === 'string' && cat.trim()) {
+        set.add(cat.trim());
+      }
+    });
+    return Array.from(set);
+  } catch (err) {
+    return DEFAULT_EXPENSE_CATEGORIES;
+  }
+}
+
+async function saveExpenseEntry({ category, amount, date, note, monthKey, telegramUser }) {
+  const expenseDoc = {
+    category,
+    amount: Number(amount),
+    date,
+    note: note || '',
+    monthKey,
+    createdAt: new Date().toISOString(),
+    source: 'telegram_bot',
+    createdBy: {
+      chatId: String(telegramUser.chatId),
+      email: telegramUser.email || null,
+      role: telegramUser.role || 'Owner',
+      name: [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ') || telegramUser.username || 'Owner'
+    }
+  };
+
+  const ref = await admin.firestore().collection('expenses').add(expenseDoc);
+
+  // Record audit trail
+  await admin.firestore().collection('expenseAudit').add({
+    expenseId: ref.id,
+    action: 'CREATE',
+    category,
+    amount: Number(amount),
+    date,
+    note: note || '',
+    monthKey,
+    submittedBy: expenseDoc.createdBy,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  const monthTotal = await getMonthlyExpenseTotal(monthKey);
+
+  return {
+    id: ref.id,
+    ...expenseDoc,
+    monthTotal
+  };
+}
+
 // Command list for Telegram "/" native menu
 const BOT_COMMANDS = [
   { command: 'start', description: 'Welcome overview & quick guide' },
@@ -712,6 +1052,8 @@ const BOT_COMMANDS = [
   { command: 'summary', description: 'Overview: counts + collected vs expected' },
   { command: 'total', description: 'This month collected vs expected total' },
   { command: 'unit', description: 'Look up one unit status (e.g. /unit G01)' },
+  { command: 'expense', description: 'Log an expense (category, amount, note)' },
+  { command: 'undo', description: 'Remove recent expense entry (within 10 min)' },
   { command: 'status', description: 'View monthly water meter status' },
   { command: 'help', description: 'List all commands and example phrasings' },
   { command: 'link', description: 'Link Telegram account with staff code' },
@@ -1384,6 +1726,201 @@ function createTelegramBot(token) {
     await ctx.reply(previewMsg, { parse_mode: 'Markdown', reply_markup: kb });
   });
 
+  // -------------------------------------------------------------
+  // FEATURE 5: EXPENSE ENTRY & QUICK UNDO
+  // -------------------------------------------------------------
+
+  async function promptCategoryPicker(ctx) {
+    const categories = await getExistingExpenseCategories();
+    const keyboard = new InlineKeyboard();
+
+    const categoryIcons = {
+      'House Keeping Salary': '🧹',
+      'Electricity Bill': '⚡',
+      'Internet Bill': '🌐',
+      'Painting': '🎨',
+      'Room Maintenance': '🔧',
+      'Plumbing & Repairs': '🚰',
+      'Water Tank': '💧',
+      'Advance Payback': '💰',
+      'Other': '📁'
+    };
+
+    categories.forEach((cat, idx) => {
+      const icon = categoryIcons[cat] || '🏷️';
+      keyboard.text(`${icon} ${cat}`, `sel_exp_cat:${idx}`);
+      if ((idx + 1) % 2 === 0) keyboard.row();
+    });
+
+    keyboard.row().text("❌ Cancel", "flow_cancel");
+
+    await ctx.reply(
+      `🧾 *Select an Expense Category:*\n\n` +
+      `_Tap a category below to log an expense, or type directly:_ \`Plumbing 1500\``,
+      { parse_mode: 'Markdown', reply_markup: keyboard }
+    );
+  }
+
+  async function handleExpenseInput(ctx, rawText) {
+    const chatId = ctx.chat.id;
+    const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
+
+    // Gate to Owner / Admin only
+    if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
+      await ctx.reply("⛔ Permission Denied: Only Owner or Admin can log building expenses.");
+      return;
+    }
+
+    const { currentCalendarYear, currentCalendarMonthIndex } = getActiveWaterCycleDateParts();
+    const parsed = parseExpenseInput(rawText, currentCalendarYear, currentCalendarMonthIndex);
+
+    if (!parsed || !parsed.ok) {
+      if (parsed?.reason === 'empty_prompt') {
+        return await promptCategoryPicker(ctx);
+      }
+      if (parsed?.reason === 'missing_amount') {
+        await ctx.reply(`💬 Please specify the amount for *${parsed.rawCategory}*:\n\n_Example: \`${parsed.rawCategory} 1500\`_`, { parse_mode: 'Markdown' });
+        return;
+      }
+      if (parsed?.reason === 'missing_category') {
+        await ctx.reply(`💬 Please specify the expense category for *₹${parsed.amount}*:\n\n_Example: \`Plumbing ${parsed.amount} ${parsed.remainingText || ''}\`_`, { parse_mode: 'Markdown' });
+        return;
+      }
+      await ctx.reply("❌ Could not parse expense details. Format: `/expense <category> <amount> [note]`", { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (parsed.amount <= 0) {
+      await ctx.reply("❌ Expense amount must be greater than zero.");
+      return;
+    }
+
+    const existingCategories = await getExistingExpenseCategories();
+    const categoryCheck = findSimilarCategory(parsed.rawCategory, existingCategories);
+
+    // If typo / suggestion detected and not exact, ask for confirmation
+    if (categoryCheck.isTypo) {
+      await setSession(chatId, {
+        step: 'awaiting_expense_category_confirmation',
+        rawCategory: parsed.rawCategory,
+        suggestedCategory: categoryCheck.match,
+        amount: parsed.amount,
+        note: parsed.note,
+        date: parsed.date,
+        monthKey: parsed.monthKey,
+        year: parsed.year,
+        monthIndex: parsed.monthIndex
+      });
+
+      const kb = new InlineKeyboard()
+        .text(`✅ Use "${categoryCheck.match}"`, `conf_exp:suggested`)
+        .text(`📝 Keep "${parsed.rawCategory}"`, `conf_exp:keep_typed`)
+        .row()
+        .text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(
+        `❓ *Did you mean "${categoryCheck.match}"?*\n\n` +
+        `You typed *"${parsed.rawCategory}"* for amount *₹${parsed.amount.toLocaleString('en-IN')}*.\n\n` +
+        `Choose category to save:`,
+        { parse_mode: 'Markdown', reply_markup: kb }
+      );
+      return;
+    }
+
+    // Fast Path: Clean/Exact/Alias Category -> Save immediately
+    const finalCategory = categoryCheck.match;
+    try {
+      const result = await saveExpenseEntry({
+        category: finalCategory,
+        amount: parsed.amount,
+        date: parsed.date,
+        note: parsed.note,
+        monthKey: parsed.monthKey,
+        telegramUser
+      });
+
+      const noteText = parsed.note ? ` — _"${parsed.note}"_` : '';
+      await ctx.reply(
+        `✅ *Expense Logged Successfully!*\n\n` +
+        `• *Category:* ${finalCategory}\n` +
+        `• *Amount:* *₹${parsed.amount.toLocaleString('en-IN')}*${noteText}\n` +
+        `• *Date:* ${parsed.date}\n` +
+        `• *Month:* ${parsed.monthKey}\n\n` +
+        `📊 *Total Expenses this month (${parsed.monthKey}):* *₹${result.monthTotal.toLocaleString('en-IN')}*\n\n` +
+        `_💡 Made a mistake? Send /undo within 10 minutes to remove._`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      console.error("Error saving expense:", err);
+      await ctx.reply("❌ Error saving expense: " + err.message);
+    }
+  }
+
+  async function handleUndoExpense(ctx) {
+    const chatId = ctx.chat.id;
+    const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
+
+    // Gated to Owner / Admin
+    if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
+      await ctx.reply("⛔ Permission Denied: Only Owner or Admin can undo expenses.");
+      return;
+    }
+
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+    const snap = await admin.firestore().collection('expenses')
+      .where('createdBy.chatId', '==', String(chatId))
+      .where('createdAt', '>=', tenMinutesAgo)
+      .get();
+
+    if (snap.empty) {
+      await ctx.reply("ℹ️ *Nothing to undo.* No expense entries were logged by you in the last 10 minutes.", { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const latestExpense = docs[0];
+
+    await admin.firestore().collection('expenses').doc(latestExpense.id).delete();
+
+    // Record audit
+    await admin.firestore().collection('expenseAudit').add({
+      expenseId: latestExpense.id,
+      action: 'UNDO_DELETE',
+      category: latestExpense.category,
+      amount: latestExpense.amount,
+      date: latestExpense.date,
+      monthKey: latestExpense.monthKey,
+      deletedBy: {
+        chatId: String(chatId),
+        email: telegramUser.email || null,
+        name: telegramUser.firstName || 'Owner'
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const newMonthTotal = await getMonthlyExpenseTotal(latestExpense.monthKey);
+
+    await ctx.reply(
+      `🗑️ *Expense Entry Undone!*\n\n` +
+      `• *Category:* ${latestExpense.category}\n` +
+      `• *Amount Removed:* *₹${Number(latestExpense.amount).toLocaleString('en-IN')}*\n` +
+      `• *Date:* ${latestExpense.date}\n` +
+      (latestExpense.note ? `• *Note:* _"${latestExpense.note}"_\n` : '') +
+      `\n📊 *Updated Expenses for ${latestExpense.monthKey}:* *₹${newMonthTotal.toLocaleString('en-IN')}*`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  bot.command('expense', async (ctx) => {
+    await handleExpenseInput(ctx, ctx.message?.text || '');
+  });
+
+  bot.command('undo', async (ctx) => {
+    await handleUndoExpense(ctx);
+  });
+
   // Helper to start reading flow for a specific room
   async function promptReadingForRoom(ctx, room, tenant) {
     const chatId = ctx.chat.id;
@@ -1693,6 +2230,90 @@ function createTelegramBot(token) {
       await clearSession(chatId);
       await ctx.answerCallbackQuery({ text: "Cancelled" });
       await ctx.editMessageText("❌ Operation cancelled.");
+      return;
+    }
+
+    // Expense Category Confirmation Actions (Feature 5)
+    if (data.startsWith('conf_exp:')) {
+      const action = data.split(':')[1]; // 'suggested' or 'keep_typed'
+      const session = await getSession(chatId);
+
+      if (!session || session.step !== 'awaiting_expense_category_confirmation') {
+        await ctx.answerCallbackQuery({ text: "Session expired" });
+        await ctx.reply("⏳ Session expired. Please enter the expense again.");
+        return;
+      }
+
+      const finalCategory = action === 'suggested' ? session.suggestedCategory : session.rawCategory.replace(/\b\w/g, l => l.toUpperCase());
+
+      try {
+        const result = await saveExpenseEntry({
+          category: finalCategory,
+          amount: session.amount,
+          date: session.date,
+          note: session.note,
+          monthKey: session.monthKey,
+          telegramUser
+        });
+
+        await clearSession(chatId);
+        await ctx.answerCallbackQuery({ text: "Expense saved!" });
+
+        const noteText = session.note ? ` — _"${session.note}"_` : '';
+        await ctx.editMessageText(
+          `✅ *Expense Logged Successfully!*\n\n` +
+          `• *Category:* ${finalCategory}\n` +
+          `• *Amount:* *₹${Number(session.amount).toLocaleString('en-IN')}*${noteText}\n` +
+          `• *Date:* ${session.date}\n` +
+          `• *Month:* ${session.monthKey}\n\n` +
+          `📊 *Total Expenses this month (${session.monthKey}):* *₹${result.monthTotal.toLocaleString('en-IN')}*\n\n` +
+          `_💡 Made a mistake? Send /undo within 10 minutes to remove._`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (err) {
+        console.error("Error saving expense from callback:", err);
+        await ctx.answerCallbackQuery({ text: "Save failed" });
+        await ctx.reply("❌ Error saving expense: " + err.message);
+      }
+      return;
+    }
+
+    // Expense Category Picker Selection
+    if (data.startsWith('sel_exp_cat:')) {
+      const catIdx = parseInt(data.split(':')[1], 10);
+      const categories = await getExistingExpenseCategories();
+      const selectedCategory = categories[catIdx];
+
+      if (!selectedCategory) {
+        await ctx.answerCallbackQuery({ text: "Category not found" });
+        return;
+      }
+
+      await ctx.answerCallbackQuery();
+
+      const { currentCalendarYear, currentCalendarMonthIndex } = getActiveWaterCycleDateParts();
+      const currentMonthKey = getWaterMonthKey(currentCalendarYear, currentCalendarMonthIndex);
+
+      await setSession(chatId, {
+        step: 'awaiting_expense_amount_for_category',
+        selectedCategory,
+        currentMonthKey,
+        year: currentCalendarYear,
+        monthIndex: currentCalendarMonthIndex
+      });
+
+      const cancelKb = new InlineKeyboard().text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(
+        `📁 *Category Selected:* *${selectedCategory}*\n` +
+        `📅 *Month:* ${currentMonthKey}\n\n` +
+        `💬 *Please send the amount (and optional note):*\n` +
+        `_Examples:_\n` +
+        `• \`1500\`\n` +
+        `• \`1500 fixed leak in G02\`\n` +
+        `• \`3200 August bill -- 15 Aug\``,
+        { parse_mode: 'Markdown', reply_markup: cancelKb }
+      );
       return;
     }
 
@@ -2573,7 +3194,15 @@ function createTelegramBot(token) {
       return;
     }
 
-    // 3. Feature 4: Reporting Queries Check (e.g. "which rooms are pending", "how much collected this month", "G01 status")
+    // 3. Active Expense Amount Entry for Category
+    if (session?.step === 'awaiting_expense_amount_for_category') {
+      const selectedCat = session.selectedCategory;
+      const combinedText = `${selectedCat} ${text}`;
+      await clearSession(chatId);
+      return await handleExpenseInput(ctx, combinedText);
+    }
+
+    // 4. Feature 4: Reporting Queries Check (e.g. "which rooms are pending", "how much collected this month", "G01 status")
     const queryIntent = parseReportingQuery(text);
     if (queryIntent) {
       const { cycleYear, cycleMonthIndex } = getActiveWaterCycleDateParts();
@@ -2596,13 +3225,32 @@ function createTelegramBot(token) {
       }
     }
 
-    // 4. Rent Status Check: Does message match Rent phrase or start with /rent?
+    // 4. Feature 5: Check explicit /expense or /undo
+    if (text.toLowerCase().startsWith('/expense')) {
+      return await handleExpenseInput(ctx, text);
+    }
+    if (text.toLowerCase() === '/undo' || text.toLowerCase().startsWith('/undo')) {
+      return await handleUndoExpense(ctx);
+    }
+
+    // 5. Rent Status Check: Does message match Rent phrase, start with /rent, or start with room identifier?
     const rentRegex = /^(?:[a-zA-Z0-9#\s]+?)\s+(?:rent\s*(?:received|only|paid|and\s*water|&\s*water|\+\s*water)|paid|fully\s*paid|pending|due|not\s*paid|unpaid)(?:\s+.*)?$/i;
-    if (text.toLowerCase().startsWith('/rent') || rentRegex.test(text)) {
+    const firstWord = text.split(/\s+/)[0];
+    const isRoomPrefix = normalizeRoomIdentifier(firstWord) !== null;
+
+    if (text.toLowerCase().startsWith('/rent') || rentRegex.test(text) || (isRoomPrefix && !text.includes('\n'))) {
       return await handleRentStatusUpdate(ctx, text);
     }
 
-    // 5. Default Help Response for unrecognized input
+    // 6. Feature 5: Free-text Expense Logging (e.g. "Plumbing repair 1500 fixed leak in G02" or "EB Bill 2400")
+    if (!isRoomPrefix) {
+      const parsedExp = parseExpenseInput(text);
+      if (parsedExp && parsedExp.ok) {
+        return await handleExpenseInput(ctx, text);
+      }
+    }
+
+    // 7. Default Help Response for unrecognized input
     await ctx.reply(
       "💡 *How would you like to interact?*\n\n" +
       "*🚰 Water Meter Readings:*\n" +
@@ -2614,6 +3262,9 @@ function createTelegramBot(token) {
       "• Send \`G01 Paid\` ➔ Sets Paid (Rent + Water)\n" +
       "• Send \`G01 Pending\` ➔ Reverts to Pending\n" +
       "• Send /rent for interactive menu.\n\n" +
+      "*🧾 Expense Logging (Owner/Admin):*\n" +
+      "• Send \`/expense Plumbing 1500 fixed leak\` or \`EB Bill 2400\`\n" +
+      "• Send /undo to remove your recent expense entry (within 10 min)\n\n" +
       "*📲 WhatsApp Notifications:*\n" +
       "• Send \`/notify G01\` or \`/notify all\`\n\n" +
       "*📊 Queries:*\n" +
@@ -2637,6 +3288,11 @@ module.exports = {
   parseMonthFromText,
   formatTenantWhatsAppBill,
   normalizePhoneNumber,
+  parseExpenseInput,
+  findSimilarCategory,
+  levenshteinDistance,
+  parseExpenseDateString,
+  DEFAULT_EXPENSE_CATEGORIES,
   getDefaultWaterRateForRoom,
   getWaterMonthKey,
   getPrevYearMonth,

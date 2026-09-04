@@ -23,6 +23,8 @@ const {
   parseMonthFromText,
   formatTenantWhatsAppBill,
   normalizePhoneNumber,
+  parseExpenseInput,
+  findSimilarCategory,
   getDefaultWaterRateForRoom,
   getWaterMonthKey,
   getPrevYearMonth,
@@ -410,8 +412,118 @@ describe('Telegram Bot - Command Registration', () => {
     expect(bot.command).toHaveBeenCalledWith('summary', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('total', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('unit', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('expense', expect.any(Function));
+    expect(bot.command).toHaveBeenCalledWith('undo', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('status', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('help', expect.any(Function));
     expect(bot.command).toHaveBeenCalledWith('cancel', expect.any(Function));
   });
 });
+
+describe('Telegram Bot - Feature 5: Expense Parser & Typo Detection', () => {
+  test('should parse standard free-text expense input', () => {
+    const res = parseExpenseInput('Plumbing repair 1500 fixed the leak in G02', 2026, 8);
+    expect(res).not.toBeNull();
+    expect(res.ok).toBe(true);
+    expect(res.rawCategory).toBe('Plumbing repair');
+    expect(res.amount).toBe(1500);
+    expect(res.note).toBe('fixed the leak in G02');
+  });
+
+  test('should parse short free-text expense without note', () => {
+    const res = parseExpenseInput('Plumbng 800', 2026, 8);
+    expect(res.ok).toBe(true);
+    expect(res.rawCategory).toBe('Plumbng');
+    expect(res.amount).toBe(800);
+    expect(res.note).toBe('');
+  });
+
+  test('should parse explicit /expense command', () => {
+    const res = parseExpenseInput('/expense Electricity Bill 3200 August EB Bill', 2026, 7);
+    expect(res.ok).toBe(true);
+    expect(res.rawCategory).toBe('Electricity Bill');
+    expect(res.amount).toBe(3200);
+    expect(res.note).toBe('August EB Bill');
+    expect(res.monthKey).toBe('2026-Aug');
+  });
+
+  test('should handle rupee currency symbol and commas', () => {
+    const res = parseExpenseInput('Painting ₹12,000 Entire 2nd floor', 2026, 8);
+    expect(res.ok).toBe(true);
+    expect(res.rawCategory).toBe('Painting');
+    expect(res.amount).toBe(12000);
+    expect(res.note).toBe('Entire 2nd floor');
+  });
+
+  test('should parse explicit date overrides', () => {
+    const res = parseExpenseInput('Painting 5000 front wall -- 15 Aug', 2026, 8);
+    expect(res.ok).toBe(true);
+    expect(res.amount).toBe(5000);
+    expect(res.note).toBe('front wall');
+    expect(res.monthKey).toBe('2026-Aug');
+    expect(res.date).toBe('2026-08-15');
+  });
+
+  test('should return missing_amount when no number is given', () => {
+    const res = parseExpenseInput('Plumbing repair in G02', 2026, 8);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('missing_amount');
+    expect(res.rawCategory).toBe('Plumbing repair in G02');
+  });
+
+  test('should return missing_category when number is first token', () => {
+    const res = parseExpenseInput('1500 plumbing repair', 2026, 8);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('missing_category');
+    expect(res.amount).toBe(1500);
+  });
+
+  test('should match aliases correctly', () => {
+    const matchEB = findSimilarCategory('eb bill');
+    expect(matchEB.match).toBe('Electricity Bill');
+    expect(matchEB.isExact).toBe(true);
+
+    const matchPlumb = findSimilarCategory('plumbing');
+    expect(matchPlumb.match).toBe('Plumbing & Repairs');
+    expect(matchPlumb.isExact).toBe(true);
+
+    const matchWifi = findSimilarCategory('wifi');
+    expect(matchWifi.match).toBe('Internet Bill');
+    expect(matchWifi.isExact).toBe(true);
+
+    const matchClean = findSimilarCategory('cleaning');
+    expect(matchClean.match).toBe('House Keeping Salary');
+    expect(matchClean.isExact).toBe(true);
+
+    const matchWaterTank = findSimilarCategory('water load');
+    expect(matchWaterTank.match).toBe('Water Tank');
+    expect(matchWaterTank.isExact).toBe(true);
+
+    const matchAdvance = findSimilarCategory('deposit refund');
+    expect(matchAdvance.match).toBe('Advance Payback');
+    expect(matchAdvance.isExact).toBe(true);
+  });
+
+  test('should detect typos and suggest closest category', () => {
+    const typoCheck = findSimilarCategory('Plumbng');
+    expect(typoCheck.isTypo).toBe(true);
+    expect(typoCheck.match).toBe('Plumbing & Repairs');
+
+    const paintTypo = findSimilarCategory('paintng');
+    expect(paintTypo.isTypo).toBe(true);
+    expect(paintTypo.match).toBe('Painting');
+  });
+
+  test('should distinguish room rent commands from expense commands', () => {
+    // Starts with room identifier -> Rent/Unit
+    expect(normalizeRoomIdentifier('G01')).not.toBeNull();
+    expect(normalizeRoomIdentifier('102')).not.toBeNull();
+    expect(normalizeRoomIdentifier('403')).not.toBeNull();
+
+    // Starts with category name -> Expense
+    expect(normalizeRoomIdentifier('Plumbing')).toBeNull();
+    expect(normalizeRoomIdentifier('Electricity')).toBeNull();
+    expect(normalizeRoomIdentifier('Painting')).toBeNull();
+  });
+});
+

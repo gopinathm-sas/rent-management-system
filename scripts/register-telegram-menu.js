@@ -49,16 +49,24 @@ function callTelegramApi(method, payload) {
 }
 
 async function run() {
-  console.log("1. Setting commands list...");
+  console.log("1. Setting complete commands list with Telegram Bot API...");
   const commands = [
     { command: 'start', description: 'Welcome overview & quick guide' },
-    { command: 'reading', description: 'Submit water meter reading' },
-    { command: 'bulk', description: 'Bulk paste multiple unit readings' },
-    { command: 'rent', description: 'Update rent payment status' },
+    { command: 'reading', description: 'Submit water meter reading for one unit' },
+    { command: 'bulk', description: 'Bulk submit readings for multiple units' },
+    { command: 'rent', description: 'Update rent payment status for a unit' },
+    { command: 'notify', description: 'Send rent & water breakdown via WhatsApp' },
+    { command: 'pending', description: 'List units with pending rent this month' },
+    { command: 'rentonly', description: 'List units that paid rent only (water owed)' },
+    { command: 'summary', description: 'Overview: counts + collected vs expected' },
+    { command: 'total', description: 'This month collected vs expected total' },
+    { command: 'unit', description: 'Look up one unit status (e.g. /unit G01)' },
+    { command: 'expense', description: 'Log an expense (category, amount, note)' },
+    { command: 'undo', description: 'Remove recent expense entry (within 10 min)' },
     { command: 'status', description: 'View monthly water meter status' },
-    { command: 'help', description: 'Command guide & phrasing examples' },
+    { command: 'help', description: 'List all commands and example phrasings' },
     { command: 'link', description: 'Link Telegram account with staff code' },
-    { command: 'cancel', description: 'Cancel active conversation' }
+    { command: 'cancel', description: 'Cancel active conversation flow' }
   ];
 
   const resCmds = await callTelegramApi('setMyCommands', { commands });
@@ -70,13 +78,10 @@ async function run() {
   });
   console.log('setChatMenuButton response:', resBtn);
 
-  console.log("3. Verifying getChatMenuButton...");
-  const resGet = await callTelegramApi('getChatMenuButton', {});
-  console.log('getChatMenuButton response:', resGet);
-
-  console.log("4. Verifying getMyCommands...");
+  console.log("3. Verifying registered commands...");
   const resGetCmds = await callTelegramApi('getMyCommands', {});
-  console.log('getMyCommands response:', resGetCmds);
+  console.log('getMyCommands count:', resGetCmds.result?.length);
+  console.log('Registered commands:', resGetCmds.result?.map(c => `/${c.command} - ${c.description}`));
 }
 
 run();
