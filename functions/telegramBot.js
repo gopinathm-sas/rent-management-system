@@ -465,6 +465,11 @@ function parseReportingQuery(text) {
   if (!text || typeof text !== 'string') return null;
   const raw = text.trim();
 
+  // If text mentions diary or notes, delegate to Diary AI
+  if (/\b(diary|dairy|notes?|journal)\b/i.test(raw)) {
+    return null;
+  }
+
   // 1. Pending query: /pending, which rooms are pending, who hasn't paid, unpaid
   if (/^\/pending\b/i.test(raw) || /(?:which|what|list)\s*(?:rooms|units)?\s*(?:are\s*)?pending/i.test(raw) || /who\s*(?:has\s*not|hasn't)\s*paid/i.test(raw) || /unpaid\s*(?:rooms|units|rent)?/i.test(raw)) {
     return { type: 'pending', raw };
@@ -498,6 +503,37 @@ function parseReportingQuery(text) {
 
   return null;
 }
+
+// Natural Diary Question & Summary Parser
+function isNaturalDiaryQuery(text) {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+
+  // 1. Explicit AI / Search commands or prefixes
+  if (/^\/(ask|search|query|rag|find)\b/i.test(t) || /^(ask|search|query|find):\s*/i.test(t)) {
+    return true;
+  }
+
+  // 2. Summary / Recap queries: "Summarise today's notes", "summarize today's notes", "summary of yesterday"
+  if (/^(summarise|summarize|summary|recap|overview|give\s+me\s+a\s+summary|give\s+me\s+a\s+recap)\b/i.test(t)) {
+    return true;
+  }
+
+  // 3. Natural notes / diary requests: "today's notes", "yesterday notes", "notes from Monday", "show diary"
+  if (/\b(today(?:'s)?|yesterday(?:'s)?|tomorrow(?:'s)?|this\s+week|last\s+\w+)\s+(notes?|diary|dairy|journal|entries|entry)\b/i.test(t) ||
+      /\b(notes?|diary|dairy|journal|entries|entry)\s+(?:for|from|of|on|in)\b/i.test(t) ||
+      /^(show|view|get|read|check|fetch)\s+(?:my\s+)?(notes?|diary|dairy|journal)\b/i.test(t)) {
+    return true;
+  }
+
+  // 4. Natural Question phrasing: starts with question word or ends with '?'
+  if (/^(what|when|where|who|why|how|did\s+i|have\s+i|was\s+there|is\s+there|tell\s+me|check\s+if|can\s+you\s+find|any\s+notes)\b/i.test(t) || t.endsWith('?')) {
+    return true;
+  }
+
+  return false;
+}
+
 
 // -------------------------------------------------------------
 // FEATURE 5: EXPENSE ENTRY & UNDO HELPERS
@@ -3530,8 +3566,8 @@ function createTelegramBot(token) {
       }
     }
 
-    // 4. Personal Diary Ask / Semantic Search: /ask, /search, /query, or starting with "ask:", "search:"
-    if (/^\/(ask|search|query|rag)\b/i.test(text) || /^(ask|search|query):\s*/i.test(text)) {
+    // 4. Personal Diary Ask / Semantic Search / Natural Diary Questions & Summaries
+    if (isNaturalDiaryQuery(text)) {
       return await handleDiaryAskCommand(ctx, text);
     }
 
@@ -3630,5 +3666,6 @@ module.exports = {
   getKolkataDateKey,
   formatDiaryDateDisplay,
   formatKolkataTimeShort,
-  getMonthlyExpenseTotal
+  getMonthlyExpenseTotal,
+  isNaturalDiaryQuery
 };

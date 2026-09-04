@@ -36,7 +36,8 @@ const {
   BOT_COMMANDS,
   extractHashtags,
   getKolkataDateKey,
-  formatDiaryDateDisplay
+  formatDiaryDateDisplay,
+  isNaturalDiaryQuery
 } = require('../functions/telegramBot');
 
 describe('Telegram Bot - Room Identifier Normalization', () => {
@@ -569,6 +570,30 @@ describe('Telegram Bot - Personal Diary Feature', () => {
     const display = formatDiaryDateDisplay('2026-09-04');
     expect(display).toContain('Sep 4, 2026');
     expect(display).toContain('Fri');
+  });
+
+  describe('Natural Diary Query & Summarize Detection', () => {
+    test('detects "Summarise today\'s notes" and variations', () => {
+      expect(isNaturalDiaryQuery("Summarise today's notes")).toBe(true);
+      expect(isNaturalDiaryQuery("summarize today's notes")).toBe(true);
+      expect(isNaturalDiaryQuery("summary of yesterday's notes")).toBe(true);
+      expect(isNaturalDiaryQuery("give me a summary of today's notes")).toBe(true);
+      expect(isNaturalDiaryQuery("recap of today")).toBe(true);
+    });
+
+    test('detects natural questions and queries', () => {
+      expect(isNaturalDiaryQuery("What did I do yesterday?")).toBe(true);
+      expect(isNaturalDiaryQuery("When did I meet the electrician?")).toBe(true);
+      expect(isNaturalDiaryQuery("Did I order paint?")).toBe(true);
+      expect(isNaturalDiaryQuery("show today's notes")).toBe(true);
+      expect(isNaturalDiaryQuery("/ask when did plumber come")).toBe(true);
+    });
+
+    test('does not misclassify rent updates or simple words', () => {
+      expect(isNaturalDiaryQuery("G01 Paid")).toBe(false);
+      expect(isNaturalDiaryQuery("Plumbing 1500")).toBe(false);
+      expect(isNaturalDiaryQuery("")).toBe(false);
+    });
   });
 });
 
