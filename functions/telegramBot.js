@@ -1994,10 +1994,8 @@ function createTelegramBot(token) {
 
   async function handleDiaryCommand(ctx, rawText) {
     const cleanInput = (rawText || '')
-      .replace(/^\/diary(@\w+)?/i, '')
-      .replace(/^\/note(@\w+)?/i, '')
-      .replace(/^diary:?/i, '')
-      .replace(/^note:?/i, '')
+      .replace(/^\/(diary|dairy|note|notes|journal)(@\w+)?\s*/i, '')
+      .replace(/^(diary|dairy|note|journal):\s*/i, '')
       .trim();
 
     const dateKey = getKolkataDateKey();
@@ -2145,19 +2143,11 @@ function createTelegramBot(token) {
     await ctx.reply(msg, { parse_mode: 'Markdown' });
   }
 
-  bot.command('diary', async (ctx) => {
+  bot.command(['diary', 'dairy', 'note', 'journal'], async (ctx) => {
     await handleDiaryCommand(ctx, ctx.message?.text || '');
   });
 
-  bot.command('note', async (ctx) => {
-    await handleDiaryCommand(ctx, ctx.message?.text || '');
-  });
-
-  bot.command('notes', async (ctx) => {
-    await handleNotesHistory(ctx);
-  });
-
-  bot.command('diaryhistory', async (ctx) => {
+  bot.command(['notes', 'dairies', 'diaries', 'diaryhistory'], async (ctx) => {
     await handleNotesHistory(ctx);
   });
 
@@ -3467,7 +3457,15 @@ function createTelegramBot(token) {
       }
     }
 
-    // 4. Feature 5: Check explicit /expense or /undo
+    // 4. Personal Diary Check: /diary, /dairy, /note, /journal or starting with "diary:", "dairy:", "note:"
+    if (/^\/(diary|dairy|note|journal|notes|dairies|diaries)\b/i.test(text) || /^(diary|dairy|note|journal):\s*/i.test(text)) {
+      if (/^\/(notes|dairies|diaries|diaryhistory)\b/i.test(text)) {
+        return await handleNotesHistory(ctx);
+      }
+      return await handleDiaryCommand(ctx, text);
+    }
+
+    // 5. Feature 5: Check explicit /expense or /undo
     if (text.toLowerCase().startsWith('/expense')) {
       return await handleExpenseInput(ctx, text);
     }
@@ -3475,7 +3473,7 @@ function createTelegramBot(token) {
       return await handleUndoExpense(ctx);
     }
 
-    // 5. Rent Status Check: Does message match Rent phrase, start with /rent, or start with room identifier?
+    // 6. Rent Status Check: Does message match Rent phrase, start with /rent, or start with room identifier?
     const rentRegex = /^(?:[a-zA-Z0-9#\s]+?)\s+(?:rent\s*(?:received|only|paid|and\s*water|&\s*water|\+\s*water)|paid|fully\s*paid|pending|due|not\s*paid|unpaid)(?:\s+.*)?$/i;
     const firstWord = text.split(/\s+/)[0];
     const isRoomPrefix = normalizeRoomIdentifier(firstWord) !== null;
@@ -3484,7 +3482,7 @@ function createTelegramBot(token) {
       return await handleRentStatusUpdate(ctx, text);
     }
 
-    // 6. Feature 5: Free-text Expense Logging (e.g. "Plumbing repair 1500 fixed leak in G02" or "EB Bill 2400")
+    // 7. Feature 5: Free-text Expense Logging (e.g. "Plumbing repair 1500 fixed leak in G02" or "EB Bill 2400")
     if (!isRoomPrefix) {
       const parsedExp = parseExpenseInput(text);
       if (parsedExp && parsedExp.ok) {
@@ -3492,9 +3490,13 @@ function createTelegramBot(token) {
       }
     }
 
-    // 7. Default Help Response for unrecognized input
+    // 8. Default Help Response for unrecognized input
     await ctx.reply(
       "💡 *How would you like to interact?*\n\n" +
+      "*📖 Personal Diary:*\n" +
+      "• Send `/diary <any text>` (e.g. `/diary Spoke with insurance company`)\n" +
+      "• Send `/diary` (or `/dairy`) to view today's notes\n" +
+      "• Send `/notes` to view recent past notes\n\n" +
       "*🚰 Water Meter Readings:*\n" +
       "• Send /reading to pick a room from the menu.\n" +
       "• Send \`/reading <room> <val>\` (e.g. \`/reading G01 104.5\`).\n" +
