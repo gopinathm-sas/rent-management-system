@@ -118,15 +118,20 @@ describe('Telegram Bot - Bulk Reading Parser', () => {
     expect(errorLines[2].raw).toBe('201: invalid_number');
   });
 
-  test('should flag duplicate room codes within the same batch', () => {
+  test('should ignore /bulk command and header lines at the beginning of the text', () => {
     const text = `
+      /bulk 2026-Aug
+      Water Readings:
       G01: 1041.2
-      01: 1050.0
+      102: 998.0 units
+      201 = 1204,5
     `;
     const { validLines, errorLines } = parseBulkReadingLines(text);
-    expect(validLines).toHaveLength(1);
-    expect(errorLines).toHaveLength(1);
-    expect(errorLines[0].error).toContain('Duplicate room code');
+    expect(errorLines).toHaveLength(0);
+    expect(validLines).toHaveLength(3);
+    expect(validLines[0].roomId).toBe('G01');
+    expect(validLines[1].readingNum).toBe(998.0);
+    expect(validLines[2].readingNum).toBe(1204.5);
   });
 });
 

@@ -259,6 +259,13 @@ function parseBulkReadingLines(text, maxLines = 20) {
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i];
 
+    // Silently ignore command names, headers, or intro text
+    if (line.toLowerCase().startsWith('/bulk') ||
+        /^(water\s+readings?|bulk\s+readings?|readings?:?|units?:?|meter\s+readings?:?)$/i.test(line) ||
+        (!/\d/.test(line) && (line.toLowerCase().includes('reading') || line.toLowerCase().includes('unit')))) {
+      continue;
+    }
+
     if (i >= maxLines) {
       errorLines.push({
         raw: line,
@@ -267,8 +274,11 @@ function parseBulkReadingLines(text, maxLines = 20) {
       continue;
     }
 
+    // Clean bullets like "1.", "1)", "-", "•", "*"
     const cleaned = line.replace(/^(\d+[\.\)]|[\*\-\•])\s*/, '').trim();
-    const match = cleaned.match(/^([a-zA-Z0-9#\s]+?)[\s:=–-]+(\d+(?:\.\d+)?)$/);
+
+    // Match unit part, separator, number, optional units suffix
+    const match = cleaned.match(/^([a-zA-Z0-9#\s]+?)[\s:=–-]+(\d+(?:[.,]\d+)?)(?:\s*(?:units?|u|kl|m|ltrs?))?$/i);
     if (!match) {
       errorLines.push({
         raw: line,
@@ -278,14 +288,15 @@ function parseBulkReadingLines(text, maxLines = 20) {
     }
 
     const unitStr = match[1].trim();
-    const readingVal = Number(match[2]);
+    const rawValStr = match[2].replace(',', '.');
+    const readingVal = Number(rawValStr);
 
     const normalized = normalizeRoomIdentifier(unitStr);
     if (!normalized) {
       errorLines.push({
         raw: line,
         unit: unitStr,
-        error: `Unknown room code "${unitStr}"`
+        error: `Unknown room code "${unitStr}" (Valid: ${getValidRoomListString()})`
       });
       continue;
     }
@@ -3223,7 +3234,9 @@ function createTelegramBot(token) {
     if (failedResults.length > 0) {
       msg += `*❌ Failed / Skipped (${failedResults.length}):*\n`;
       failedResults.forEach(e => {
-        msg += `• ${e.unit ? `*${e.unit}:* ` : ''}${e.error || e.raw}\n`;
+        const rawPart = e.raw ? `\`${e.raw}\` ➔ ` : '';
+        const unitPart = e.unit && !e.raw?.includes(e.unit) ? `*${e.unit}:* ` : '';
+        msg += `• ${rawPart}${unitPart}${e.error || 'Invalid format'}\n`;
       });
       msg += `\n`;
     }
