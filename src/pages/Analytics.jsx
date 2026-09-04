@@ -141,7 +141,7 @@ export default function Analytics() {
         if (!tenants || !rooms) return null;
 
         const tenantList = Array.isArray(tenants) ? tenants : Object.values(tenants || {});
-        const expenseList = Array.isArray(expenses) ? expenses : Object.values(expenses || {});
+        const expenseList = (Array.isArray(expenses) ? expenses : Object.values(expenses || {})).filter(e => !e?.pendingConfirmation);
         const isAllTime = selectedFilterKey === 'all';
         const isYearFilter = selectedFilterKey.startsWith('year-');
         const targetYearStr = isYearFilter ? selectedFilterKey.replace('year-', '') : '';

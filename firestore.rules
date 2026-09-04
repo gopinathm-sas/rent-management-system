@@ -100,6 +100,11 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    match /recurringExpenses/{recurringId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
     // Personal Diary
     match /diaryNotes/{noteId} {
       allow read: if isStaffOrViewer();

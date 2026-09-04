@@ -234,7 +234,7 @@ export function sumExpensesForMonth(expenses: Expense[] | null, year: number, mo
     const key = getMonthKey(year, monthIndex);
     if (!expenses || !Array.isArray(expenses)) return 0;
     return expenses
-        .filter(e => String(e?.monthKey || '') === String(key))
+        .filter(e => String(e?.monthKey || '') === String(key) && !e?.pendingConfirmation)
         .reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
 }
 

@@ -592,3 +592,98 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * Scheduled Cloud Function to auto-generate recurring expense entries
+ * Runs hourly in Asia/Kolkata timezone with day clamping, idempotency, and catch-up check.
+ */
+exports.scheduledDailyRecurringExpenses = functions.pubsub
+  .schedule('every 60 minutes')
+  .timeZone('Asia/Kolkata')
+  .onRun(async () => {
+    const { year, monthIndex, day } = getKolkataDateParts();
+    const currentMonthKey = `${year}-${MONTHS_LIST[monthIndex]}`;
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    const rulesSnap = await admin.firestore()
+      .collection('recurringExpenses')
+      .where('status', '==', 'active')
+      .get();
+
+    if (rulesSnap.empty) {
+      console.log('No active recurring expense rules found.');
+      return null;
+    }
+
+    let generatedCount = 0;
+
+    for (const ruleDoc of rulesSnap.docs) {
+      const rule = ruleDoc.data() || {};
+      const targetDay = Number(rule.dayOfMonth) || 1;
+      // Day clamping for shorter months (Feb, 30-day months)
+      const effectiveDueDay = Math.min(targetDay, daysInMonth);
+
+      // Catch-up check: is the recurring day today or has it passed earlier in the current month?
+      if (day >= effectiveDueDay) {
+        // Idempotency check: verify whether an entry was already generated for this rule and month
+        const existingSnap = await admin.firestore()
+          .collection('expenses')
+          .where('recurringId', '==', ruleDoc.id)
+          .where('monthKey', '==', currentMonthKey)
+          .limit(1)
+          .get();
+
+        if (existingSnap.empty) {
+          // Find the most recent confirmed amount for this recurring rule to use as suggestion
+          let suggestedAmount = Number(rule.defaultAmount) || 0;
+
+          try {
+            const pastConfirmedSnap = await admin.firestore()
+              .collection('expenses')
+              .where('recurringId', '==', ruleDoc.id)
+              .where('pendingConfirmation', '==', false)
+              .orderBy('date', 'desc')
+              .limit(1)
+              .get();
+
+            if (!pastConfirmedSnap.empty) {
+              const lastExp = pastConfirmedSnap.docs[0].data();
+              if (Number.isFinite(Number(lastExp.amount)) && Number(lastExp.amount) > 0) {
+                suggestedAmount = Number(lastExp.amount);
+              }
+            }
+          } catch (queryErr) {
+            console.warn(`Could not query past confirmed expenses for rule ${ruleDoc.id}:`, queryErr.message);
+          }
+
+          const dateStr = `${year}-${pad2(monthIndex + 1)}-${pad2(effectiveDueDay)}`;
+          const newExpense = {
+            category: rule.category || 'Other',
+            amount: suggestedAmount,
+            suggestedAmount: suggestedAmount,
+            date: dateStr,
+            note: rule.noteTemplate || '',
+            monthKey: currentMonthKey,
+            createdAt: new Date().toISOString(),
+            pendingConfirmation: true,
+            recurringId: ruleDoc.id,
+            source: 'recurring_auto'
+          };
+
+          await admin.firestore().collection('expenses').add(newExpense);
+
+          await ruleDoc.ref.update({
+            lastGeneratedMonth: currentMonthKey,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          generatedCount += 1;
+          console.log(`Generated pending recurring expense for rule "${rule.category}" (${ruleDoc.id}) for ${currentMonthKey}`);
+        }
+      }
+    }
+
+    console.log(`Recurring expenses check complete. Generated ${generatedCount} pending entry/entries for ${currentMonthKey}.`);
+    return null;
+  });
+
+

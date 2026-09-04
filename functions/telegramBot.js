@@ -1025,7 +1025,10 @@ async function getMonthlyExpenseTotal(monthKey) {
     const snap = await admin.firestore().collection('expenses').where('monthKey', '==', monthKey).get();
     let total = 0;
     snap.docs.forEach(doc => {
-      total += Number(doc.data().amount) || 0;
+      const data = doc.data();
+      if (!data.pendingConfirmation) {
+        total += Number(data.amount) || 0;
+      }
     });
     return total;
   } catch (err) {
@@ -3550,5 +3553,6 @@ module.exports = {
   extractHashtags,
   getKolkataDateKey,
   formatDiaryDateDisplay,
-  formatKolkataTimeShort
+  formatKolkataTimeShort,
+  getMonthlyExpenseTotal
 };

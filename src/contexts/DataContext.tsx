@@ -6,11 +6,12 @@ import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteD
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
 import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent, isLastDayOfMonth, getMonthKey, isMonthBeforeJoinDate, isEvictionMonth } from '../lib/utils';
-import { Tenant, Expense, RoomData, AppSettings, DiaryNote } from '../types';
+import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote } from '../types';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
     expenses: Expense[];
+    recurringExpenses: RecurringExpense[];
     diaryNotes: DiaryNote[];
     error: Error | null;
     debugUser: { email: string };
@@ -24,6 +25,11 @@ interface DataContextType {
     addExpense: (expenseData: Omit<Expense, 'id'>) => Promise<void>;
     updateExpense: (id: string, data: Partial<Expense>) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
+    addRecurringExpense: (data: Omit<RecurringExpense, 'id'>) => Promise<void>;
+    updateRecurringExpense: (id: string, data: Partial<RecurringExpense>) => Promise<void>;
+    deleteRecurringExpense: (id: string) => Promise<void>;
+    confirmPendingExpense: (id: string, confirmedAmount: number, updatedNote?: string, updatedDate?: string) => Promise<void>;
+    dismissPendingExpense: (id: string) => Promise<void>;
     updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
     createTenant: (data: Omit<Tenant, 'id'>) => Promise<void>;
     updateSettings: (data: Partial<AppSettings>) => Promise<void>;
@@ -44,6 +50,7 @@ export function useData() {
 export function DataProvider({ children }: { children: ReactNode }) {
     const [tenants, setTenants] = useState<Record<string, Tenant>>({}); // This maps to 'properties' collection
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
     const [diaryNotes, setDiaryNotes] = useState<DiaryNote[]>([]);
     const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [loadingState, setLoadingState] = useState({
@@ -184,6 +191,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
             console.error("Error fetching settings:", error);
         });
 
+        // Recurring Expenses Subscription
+        const qRecurring = query(collection(db, 'recurringExpenses'));
+        const unsubRecurring = onSnapshot(qRecurring, (snapshot) => {
+            const list: RecurringExpense[] = [];
+            snapshot.forEach(d => {
+                list.push({ id: d.id, ...d.data() } as RecurringExpense);
+            });
+            setRecurringExpenses(list);
+        }, (error) => {
+            console.error("Error fetching recurring expenses:", error);
+            showToast(`Error fetching recurring expenses: ${error.message}`, 'error');
+        });
+
         // Diary Notes Subscription
         const qDiary = query(collection(db, 'diaryNotes'), orderBy('date', 'desc'));
         const unsubDiary = onSnapshot(qDiary, (snapshot) => {
@@ -200,6 +220,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return () => {
             unsubTenants();
             unsubExpenses();
+            unsubRecurring();
             unsubRooms();
             unsubSettings();
             unsubDiary();
@@ -271,6 +292,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await updateDoc(doc(db, 'expenses', id), data);
     };
 
+    const addRecurringExpenseHandler = async (data: Omit<RecurringExpense, 'id'>) => {
+        await addDoc(collection(db, 'recurringExpenses'), {
+            ...data,
+            createdAt: new Date().toISOString()
+        });
+    };
+
+    const updateRecurringExpenseHandler = async (id: string, data: Partial<RecurringExpense>) => {
+        await updateDoc(doc(db, 'recurringExpenses', id), {
+            ...data,
+            updatedAt: new Date().toISOString()
+        });
+    };
+
+    const deleteRecurringExpenseHandler = async (id: string) => {
+        await deleteDoc(doc(db, 'recurringExpenses', id));
+    };
+
+    const confirmPendingExpenseHandler = async (id: string, confirmedAmount: number, updatedNote?: string, updatedDate?: string) => {
+        const payload: Record<string, any> = {
+            amount: Number(confirmedAmount),
+            pendingConfirmation: false,
+            updatedAt: new Date().toISOString()
+        };
+        if (updatedNote !== undefined) payload.note = updatedNote.trim();
+        if (updatedDate) {
+            payload.date = updatedDate;
+            const d = new Date(updatedDate);
+            payload.monthKey = getMonthKey(d.getFullYear(), d.getMonth());
+        }
+        await updateDoc(doc(db, 'expenses', id), payload);
+    };
+
+    const dismissPendingExpenseHandler = async (id: string) => {
+        await deleteDoc(doc(db, 'expenses', id));
+    };
+
     const updateTenantHandler = async (id: string, data: Partial<Tenant>) => {
         await updateDoc(doc(db, 'properties', id), data);
     };
@@ -309,6 +367,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const value: DataContextType = {
         tenants,
         expenses,
+        recurringExpenses,
         diaryNotes,
         error,
         debugUser: { email: 'Check AuthContext' },
@@ -322,6 +381,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addExpense: addExpenseHandler,
         updateExpense: updateExpenseHandler,
         deleteExpense: deleteExpenseHandler,
+        addRecurringExpense: addRecurringExpenseHandler,
+        updateRecurringExpense: updateRecurringExpenseHandler,
+        deleteRecurringExpense: deleteRecurringExpenseHandler,
+        confirmPendingExpense: confirmPendingExpenseHandler,
+        dismissPendingExpense: dismissPendingExpenseHandler,
         updateTenant: updateTenantHandler,
         createTenant: createTenantHandler,
         updateSettings: updateSettingsHandler,

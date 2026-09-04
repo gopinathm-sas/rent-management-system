@@ -14,6 +14,22 @@ export interface Expense {
     note?: string;
     createdAt?: string;
     monthKey?: string;
+    pendingConfirmation?: boolean;
+    recurringId?: string;
+    suggestedAmount?: number;
+    source?: string;
+}
+
+export interface RecurringExpense {
+    id: string;
+    category: string;
+    dayOfMonth: number; // 1 to 31
+    defaultAmount?: number;
+    noteTemplate?: string;
+    status: 'active' | 'paused';
+    createdAt: string;
+    updatedAt?: string;
+    lastGeneratedMonth?: string; // "YYYY-Mon" e.g. "2026-Sep"
 }
 
 export interface PaymentHistory {
