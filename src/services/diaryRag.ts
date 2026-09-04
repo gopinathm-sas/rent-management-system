@@ -16,8 +16,9 @@ export interface DiaryRagResponse {
 }
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_EMBED_MODEL = "text-embedding-004";
-const GEMINI_GEN_MODEL = "gemini-2.0-flash-lite-001";
+const GEMINI_EMBED_MODEL = "gemini-embedding-001";
+const GEMINI_GEN_MODEL = "gemini-3.5-flash-lite";
+
 
 /**
  * Client-side cosine similarity helper

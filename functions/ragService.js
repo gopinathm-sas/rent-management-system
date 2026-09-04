@@ -1,7 +1,8 @@
 const https = require('https');
 
-const GEMINI_EMBED_MODEL = 'text-embedding-004';
-const GEMINI_GEN_MODEL = 'gemini-2.0-flash-lite-001';
+const GEMINI_EMBED_MODEL = 'gemini-embedding-001';
+const GEMINI_GEN_MODEL = 'gemini-3.5-flash-lite';
+
 
 /**
  * Makes an HTTPS POST request to Google Gemini API
