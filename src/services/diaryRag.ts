@@ -1,9 +1,11 @@
 import { httpsCallable } from "firebase/functions";
 import { functions } from "./firebase";
-import { DiaryNote } from "../types";
+import { DiaryNote, ImportantNote } from "../types";
 
 export interface DiaryRagSource {
-  date: string;
+  date?: string;
+  title?: string;
+  category?: string;
   content: string;
   similarity: number;
 }
@@ -11,6 +13,7 @@ export interface DiaryRagSource {
 export interface DiaryRagResponse {
   answer: string;
   sourceDates: string[];
+  sourceTitles?: string[];
   sources: DiaryRagSource[];
   directDate?: string;
 }
@@ -57,14 +60,18 @@ async function generateClientEmbedding(text: string): Promise<number[] | null> {
 /**
  * Direct client-side Gemini fallback search
  */
-async function fallbackClientSearch(question: string, localNotes: DiaryNote[]): Promise<DiaryRagResponse> {
+async function fallbackClientSearch(
+  question: string,
+  localNotes: DiaryNote[] = [],
+  localImportantNotes: ImportantNote[] = []
+): Promise<DiaryRagResponse> {
   if (!GEMINI_API_KEY) {
     throw new Error("Gemini API key is not configured.");
   }
 
-  if (!localNotes || localNotes.length === 0) {
+  if ((!localNotes || localNotes.length === 0) && (!localImportantNotes || localImportantNotes.length === 0)) {
     return {
-      answer: "Your diary is currently empty. Start writing some notes first!",
+      answer: "Your diary and important notes are currently empty. Start writing some notes first!",
       sourceDates: [],
       sources: []
     };
@@ -75,8 +82,9 @@ async function fallbackClientSearch(question: string, localNotes: DiaryNote[]): 
     throw new Error("Failed to generate query embedding.");
   }
 
-  const scored: Array<{ date: string; content: string; similarity: number }> = [];
+  const scored: Array<DiaryRagSource> = [];
 
+  // 1. Score daily notes
   for (const note of localNotes) {
     if (!note.content?.trim()) continue;
     let emb = (note as any).embedding as number[] | undefined;
@@ -89,28 +97,50 @@ async function fallbackClientSearch(question: string, localNotes: DiaryNote[]): 
     }
   }
 
+  // 2. Score important notes
+  for (const imp of localImportantNotes) {
+    if (!imp.content?.trim()) continue;
+    const textToEmbed = `Title: ${imp.title || 'Important Note'}\nCategory: ${imp.category || 'General'}\nTags: ${(imp.tags || []).join(', ')}\nContent: ${imp.content}`;
+    let emb = (imp as any).embedding as number[] | undefined;
+    if (!emb) {
+      emb = (await generateClientEmbedding(textToEmbed)) || undefined;
+    }
+    if (emb) {
+      const sim = cosineSimilarity(qEmbed, emb);
+      scored.push({ title: imp.title, category: imp.category, content: imp.content, similarity: sim });
+    }
+  }
+
   scored.sort((a, b) => b.similarity - a.similarity);
 
   const topMatch = scored[0];
-  if (!topMatch || topMatch.similarity < 0.50) {
+  if (!topMatch || topMatch.similarity < 0.45) {
     return {
-      answer: "I couldn't find anything about that in your diary.",
+      answer: "I couldn't find anything about that in your personal diary or important notes.",
       sourceDates: [],
       sources: []
     };
   }
 
-  const topK = scored.slice(0, 5);
-  const sourceDates = Array.from(new Set(topK.map(s => s.date)));
-  const excerpts = topK.map(s => `[DATE: ${s.date}]\n${s.content}`).join('\n\n---\n\n');
+  const topK = scored.slice(0, 6);
+  const sourceDates = Array.from(new Set(topK.filter(s => s.date).map(s => s.date!)));
+  const sourceTitles = Array.from(new Set(topK.filter(s => s.title).map(s => s.title!)));
+  
+  const excerpts = topK.map(s => {
+    if (s.title) {
+      return `[IMPORTANT NOTE: ${s.title}${s.category ? ` | Category: ${s.category}` : ''}]\n${s.content}`;
+    }
+    return `[DATE: ${s.date}]\n${s.content}`;
+  }).join('\n\n---\n\n');
 
-  const prompt = `You are an AI assistant helping a user recall memories and notes from their personal diary.
+  const prompt = `You are a personal AI assistant helping a user recall memories, daily logs, and important reference details (like bank accounts, wifi passwords, insurance, property notes) from their personal diary and important notes.
 CRITICAL INSTRUCTIONS:
-1. Answer the question ONLY using the provided diary excerpts below.
-2. If the answer is not in the excerpts, say "I couldn't find anything about that in your diary."
-3. Do not make up facts. Mention specific dates when referring to events.
+1. Answer the question accurately and concisely using ONLY the provided excerpts below.
+2. If the user asks for specific credentials or details (e.g. Bank Account, IFSC, passwords), provide them clearly.
+3. If the answer is not in the excerpts, say "I couldn't find anything about that in your notes."
+4. Do not make up facts. Mention specific dates or document titles when referencing information.
 
-DIARY EXCERPTS:
+EXCERPTS:
 ${excerpts}
 
 QUESTION:
@@ -131,23 +161,28 @@ ${question}`;
   }
 
   const genData = await genRes.json();
-  const answer = genData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "I couldn't find anything about that in your diary.";
+  const answer = genData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "I couldn't find anything about that in your notes.";
 
   return {
     answer,
     sourceDates,
+    sourceTitles,
     sources: topK
   };
 }
 
 /**
- * Ask a question against the user's personal diary
+ * Ask a question against the user's personal diary & important notes
  */
-export async function queryDiaryAI(question: string, localNotes: DiaryNote[] = []): Promise<DiaryRagResponse> {
+export async function queryDiaryAI(
+  question: string,
+  localNotes: DiaryNote[] = [],
+  localImportantNotes: ImportantNote[] = []
+): Promise<DiaryRagResponse> {
   const cleanQ = question.trim();
   if (!cleanQ) {
     return {
-      answer: "Please enter a question to ask your diary.",
+      answer: "Please enter a question to ask your diary & important notes.",
       sourceDates: [],
       sources: []
     };
@@ -165,5 +200,5 @@ export async function queryDiaryAI(question: string, localNotes: DiaryNote[] = [
   }
 
   // 2. Fallback: Direct Client API
-  return await fallbackClientSearch(cleanQ, localNotes);
+  return await fallbackClientSearch(cleanQ, localNotes, localImportantNotes);
 }

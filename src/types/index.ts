@@ -143,3 +143,16 @@ export interface DiaryNote {
     createdAt?: string;  // ISO timestamp
     updatedAt?: string;  // ISO timestamp
 }
+
+export interface ImportantNote {
+    id: string;
+    title: string;       // AI-generated or user header (e.g. "Bank Account Details", "WiFi Credentials")
+    content: string;     // Note text / details
+    category?: string;   // "Finance" | "Property" | "Credentials" | "Contacts" | "General"
+    tags: string[];      // Array of tags
+    color?: DiaryNoteColor | string;
+    createdAt?: string;  // ISO timestamp
+    updatedAt?: string;  // ISO timestamp
+    pinned?: boolean;
+}
+

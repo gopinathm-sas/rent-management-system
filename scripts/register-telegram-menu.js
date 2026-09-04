@@ -55,6 +55,7 @@ async function run() {
     { command: 'ask', description: 'Ask AI questions about your personal diary notes' },
     { command: 'diary', description: 'Write or view today\'s personal diary note' },
     { command: 'notes', description: 'Browse recent personal diary notes' },
+    { command: 'important', description: 'View saved important notes & details' },
     { command: 'reading', description: 'Submit water meter reading for one unit' },
     { command: 'bulk', description: 'Bulk submit readings for multiple units' },
     { command: 'rent', description: 'Update rent payment status for a unit' },

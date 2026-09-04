@@ -5,14 +5,14 @@ import { useUI } from './UIContext';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
-import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent, isLastDayOfMonth, getMonthKey, isMonthBeforeJoinDate, isEvictionMonth } from '../lib/utils';
-import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote } from '../types';
+import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote, ImportantNote } from '../types';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
     expenses: Expense[];
     recurringExpenses: RecurringExpense[];
     diaryNotes: DiaryNote[];
+    importantNotes: ImportantNote[];
     error: Error | null;
     debugUser: { email: string };
     rooms: Record<string, RoomData>;
@@ -35,6 +35,8 @@ interface DataContextType {
     updateSettings: (data: Partial<AppSettings>) => Promise<void>;
     saveDiaryNote: (dateKey: string, data: Partial<DiaryNote>) => Promise<void>;
     deleteDiaryNote: (dateKey: string) => Promise<void>;
+    saveImportantNote: (id: string, data: Partial<ImportantNote>) => Promise<void>;
+    deleteImportantNote: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -52,6 +54,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
     const [diaryNotes, setDiaryNotes] = useState<DiaryNote[]>([]);
+    const [importantNotes, setImportantNotes] = useState<ImportantNote[]>([]);
     const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [loadingState, setLoadingState] = useState({
         tenants: true,
@@ -217,6 +220,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
             showToast(`Error fetching diary notes: ${error.message}`, 'error');
         });
 
+        // Important Notes Subscription
+        const qImportant = query(collection(db, 'importantNotes'), orderBy('updatedAt', 'desc'));
+        const unsubImportant = onSnapshot(qImportant, (snapshot) => {
+            const list: ImportantNote[] = [];
+            snapshot.forEach(d => {
+                list.push({ id: d.id, ...d.data() } as ImportantNote);
+            });
+            setImportantNotes(list);
+        }, (error) => {
+            console.error("Error fetching important notes:", error);
+            showToast(`Error fetching important notes: ${error.message}`, 'error');
+        });
+
         return () => {
             unsubTenants();
             unsubExpenses();
@@ -224,6 +240,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             unsubRooms();
             unsubSettings();
             unsubDiary();
+            unsubImportant();
         };
     }, [currentUser]);
 
@@ -362,6 +379,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await deleteDoc(doc(db, 'diaryNotes', dateKey));
     };
 
+    const saveImportantNoteHandler = async (id: string, data: Partial<ImportantNote>) => {
+        const noteId = id || doc(collection(db, 'importantNotes')).id;
+        const noteDocRef = doc(db, 'importantNotes', noteId);
+        const nowIso = new Date().toISOString();
+        const payload: Record<string, any> = {
+            ...data,
+            id: noteId,
+            updatedAt: nowIso
+        };
+        if (!data.createdAt) {
+            payload.createdAt = nowIso;
+        }
+        await setDoc(noteDocRef, payload, { merge: true });
+    };
+
+    const deleteImportantNoteHandler = async (id: string) => {
+        await deleteDoc(doc(db, 'importantNotes', id));
+    };
+
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
     const [error] = useState<Error | null>(null);
 
@@ -370,6 +406,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         expenses,
         recurringExpenses,
         diaryNotes,
+        importantNotes,
         error,
         debugUser: { email: 'Check AuthContext' },
         rooms,
@@ -391,7 +428,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         createTenant: createTenantHandler,
         updateSettings: updateSettingsHandler,
         saveDiaryNote: saveDiaryNoteHandler,
-        deleteDiaryNote: deleteDiaryNoteHandler
+        deleteDiaryNote: deleteDiaryNoteHandler,
+        saveImportantNote: saveImportantNoteHandler,
+        deleteImportantNote: deleteImportantNoteHandler
     };
 
     return (

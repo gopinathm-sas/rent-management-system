@@ -1142,6 +1142,7 @@ const BOT_COMMANDS = [
   { command: 'ask', description: 'Ask AI questions about your personal diary notes' },
   { command: 'diary', description: 'Write or view today\'s personal diary note' },
   { command: 'notes', description: 'Browse recent personal diary notes' },
+  { command: 'important', description: 'View saved important notes & details' },
   { command: 'reading', description: 'Submit water meter reading for one unit' },
   { command: 'bulk', description: 'Bulk submit readings for multiple units' },
   { command: 'rent', description: 'Update rent payment status for a unit' },
@@ -2277,12 +2278,53 @@ function createTelegramBot(token) {
     }
   }
 
+  async function handleImportantNotesList(ctx) {
+    const snap = await admin.firestore().collection('importantNotes')
+      .orderBy('updatedAt', 'desc')
+      .get();
+
+    if (snap.empty) {
+      await ctx.reply(
+        `📌 *Important Details & Files*\n\n` +
+        `_No important notes saved yet._\n\n` +
+        `💡 *To save one, tell me in plain English:*\n` +
+        `_"Save to important notes: Bank account HDFC ... IFSC ..."_\n` +
+        `_"Note my Wi-Fi password in important files: ..."_`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    let msg = `📌 *Important Details & Files (${snap.size})*\n` +
+              `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    snap.docs.forEach((doc) => {
+      const data = doc.data();
+      const tagsDisplay = Array.isArray(data.tags) && data.tags.length > 0
+        ? data.tags.map(t => `#${t}`).join(' ')
+        : '';
+      const categoryBadge = data.category ? `📁 ${data.category}` : '';
+
+      msg += `⭐ *${data.title || 'Important Note'}*\n` +
+             `${data.content || '_Empty note_'}\n` +
+             (categoryBadge ? `${categoryBadge} ` : '') +
+             (tagsDisplay ? `🏷️ ${tagsDisplay}` : '') +
+             `\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    });
+
+    await ctx.reply(msg, { parse_mode: 'Markdown' });
+  }
+
   bot.command(['diary', 'dairy', 'note', 'journal'], async (ctx) => {
     await handleDiaryCommand(ctx, ctx.message?.text || '');
   });
 
   bot.command(['notes', 'dairies', 'diaries', 'diaryhistory'], async (ctx) => {
     await handleNotesHistory(ctx);
+  });
+
+  bot.command(['important', 'importantnotes', 'pinned'], async (ctx) => {
+    await handleImportantNotesList(ctx);
   });
 
   bot.command(['ask', 'search', 'query', 'rag'], async (ctx) => {

@@ -105,8 +105,13 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
-    // Personal Diary
+    // Personal Diary & Important Notes
     match /diaryNotes/{noteId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
+    match /importantNotes/{noteId} {
       allow read: if isStaffOrViewer();
       allow write: if isStaff();
     }

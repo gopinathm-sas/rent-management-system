@@ -244,21 +244,38 @@ ${cleanQuestion}`;
     };
   }
 
-  // 2. Fetch all diary notes from Firestore
+  // 2. Fetch all diary notes and important notes from Firestore
   if (!firestore) {
     throw new Error("Firestore instance is required for RAG search");
   }
 
-  const snap = await firestore.collection('diaryNotes').get();
-  if (snap.empty) {
+  const [diarySnap, importantSnap] = await Promise.all([
+    firestore.collection('diaryNotes').get().catch(() => ({ docs: [], empty: true })),
+    firestore.collection('importantNotes').get().catch(() => ({ docs: [], empty: true }))
+  ]);
+
+  if (diarySnap.empty && importantSnap.empty) {
     return {
-      answer: "Your diary is currently empty. Start by writing some daily notes, and then you can ask questions about them!",
+      answer: "Your diary is currently empty. Start by writing some notes or saving important details, and then you can ask questions about them!",
       sourceDates: [],
       sources: []
     };
   }
 
-  const allNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const allNotes = [];
+  diarySnap.docs?.forEach(d => {
+    allNotes.push({ id: d.id, isImportant: false, ...d.data() });
+  });
+  importantSnap.docs?.forEach(d => {
+    const data = d.data();
+    allNotes.push({
+      id: d.id,
+      isImportant: true,
+      title: data.title || 'Important Note',
+      date: data.title ? `Important: ${data.title}` : (data.date || d.id),
+      ...data
+    });
+  });
 
   // 3. Generate Question Embedding
   const questionEmbedding = await generateEmbedding(cleanQuestion, apiKey);
@@ -384,22 +401,27 @@ async function processAssistantMessage(text, {
   const dateKey = formatDateKey(refDate);
 
   // 1. Ask Gemini to classify and structure the message
-  const systemPrompt = `You are an intelligent Personal Assistant for a property owner's personal diary and daily manager.
+  const systemPrompt = `You are an intelligent Personal Assistant for a property owner's personal diary, daily notes, and important documents manager.
 Analyze the user's message and determine their intent.
 
 Return a valid JSON object ONLY with the following schema:
 {
-  "intent": "LOG_NOTE" | "QUERY_DIARY" | "GENERAL_CHAT",
-  "cleanNote": "Clean, nicely phrased note of the user's activity/thought/event to record in the diary",
-  "tags": ["Maintenance", "Personal", "Room201"],
-  "assistantConfirmation": "A warm, concise 1-sentence confirmation that this was noted",
+  "intent": "SAVE_IMPORTANT_NOTE" | "LOG_NOTE" | "QUERY_DIARY" | "GENERAL_CHAT",
+  "importantTitle": "AI-generated crisp title/header if saving an important note (e.g. 'Bank Account Details', 'Wi-Fi Credentials', 'Electrician Contact')",
+  "category": "Finance | Property | Credentials | Contacts | Maintenance | General",
+  "cleanNote": "Clean, nicely phrased note of the user's activity/thought/event/details to record",
+  "tags": ["Banking", "Finance", "Room201"],
+  "color": "yellow | green | pink | blue | purple | orange",
+  "assistantConfirmation": "A warm, concise 1-sentence confirmation of what was saved",
   "searchQuery": "Normalized search question or summary request if querying",
   "chatReply": "A friendly assistant reply if general chat"
 }
 
 INTENT RULES:
-- "LOG_NOTE": The user is expressing an action they did, meeting someone, something they observed, ordered, paid for, thought about, tasks done, things to remember, or telling you to note/remember something. Example: "Met Murugan for painting", "Ordered LED lights for corridor", "Paid 500 for motor repair", "Had a good discussion with G01 tenant".
-- "QUERY_DIARY": The user is asking to find, recall, check, or summarize past notes or events. Example: "Summarise today's notes", "What did I do yesterday?", "When did I meet electrician?", "Did I pay for painting?".
+- "SAVE_IMPORTANT_NOTE": The user mentions "important", "important files", "important notes", "important details", "save this detail", "keep this permanently", or gives reference info like bank accounts, IFSC, Wi-Fi credentials, insurance policy numbers, official contacts, ID proofs, or passwords.
+  - In this case, generate a professional, clear "importantTitle" (e.g. "Bank Account Details", "Wi-Fi Passwords", "Insurance Policy Details").
+- "LOG_NOTE": The user is expressing a daily action, thought, meeting, task done, observation, or things to do today. Example: "Met Murugan for painting", "Ordered LED lights for corridor", "Paid 500 for motor repair".
+- "QUERY_DIARY": The user is asking to find, recall, check, or summarize past notes, important files, or events. Example: "Summarise today's notes", "What is my bank account number?", "When did I meet electrician?", "Show important notes".
 - "GENERAL_CHAT": Greetings or general conversation. Example: "Hello", "How are you?", "Who are you?".
 
 USER MESSAGE:
@@ -410,7 +432,7 @@ ${cleanText}`;
     contents: [{ parts: [{ text: systemPrompt }] }],
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 600
+      maxOutputTokens: 700
     }
   });
 
@@ -425,7 +447,64 @@ ${cleanText}`;
     parsed = { intent: "LOG_NOTE", cleanNote: cleanText, tags: ["Personal"], assistantConfirmation: "Noted in your diary." };
   }
 
-  // 2. Handle LOG_NOTE: Save directly to Firestore diaryNotes/{dateKey}
+  // 2. Handle SAVE_IMPORTANT_NOTE: Save directly to Firestore importantNotes
+  if (parsed.intent === 'SAVE_IMPORTANT_NOTE') {
+    const title = parsed.importantTitle || 'Important Note';
+    const noteContent = parsed.cleanNote || cleanText;
+    const tags = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['Important'];
+    const category = parsed.category || 'General';
+    const color = parsed.color || 'blue';
+    const now = new Date();
+
+    let savedDocId = null;
+
+    if (firestore) {
+      // Create new important note doc
+      const docRef = firestore.collection('importantNotes').doc();
+      savedDocId = docRef.id;
+
+      let embedding = null;
+      try {
+        embedding = await generateEmbedding(`${title}\n${noteContent}`, apiKey);
+      } catch (err) {
+        console.warn("Failed to generate embedding for important note:", err.message);
+      }
+
+      await docRef.set({
+        id: savedDocId,
+        title,
+        content: noteContent,
+        category,
+        tags,
+        color,
+        embedding: embedding || null,
+        pinned: true,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      });
+    }
+
+    const tagsDisplay = tags.map(t => `#${t}`).join(' ');
+    const replyMsg = `📌 *Saved to Important Details: ${title}*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                     `${noteContent}\n\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n` +
+                     `📁 *Category:* ${category}\n` +
+                     `🏷️ *Tags:* ${tagsDisplay}\n\n` +
+                     `💡 _Viewable in Important Details tab in WebApp._`;
+
+    return {
+      action: 'SAVE_IMPORTANT_NOTE',
+      reply: replyMsg,
+      title,
+      content: noteContent,
+      tags,
+      category,
+      docId: savedDocId
+    };
+  }
+
+  // 3. Handle LOG_NOTE: Save directly to Firestore diaryNotes/{dateKey}
   if (parsed.intent === 'LOG_NOTE') {
     const noteToSave = parsed.cleanNote || cleanText;
     const tags = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['Personal'];
