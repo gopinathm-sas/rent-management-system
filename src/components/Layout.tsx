@@ -32,12 +32,12 @@ export default function Layout({ children }: LayoutProps) {
             className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${isActive(to)
                 ? 'bg-emerald-100 text-emerald-900 font-bold shadow-sm ring-1 ring-emerald-200'
                 : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                } ${mobile ? 'flex-col text-[10px] gap-1 px-1 py-1 rounded-none bg-transparent hover:bg-transparent ring-0 shadow-none' : 'text-sm'}`}
+                } ${mobile ? `flex-col text-[9px] gap-0.5 px-0.5 py-1 rounded-xl ring-0 shadow-none ${isActive(to) ? 'bg-emerald-100/70 text-emerald-900 font-black' : 'bg-transparent text-slate-500'}` : 'text-sm'}`}
         >
-            <div className={`p-2 rounded-xl transition-colors ${isActive(to) && !mobile ? 'bg-emerald-200/50 text-emerald-800' : 'bg-transparent'}`}>
-                <Icon size={mobile ? 20 : 18} />
+            <div className={`p-1.5 md:p-2 rounded-xl transition-colors ${isActive(to) && !mobile ? 'bg-emerald-200/50 text-emerald-800' : 'bg-transparent'}`}>
+                <Icon size={mobile ? 18 : 18} />
             </div>
-            <span>{label}</span>
+            <span className="truncate max-w-full">{label}</span>
         </Link>
     );
 
@@ -143,14 +143,15 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white border-t border-stone-100 pb-safe">
-                <div className="grid grid-cols-6 gap-0.5 p-1.5">
+            <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white/95 backdrop-blur-md border-t border-stone-100 pb-safe">
+                <div className="grid grid-cols-7 gap-0.5 p-1">
                     <NavItem to="/" icon={LayoutDashboard} label="Dash" mobile />
-                    <NavItem to="/analytics" icon={BarChart3} label="Analytics" mobile />
+                    <NavItem to="/analytics" icon={BarChart3} label="Stats" mobile />
                     <NavItem to="/rooms" icon={Home} label="Rooms" mobile />
                     <NavItem to="/rent" icon={Receipt} label="Rent" mobile />
                     <NavItem to="/water" icon={Droplet} label="Water" mobile />
-                    <NavItem to="/expenses" icon={Wallet} label="Expenses" mobile />
+                    <NavItem to="/expenses" icon={Wallet} label="Expense" mobile />
+                    <NavItem to="/diary" icon={BookOpen} label="Diary" mobile />
                 </div>
             </div>
         </div>
