@@ -3445,9 +3445,17 @@ function createTelegramBot(token) {
 
     const session = await getSession(chatId);
 
-    // 1. Bulk Input Mode (or multiline text)
-    if (session?.step === 'awaiting_bulk_input' || text.includes('\n')) {
+    // 1. Bulk Input Mode: explicitly in bulk session, or starting with /bulk
+    if (session?.step === 'awaiting_bulk_input' || text.toLowerCase().startsWith('/bulk')) {
       return await processBulkReadings(ctx, text);
+    }
+
+    // If multiline, only treat as bulk reading if it actually contains multiple valid room water readings
+    if (text.includes('\n')) {
+      const { validLines, errorLines } = parseBulkReadingLines(text, 20);
+      if (validLines.length >= 2 && validLines.length > errorLines.length) {
+        return await processBulkReadings(ctx, text);
+      }
     }
 
     // 2. Active Single Reading Value entry
