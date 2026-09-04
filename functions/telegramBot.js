@@ -1,9 +1,15 @@
 const { Bot, InlineKeyboard } = require('grammy');
 const admin = require('firebase-admin');
+const { answerDiaryQuestion } = require('./ragService');
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
+
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+}
+
 
 // Constants matching app
 const DEFAULT_WATER_RATE = 0.25;
@@ -1097,6 +1103,7 @@ async function saveExpenseEntry({ category, amount, date, note, monthKey, telegr
 // Command list for Telegram "/" native menu
 const BOT_COMMANDS = [
   { command: 'start', description: 'Welcome overview & quick guide' },
+  { command: 'ask', description: 'Ask AI questions about your personal diary notes' },
   { command: 'diary', description: 'Write or view today\'s personal diary note' },
   { command: 'notes', description: 'Browse recent personal diary notes' },
   { command: 'reading', description: 'Submit water meter reading for one unit' },
@@ -2146,6 +2153,64 @@ function createTelegramBot(token) {
     await ctx.reply(msg, { parse_mode: 'Markdown' });
   }
 
+  async function handleDiaryAskCommand(ctx, rawText) {
+    const question = (rawText || '')
+      .replace(/^\/(ask|search|query|find|rag)(@\w+)?\s*/i, '')
+      .replace(/^(ask|search|query|find):\s*/i, '')
+      .trim();
+
+    if (!question) {
+      await ctx.reply(
+        `🤖 *AI Diary Search & Q&A*\n\n` +
+        `Ask any question about your past thoughts, notes, and events in your diary.\n\n` +
+        `*Examples:*\n` +
+        `• \`/ask What did I discuss with the electrician?\`\n` +
+        `• \`/ask Summary of yesterday's notes\`\n` +
+        `• \`/ask When did I order paint for the building?\`\n` +
+        `• \`/ask What happened on Aug 15?\``,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      await ctx.reply("❌ Gemini API key is not configured for AI search.");
+      return;
+    }
+
+    try {
+      if (typeof ctx.replyWithChatAction === 'function') {
+        await ctx.replyWithChatAction('typing').catch(() => {});
+      }
+    } catch (_) {}
+
+    try {
+      const result = await answerDiaryQuestion(question, {
+        apiKey,
+        firestore: admin.firestore(),
+        refDate: getKolkataDateParts().dateObj
+      });
+
+      const { answer, sourceDates } = result;
+
+      let replyMsg = `🤖 *AI Diary Answer*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                     `${answer}\n\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (sourceDates && sourceDates.length > 0) {
+        const formattedDates = sourceDates.map(d => `\`${d}\``).join(', ');
+        replyMsg += `📅 *Referenced Date(s):* ${formattedDates}\n`;
+      }
+
+      await ctx.reply(replyMsg, { parse_mode: 'Markdown' });
+    } catch (err) {
+      console.error("Diary Ask error:", err);
+      await ctx.reply(`❌ *Search Error:* ${err.message || 'Could not process diary search.'}`);
+    }
+  }
+
   bot.command(['diary', 'dairy', 'note', 'journal'], async (ctx) => {
     await handleDiaryCommand(ctx, ctx.message?.text || '');
   });
@@ -2153,6 +2218,11 @@ function createTelegramBot(token) {
   bot.command(['notes', 'dairies', 'diaries', 'diaryhistory'], async (ctx) => {
     await handleNotesHistory(ctx);
   });
+
+  bot.command(['ask', 'search', 'query', 'rag'], async (ctx) => {
+    await handleDiaryAskCommand(ctx, ctx.message?.text || '');
+  });
+
 
   // Helper to start reading flow for a specific room
   async function promptReadingForRoom(ctx, room, tenant) {
@@ -3460,7 +3530,12 @@ function createTelegramBot(token) {
       }
     }
 
-    // 4. Personal Diary Check: /diary, /dairy, /note, /journal or starting with "diary:", "dairy:", "note:"
+    // 4. Personal Diary Ask / Semantic Search: /ask, /search, /query, or starting with "ask:", "search:"
+    if (/^\/(ask|search|query|rag)\b/i.test(text) || /^(ask|search|query):\s*/i.test(text)) {
+      return await handleDiaryAskCommand(ctx, text);
+    }
+
+    // 5. Personal Diary Check: /diary, /dairy, /note, /journal or starting with "diary:", "dairy:", "note:"
     if (/^\/(diary|dairy|note|journal|notes|dairies|diaries)\b/i.test(text) || /^(diary|dairy|note|journal):\s*/i.test(text)) {
       if (/^\/(notes|dairies|diaries|diaryhistory)\b/i.test(text)) {
         return await handleNotesHistory(ctx);
@@ -3468,7 +3543,7 @@ function createTelegramBot(token) {
       return await handleDiaryCommand(ctx, text);
     }
 
-    // 5. Feature 5: Check explicit /expense or /undo
+    // 6. Feature 5: Check explicit /expense or /undo
     if (text.toLowerCase().startsWith('/expense')) {
       return await handleExpenseInput(ctx, text);
     }
@@ -3476,7 +3551,7 @@ function createTelegramBot(token) {
       return await handleUndoExpense(ctx);
     }
 
-    // 6. Rent Status Check: Does message match Rent phrase, start with /rent, or start with room identifier?
+    // 7. Rent Status Check: Does message match Rent phrase, start with /rent, or start with room identifier?
     const rentRegex = /^(?:[a-zA-Z0-9#\s]+?)\s+(?:rent\s*(?:received|only|paid|and\s*water|&\s*water|\+\s*water)|paid|fully\s*paid|pending|due|not\s*paid|unpaid)(?:\s+.*)?$/i;
     const firstWord = text.split(/\s+/)[0];
     const isRoomPrefix = normalizeRoomIdentifier(firstWord) !== null;
@@ -3485,7 +3560,7 @@ function createTelegramBot(token) {
       return await handleRentStatusUpdate(ctx, text);
     }
 
-    // 7. Feature 5: Free-text Expense Logging (e.g. "Plumbing repair 1500 fixed leak in G02" or "EB Bill 2400")
+    // 8. Feature 5: Free-text Expense Logging (e.g. "Plumbing repair 1500 fixed leak in G02" or "EB Bill 2400")
     if (!isRoomPrefix) {
       const parsedExp = parseExpenseInput(text);
       if (parsedExp && parsedExp.ok) {
@@ -3493,13 +3568,14 @@ function createTelegramBot(token) {
       }
     }
 
-    // 8. Default Help Response for unrecognized input
+    // 9. Default Help Response for unrecognized input
     await ctx.reply(
       "💡 *How would you like to interact?*\n\n" +
       "*📖 Personal Diary:*\n" +
-      "• Send `/diary <any text>` (e.g. `/diary Spoke with insurance company`)\n" +
+      "• Send `/diary <any text>` (e.g. `/diary Spoke with electrician`)\n" +
       "• Send `/diary` (or `/dairy`) to view today's notes\n" +
-      "• Send `/notes` to view recent past notes\n\n" +
+      "• Send `/notes` to view recent past notes\n" +
+      "• Send `/ask <question>` (e.g. `/ask What did I discuss yesterday?`)\n\n" +
       "*🚰 Water Meter Readings:*\n" +
       "• Send /reading to pick a room from the menu.\n" +
       "• Send \`/reading <room> <val>\` (e.g. \`/reading G01 104.5\`).\n" +

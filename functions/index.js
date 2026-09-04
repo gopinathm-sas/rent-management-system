@@ -686,4 +686,42 @@ exports.scheduledDailyRecurringExpenses = functions.pubsub
     return null;
   });
 
+const { answerDiaryQuestion } = require('./ragService');
+
+function getGeminiApiKey() {
+  const cfg = functions.config();
+  return (cfg.gemini && cfg.gemini.key) || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+}
+
+/**
+ * Callable Cloud Function: Ask questions about Personal Diary using RAG
+ */
+exports.askDiaryAI = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to search personal diary.');
+  }
+
+  const question = typeof data?.question === 'string' ? data.question.trim() : '';
+  if (!question) {
+    throw new functions.https.HttpsError('invalid-argument', 'Question cannot be empty.');
+  }
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+
+  try {
+    const result = await answerDiaryQuestion(question, {
+      apiKey,
+      firestore: admin.firestore()
+    });
+    return result;
+  } catch (err) {
+    console.error('askDiaryAI error:', err);
+    throw new functions.https.HttpsError('internal', err.message || 'Error answering diary question');
+  }
+});
+
+
 

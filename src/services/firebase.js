@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, initializeAuth, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 import { Capacitor } from '@capacitor/core';
 
 // Use same-origin auth domain for web.app and firebaseapp.com to eliminate cross-site cookie blocking
@@ -35,6 +36,7 @@ export const auth = Capacitor.isNativePlatform()
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export default app;

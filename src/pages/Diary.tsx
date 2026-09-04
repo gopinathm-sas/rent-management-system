@@ -14,9 +14,14 @@ import {
     Filter,
     Loader2,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Sparkles,
+    Bot,
+    CornerDownLeft,
+    HelpCircle
 } from 'lucide-react';
 import { DiaryNote, DiaryNoteColor } from '../types';
+import { queryDiaryAI, DiaryRagResponse } from '../services/diaryRag';
 import {
     getLocalDateKey,
     formatDiaryDate,
@@ -146,9 +151,39 @@ export default function Diary() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
+    // AI Semantic Search Q&A State
+    const [aiQuestion, setAiQuestion] = useState('');
+    const [isAiSearching, setIsAiSearching] = useState(false);
+    const [aiResult, setAiResult] = useState<DiaryRagResponse | null>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
+
     // Active Note Editing Modal State
     const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+
+    const handleAskAi = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        const q = aiQuestion.trim();
+        if (!q) return;
+
+        setIsAiSearching(true);
+        setAiError(null);
+        try {
+            const res = await queryDiaryAI(q, diaryNotes);
+            setAiResult(res);
+        } catch (err: any) {
+            console.error("AI Search failed:", err);
+            setAiError(err.message || "Failed to search diary. Please try again.");
+        } finally {
+            setIsAiSearching(false);
+        }
+    };
+
+    const handleClearAi = () => {
+        setAiQuestion('');
+        setAiResult(null);
+        setAiError(null);
+    };
 
     // Collect all unique tags across all notes with counts
     const allTagsWithCount = useMemo(() => {
@@ -268,6 +303,129 @@ export default function Diary() {
                     </div>
                 </div>
             </div>
+
+            {/* AI Diary Semantic Search / Ask Card */}
+            <div className="bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-amber-500/10 border border-purple-200/60 rounded-3xl p-5 md:p-6 backdrop-blur-md shadow-sm relative overflow-hidden">
+                <div className="flex flex-col gap-4">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <span className="p-2 bg-gradient-to-tr from-purple-600 to-indigo-600 text-white rounded-xl shadow-md shadow-purple-500/20">
+                                <Sparkles size={18} />
+                            </span>
+                            <div>
+                                <h2 className="text-base md:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                                    Ask AI Diary Assistant
+                                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                                        Semantic Q&A
+                                    </span>
+                                </h2>
+                                <p className="text-xs font-semibold text-slate-500">
+                                    Ask questions about past memories, conversations, and events recorded in your notes
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Question Input Form */}
+                    <form onSubmit={handleAskAi} className="relative flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <Bot size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="e.g. 'What did I discuss with the electrician?' or 'When did I order paint?' or 'Summary of yesterday'"
+                                value={aiQuestion}
+                                onChange={(e) => setAiQuestion(e.target.value)}
+                                className="w-full pl-11 pr-10 py-3.5 bg-white/90 border border-purple-200 rounded-2xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent shadow-xs transition-all"
+                            />
+                            {aiQuestion && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearAi}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition"
+                                >
+                                    <X size={16} />
+                                </button>
+                            )}
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isAiSearching || !aiQuestion.trim()}
+                            className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl text-xs md:text-sm font-extrabold shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shrink-0"
+                        >
+                            {isAiSearching ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    <span>Searching...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles size={16} />
+                                    <span>Ask AI</span>
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    {/* AI Answer & Source Dates Display */}
+                    {aiResult && (
+                        <div className="bg-white/95 border border-purple-200/80 rounded-2xl p-4 md:p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 space-y-3">
+                            <div className="flex items-start justify-between gap-2 border-b border-purple-100 pb-2.5">
+                                <div className="flex items-center gap-2 text-xs font-black text-purple-900">
+                                    <Bot size={16} className="text-purple-600" />
+                                    <span>AI Answer</span>
+                                </div>
+                                <button
+                                    onClick={() => setAiResult(null)}
+                                    className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 text-xs transition"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+
+                            <div className="text-sm md:text-base font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">
+                                {aiResult.answer}
+                            </div>
+
+                            {/* Cited Source Dates (Clickable chips to open/view that day) */}
+                            {aiResult.sourceDates && aiResult.sourceDates.length > 0 && (
+                                <div className="pt-2 border-t border-purple-100/60 flex flex-wrap items-center gap-2">
+                                    <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                                        <CalendarIcon size={12} className="text-purple-600" />
+                                        Referenced Date(s):
+                                    </span>
+                                    {aiResult.sourceDates.map(dKey => (
+                                        <button
+                                            key={dKey}
+                                            onClick={() => handleOpenNote(dKey)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-bold transition shadow-xs hover:scale-105 active:scale-95"
+                                            title="Click to open this day's note"
+                                        >
+                                            <span>📅 {formatDiaryDate(dKey)}</span>
+                                            <span className="text-[10px] text-purple-600 underline">View</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* AI Error Display */}
+                    {aiError && (
+                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs font-semibold text-rose-800 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                                <span>{aiError}</span>
+                            </div>
+                            <button onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
 
             {/* Search and Tag Filter Bar */}
             <div className="space-y-3">
