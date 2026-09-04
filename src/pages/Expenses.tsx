@@ -147,19 +147,11 @@ export default function Expenses() {
             const d = new Date(date);
             const monthKey = getMonthKey(d.getFullYear(), d.getMonth());
 
-            await addExpense({
-                date,
-                category,
-                amount: Number(amount),
-                note: note.trim(),
-                monthKey,
-                createdAt: new Date().toISOString()
-            });
-
+            let createdRecurringId: string | undefined = undefined;
             // If "Make this recurring" was checked, also create the recurring rule
             if (isRecurring) {
                 const dayNum = Math.min(31, Math.max(1, Number(recurringDay) || d.getDate()));
-                await addRecurringExpense({
+                createdRecurringId = await addRecurringExpense({
                     category,
                     dayOfMonth: dayNum,
                     defaultAmount: Number(amount),
@@ -167,6 +159,21 @@ export default function Expenses() {
                     status: 'active',
                     createdAt: new Date().toISOString()
                 });
+            }
+
+            await addExpense({
+                date,
+                category,
+                amount: Number(amount),
+                note: note.trim(),
+                monthKey,
+                recurringId: createdRecurringId,
+                source: isRecurring ? 'recurring_rule' : 'manual',
+                createdAt: new Date().toISOString()
+            });
+
+            if (isRecurring) {
+                const dayNum = Math.min(31, Math.max(1, Number(recurringDay) || d.getDate()));
                 showToast(`Expense logged & recurring monthly rule set for day ${dayNum}!`, 'success');
             } else {
                 showToast("Expense added successfully", 'success');
@@ -358,6 +365,17 @@ export default function Expenses() {
         }
         return true;
     });
+
+    // Quick lookup maps for recurring rules
+    const recurringRuleMap = useMemo(() => {
+        const byId = new Map<string, RecurringExpense>();
+        const byCategory = new Map<string, RecurringExpense>();
+        recurringExpenses.forEach(r => {
+            if (r.id) byId.set(r.id, r);
+            if (r.category) byCategory.set(r.category.trim().toLowerCase(), r);
+        });
+        return { byId, byCategory };
+    }, [recurringExpenses]);
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const activeRulesCount = recurringExpenses.filter(r => r.status === 'active').length;
@@ -1002,8 +1020,12 @@ export default function Expenses() {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredExpenses.map(item => (
-                                    editingId === item.id ? (
+                                filteredExpenses.map(item => {
+                                    const matchingRule = (item.recurringId && recurringRuleMap.byId.get(item.recurringId)) ||
+                                        recurringRuleMap.byCategory.get((item.category || '').trim().toLowerCase());
+                                    const isRecurringItem = Boolean(item.recurringId || item.source === 'recurring_rule' || matchingRule);
+
+                                    return editingId === item.id ? (
                                         <tr key={item.id} className="bg-blue-50/50">
                                             <td className="px-3 py-3">
                                                 <input
@@ -1066,19 +1088,31 @@ export default function Expenses() {
                                                 {item.date}
                                             </td>
                                             <td className="px-6 py-4 font-medium text-slate-900">
-                                                <div className="flex items-center gap-1.5">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="inline-block px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-bold border border-slate-200">
                                                         {item.category}
                                                     </span>
-                                                    {item.recurringId && (
-                                                        <span title="Generated from recurring rule" className="text-blue-500">
-                                                            <Repeat size={12} />
+                                                    {isRecurringItem && (
+                                                        <span 
+                                                            title={matchingRule ? `Recurring Rule active: Day ${matchingRule.dayOfMonth} of every month` : "Recurring monthly expense"}
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs cursor-help"
+                                                        >
+                                                            <Repeat size={11} className="text-blue-600 shrink-0" />
+                                                            <span>Recurring</span>
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-slate-500">
-                                                {item.note || <span className="text-slate-300">-</span>}
+                                                {item.note ? (
+                                                    item.note
+                                                ) : isRecurringItem ? (
+                                                    <span className="text-blue-500/80 text-xs italic font-medium inline-flex items-center gap-1">
+                                                        <Repeat size={11} className="text-blue-400" /> Recurring monthly expense
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-right font-bold text-slate-900">
                                                 ₹{Number(item.amount).toLocaleString('en-IN')}
@@ -1102,8 +1136,8 @@ export default function Expenses() {
                                                 </div>
                                             </td>
                                         </tr>
-                                    )
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

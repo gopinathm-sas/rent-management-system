@@ -25,7 +25,7 @@ interface DataContextType {
     addExpense: (expenseData: Omit<Expense, 'id'>) => Promise<void>;
     updateExpense: (id: string, data: Partial<Expense>) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
-    addRecurringExpense: (data: Omit<RecurringExpense, 'id'>) => Promise<void>;
+    addRecurringExpense: (data: Omit<RecurringExpense, 'id'>) => Promise<string>;
     updateRecurringExpense: (id: string, data: Partial<RecurringExpense>) => Promise<void>;
     deleteRecurringExpense: (id: string) => Promise<void>;
     confirmPendingExpense: (id: string, confirmedAmount: number, updatedNote?: string, updatedDate?: string) => Promise<void>;
@@ -292,11 +292,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await updateDoc(doc(db, 'expenses', id), data);
     };
 
-    const addRecurringExpenseHandler = async (data: Omit<RecurringExpense, 'id'>) => {
-        await addDoc(collection(db, 'recurringExpenses'), {
+    const addRecurringExpenseHandler = async (data: Omit<RecurringExpense, 'id'>): Promise<string> => {
+        const docRef = await addDoc(collection(db, 'recurringExpenses'), {
             ...data,
             createdAt: new Date().toISOString()
         });
+        return docRef.id;
     };
 
     const updateRecurringExpenseHandler = async (id: string, data: Partial<RecurringExpense>) => {
