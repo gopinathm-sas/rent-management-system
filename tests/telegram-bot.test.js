@@ -33,7 +33,10 @@ const {
   isFirstOccupancyMonth,
   isMonthBeforeJoinDate,
   IMMUTABLE_ROOMS_DATA,
-  BOT_COMMANDS
+  BOT_COMMANDS,
+  extractHashtags,
+  getKolkataDateKey,
+  formatDiaryDateDisplay
 } = require('../functions/telegramBot');
 
 describe('Telegram Bot - Room Identifier Normalization', () => {
@@ -524,6 +527,43 @@ describe('Telegram Bot - Feature 5: Expense Parser & Typo Detection', () => {
     expect(normalizeRoomIdentifier('Plumbing')).toBeNull();
     expect(normalizeRoomIdentifier('Electricity')).toBeNull();
     expect(normalizeRoomIdentifier('Painting')).toBeNull();
+  });
+});
+
+describe('Telegram Bot - Personal Diary Feature', () => {
+  test('should register /diary and /notes commands in BOT_COMMANDS list', () => {
+    const diaryCmd = BOT_COMMANDS.find(c => c.command === 'diary');
+    const notesCmd = BOT_COMMANDS.find(c => c.command === 'notes');
+    expect(diaryCmd).toBeDefined();
+    expect(notesCmd).toBeDefined();
+  });
+
+  test('should extract hashtags from diary text entry', () => {
+    const { tags, cleanText } = extractHashtags('Fixed terrace water pump and replaced bulb #Repairs #Maintenance');
+    expect(tags).toEqual(['Repairs', 'Maintenance']);
+    expect(cleanText).toBe('Fixed terrace water pump and replaced bulb #Repairs #Maintenance');
+  });
+
+  test('should deduplicate hashtags and handle case insensitivity', () => {
+    const { tags } = extractHashtags('Meeting with tenant #idea #Idea #IDEA #Task');
+    expect(tags).toEqual(['idea', 'Task']);
+  });
+
+  test('should handle diary text with no hashtags gracefully', () => {
+    const { tags, cleanText } = extractHashtags('Just a regular note without any tags');
+    expect(tags).toEqual([]);
+    expect(cleanText).toBe('Just a regular note without any tags');
+  });
+
+  test('should format Kolkata date key YYYY-MM-DD properly', () => {
+    const dateKey = getKolkataDateKey();
+    expect(dateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test('should format diary date for display', () => {
+    const display = formatDiaryDateDisplay('2026-09-04');
+    expect(display).toContain('Sep 4, 2026');
+    expect(display).toContain('Fri');
   });
 });
 

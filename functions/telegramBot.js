@@ -40,6 +40,46 @@ function getKolkataDateParts() {
   };
 }
 
+function getKolkataDateKey() {
+  const { year, monthIndex, day } = getKolkataDateParts();
+  const monthStr = String(monthIndex + 1).padStart(2, '0');
+  const dayStr = String(day).padStart(2, '0');
+  return `${year}-${monthStr}-${dayStr}`;
+}
+
+function formatKolkataTimeShort(d = new Date()) {
+  try {
+    return d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch {
+    return '';
+  }
+}
+
+function formatDiaryDateDisplay(dateKey) {
+  if (!dateKey) return '';
+  const parts = dateKey.split('-');
+  if (parts.length !== 3) return dateKey;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  const date = new Date(year, month, day);
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function extractHashtags(text) {
+  if (!text) return { cleanText: '', tags: [] };
+  const tagRegex = /#([a-zA-Z0-9_\u0900-\u097F]+)/g;
+  const tags = [];
+  let match;
+  while ((match = tagRegex.exec(text)) !== null) {
+    const tag = match[1].trim();
+    if (tag && !tags.some(t => t.toLowerCase() === tag.toLowerCase())) {
+      tags.push(tag);
+    }
+  }
+  return { cleanText: text.trim(), tags };
+}
+
 function getWaterMonthKey(year, monthIndex) {
   return `${year}-${MONTHS_LIST[monthIndex]}`;
 }
@@ -1043,6 +1083,8 @@ async function saveExpenseEntry({ category, amount, date, note, monthKey, telegr
 // Command list for Telegram "/" native menu
 const BOT_COMMANDS = [
   { command: 'start', description: 'Welcome overview & quick guide' },
+  { command: 'diary', description: 'Write or view today\'s personal diary note' },
+  { command: 'notes', description: 'Browse recent personal diary notes' },
   { command: 'reading', description: 'Submit water meter reading for one unit' },
   { command: 'bulk', description: 'Bulk submit readings for multiple units' },
   { command: 'rent', description: 'Update rent payment status for a unit' },
@@ -1112,6 +1154,10 @@ function createTelegramBot(token) {
     await ctx.reply(
       `👋 *Welcome to Munirathnam Illam Rental Bot, ${name}!* 🏢\n\n` +
       `You have full access as *Owner*.\n\n` +
+      `*📖 Personal Diary:*\n` +
+      `• /diary — View today's diary note\n` +
+      `• \`/diary <text>\` — Quick write/append to today (e.g. \`/diary Replaced bulb #repairs\`)\n` +
+      `• /notes — View last 5 days of diary notes\n\n` +
       `*⚡ Water Meter Readings:*\n` +
       `• /reading — Interactive room picker\n` +
       `• \`/reading <room> <val>\` — Single entry (e.g. \`/reading G01 105.4\`)\n` +
@@ -1122,6 +1168,9 @@ function createTelegramBot(token) {
       `• \`G01 Paid\` — Mark Paid (rent + water + service charge)\n` +
       `• \`G01 Pending\` — Revert to Pending\n` +
       `• /rent — Interactive rent status menu\n\n` +
+      `*🧾 Expenses:*\n` +
+      `• \`/expense <amount> <category>\` — Log expense\n` +
+      `• /undo — Undo last logged expense\n\n` +
       `*📲 WhatsApp Tenant Notifications:*\n` +
       `• \`/notify G01\` — Preview & send bill to tenant via WhatsApp\n` +
       `• \`/notify all\` — Broadcast bills to all active tenants\n\n` +
@@ -1140,6 +1189,10 @@ function createTelegramBot(token) {
   bot.command('help', async (ctx) => {
     await ctx.reply(
       `📖 *Munirathnam Illam Bot Guide*\n\n` +
+      `*📖 Personal Diary Commands:*\n` +
+      `• /diary — View today's diary note\n` +
+      `• \`/diary <text>\` — Write / append to today's note (auto extracts #tags)\n` +
+      `• /notes — View recent diary notes (last 5 days)\n\n` +
       `*🚰 Water Meter Commands:*\n` +
       `• /reading — Interactive unit selection\n` +
       `• \`/reading <unit> <val>\` — Shorthand (e.g. \`/reading G01 104.5\`)\n` +
@@ -1150,6 +1203,9 @@ function createTelegramBot(token) {
       `• \`<Unit> Paid\` ➔ Sets *Paid* (e.g. \`G01 Paid 9060\` or \`102 Paid\`)\n` +
       `• \`<Unit> Pending\` ➔ Sets *Pending* (e.g. \`G01 Pending\`)\n` +
       `• \`/rent <unit> <status> [month] [amount]\` (e.g. \`/rent G01 Paid Aug 8500\`)\n\n` +
+      `*🧾 Building Expenses:*\n` +
+      `• \`/expense 1500 Painting room 102\`\n` +
+      `• /undo — Undo recently logged expense\n\n` +
       `*📲 WhatsApp Notifications:*\n` +
       `• \`/notify <unit> [month]\` — Preview & send bill to tenant\n` +
       `• \`/notify all [month]\` — Send bills to all occupied tenants\n\n` +
@@ -1919,6 +1975,179 @@ function createTelegramBot(token) {
 
   bot.command('undo', async (ctx) => {
     await handleUndoExpense(ctx);
+  });
+
+  // ==========================================
+  // PERSONAL DIARY FEATURE (STICKY NOTES)
+  // ==========================================
+
+  async function handleDiaryCommand(ctx, rawText) {
+    const cleanInput = (rawText || '')
+      .replace(/^\/diary(@\w+)?/i, '')
+      .replace(/^\/note(@\w+)?/i, '')
+      .replace(/^diary:?/i, '')
+      .replace(/^note:?/i, '')
+      .trim();
+
+    const dateKey = getKolkataDateKey();
+    const now = new Date();
+    const timeStr = formatKolkataTimeShort(now);
+    const dateDisplay = formatDiaryDateDisplay(dateKey);
+
+    const docRef = admin.firestore().collection('diaryNotes').doc(dateKey);
+
+    // 1. If no text provided, view today's diary note
+    if (!cleanInput) {
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        await ctx.reply(
+          `📖 *Personal Diary for Today (${dateDisplay})*\n\n` +
+          `_No notes recorded for today yet._\n\n` +
+          `💡 *To write a note, type:*\n` +
+          `\`/diary <your text>\`\n\n` +
+          `*Example:*\n` +
+          `\`/diary Inspected terrace water tank and met electrician #Maintenance\``,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      const data = snap.data();
+      const tagsList = Array.isArray(data.tags) && data.tags.length > 0
+        ? data.tags.map(t => `#${t}`).join(' ')
+        : '_No tags_';
+
+      const lastEdited = data.updatedAt ? formatKolkataTimeShort(new Date(data.updatedAt)) : timeStr;
+
+      await ctx.reply(
+        `📖 *Personal Diary: ${dateDisplay}*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `${data.content || '_Empty note_'}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🏷️ *Tags:* ${tagsList}\n` +
+        `⏰ *Last edited:* ${lastEdited}\n\n` +
+        `💡 _Add more text anytime by typing \`/diary <text>\`_`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // 2. Text provided: Append or Create today's diary note
+    const { tags: extractedTags } = extractHashtags(cleanInput);
+    const snap = await docRef.get();
+
+    if (snap.exists) {
+      const current = snap.data();
+      const existingTags = Array.isArray(current.tags) ? [...current.tags] : [];
+      extractedTags.forEach(tag => {
+        if (!existingTags.some(t => t.toLowerCase() === tag.toLowerCase())) {
+          existingTags.push(tag);
+        }
+      });
+
+      const appendedContent = current.content
+        ? `${current.content}\n• [${timeStr}] ${cleanInput}`
+        : `• [${timeStr}] ${cleanInput}`;
+
+      await docRef.update({
+        content: appendedContent,
+        tags: existingTags,
+        updatedAt: now.toISOString()
+      });
+
+      const tagsDisplay = existingTags.length > 0 ? existingTags.map(t => `#${t}`).join(' ') : '_None_';
+
+      await ctx.reply(
+        `✅ *Diary Note Appended for Today (${dateDisplay})*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `${appendedContent}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🏷️ *Tags:* ${tagsDisplay}\n` +
+        `⏰ *Updated at:* ${timeStr}`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      const initialContent = `• [${timeStr}] ${cleanInput}`;
+      const newNote = {
+        id: dateKey,
+        date: dateKey,
+        content: initialContent,
+        tags: extractedTags,
+        color: 'yellow',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      };
+
+      await docRef.set(newNote);
+      const tagsDisplay = extractedTags.length > 0 ? extractedTags.map(t => `#${t}`).join(' ') : '_None_';
+
+      await ctx.reply(
+        `✅ *New Diary Note Created for Today (${dateDisplay})*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `${initialContent}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🏷️ *Tags:* ${tagsDisplay}\n` +
+        `⏰ *Created at:* ${timeStr}`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  }
+
+  async function handleNotesHistory(ctx) {
+    const snap = await admin.firestore().collection('diaryNotes')
+      .orderBy('date', 'desc')
+      .limit(5)
+      .get();
+
+    if (snap.empty) {
+      await ctx.reply(
+        `📖 *Personal Diary History*\n\n` +
+        `_No diary notes recorded yet._\n\n` +
+        `Use \`/diary <text>\` to add your first entry!`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    let msg = `📖 *Recent Diary Notes (Last 5 Days)*\n` +
+              `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    snap.docs.forEach((doc) => {
+      const data = doc.data();
+      const dateDisplay = formatDiaryDateDisplay(data.date || doc.id);
+      const tagsDisplay = Array.isArray(data.tags) && data.tags.length > 0
+        ? data.tags.map(t => `#${t}`).join(' ')
+        : '';
+
+      const contentLines = (data.content || '').split('\n').slice(0, 4).join('\n');
+      const preview = (data.content || '').length > 200
+        ? contentLines.slice(0, 180) + '...'
+        : contentLines || '_Empty note_';
+
+      msg += `📅 *${dateDisplay}*\n` +
+             `${preview}\n` +
+             (tagsDisplay ? `🏷️ ${tagsDisplay}\n` : '') +
+             `\n`;
+    });
+
+    msg += `💡 _Send \`/diary <text>\` to add to today's note._`;
+    await ctx.reply(msg, { parse_mode: 'Markdown' });
+  }
+
+  bot.command('diary', async (ctx) => {
+    await handleDiaryCommand(ctx, ctx.message?.text || '');
+  });
+
+  bot.command('note', async (ctx) => {
+    await handleDiaryCommand(ctx, ctx.message?.text || '');
+  });
+
+  bot.command('notes', async (ctx) => {
+    await handleNotesHistory(ctx);
+  });
+
+  bot.command('diaryhistory', async (ctx) => {
+    await handleNotesHistory(ctx);
   });
 
   // Helper to start reading flow for a specific room
@@ -3302,5 +3531,9 @@ module.exports = {
   isFirstOccupancyMonth,
   isMonthBeforeJoinDate,
   IMMUTABLE_ROOMS_DATA,
-  BOT_COMMANDS
+  BOT_COMMANDS,
+  extractHashtags,
+  getKolkataDateKey,
+  formatDiaryDateDisplay,
+  formatKolkataTimeShort
 };

@@ -52,6 +52,8 @@ async function run() {
   console.log("1. Setting complete commands list with Telegram Bot API...");
   const commands = [
     { command: 'start', description: 'Welcome overview & quick guide' },
+    { command: 'diary', description: 'Write or view today\'s personal diary note' },
+    { command: 'notes', description: 'Browse recent personal diary notes' },
     { command: 'reading', description: 'Submit water meter reading for one unit' },
     { command: 'bulk', description: 'Bulk submit readings for multiple units' },
     { command: 'rent', description: 'Update rent payment status for a unit' },
