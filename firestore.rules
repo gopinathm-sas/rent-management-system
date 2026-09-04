@@ -100,6 +100,12 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // Personal Diary
+    match /diaryNotes/{noteId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
     // Telegram Bot Integration
     match /telegramUsers/{chatId} {
       allow read, write: if isAdminUser();

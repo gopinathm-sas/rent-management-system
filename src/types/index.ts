@@ -115,3 +115,15 @@ export interface AppSettings {
     ownerPhone?: string;
     ownerEmail?: string;
 }
+
+export type DiaryNoteColor = 'yellow' | 'green' | 'pink' | 'blue' | 'purple' | 'orange';
+
+export interface DiaryNote {
+    id: string;          // "YYYY-MM-DD"
+    date: string;        // "YYYY-MM-DD"
+    content: string;     // Note text
+    tags: string[];      // Array of free-form tags
+    color?: DiaryNoteColor | string; // Pastel sticky note color theme
+    createdAt?: string;  // ISO timestamp
+    updatedAt?: string;  // ISO timestamp
+}

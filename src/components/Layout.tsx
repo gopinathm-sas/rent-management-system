@@ -12,7 +12,8 @@ import {
     User as UserIcon,
     Database,
     BarChart3,
-    Settings as SettingsIcon
+    Settings as SettingsIcon,
+    BookOpen
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -62,6 +63,7 @@ export default function Layout({ children }: LayoutProps) {
                     <NavItem to="/rent" icon={Receipt} label="Rent Status" />
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
+                    <NavItem to="/diary" icon={BookOpen} label="Personal Diary" />
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" />
@@ -115,6 +117,13 @@ export default function Layout({ children }: LayoutProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Link
+                            to="/diary"
+                            className={`p-1.5 rounded-xl transition-colors ${isActive('/diary') ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-slate-600 hover:text-slate-900'}`}
+                            title="Personal Diary"
+                        >
+                            <BookOpen size={18} />
+                        </Link>
                         <Link
                             to="/settings"
                             className="p-1.5 rounded-xl bg-stone-100 text-slate-600 hover:text-slate-900 transition-colors"

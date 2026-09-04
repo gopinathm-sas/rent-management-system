@@ -1,14 +1,15 @@
-# Feature Request: Telegram Bot for Rental Management App (Meter Readings, Rent Status, WhatsApp Notifications, Reporting Queries)
+# Feature Request: Telegram Bot for Rental Management App (Meter Readings, Rent Status, WhatsApp Notifications, Reporting Queries, Expense Entry)
 
 ## Context
-This is my Rental Management App. I want a single Telegram bot that handles four related but separate workflows:
+This is my Rental Management App. I want a single Telegram bot that handles five related but separate workflows:
 
 1. **Water meter reading entry** — replacing manual entry of meter readings with chat-based submission.
 2. **Rent status updates** — letting a quick message like "G01 Rent Received" mark that unit's rent as received on the app's existing Rent Status page, instead of opening the app and clicking through manually.
 3. **WhatsApp rent breakdown notifications** — sending each tenant their monthly rent/water/service-charge breakdown via WhatsApp, triggered by a single Telegram command, instead of manually composing and pasting each message into web.whatsapp.com.
 4. **Reporting queries** — since the bot runs 24/7 with a live connection to the same data, let an authorized user ask it quick read-only questions like "which rooms are pending" or "current month total rent" instead of opening the app to check.
+5. **Expense entry** — logging an expense (category, amount, optional note) straight into the app's existing Expense tab via a quick chat message, instead of opening the app to add it manually.
 
-All four features share the same bot and the same user linking/authorization system. Features 1 and 2 follow the same principle: the bot is a thin input layer that calls into the app's existing business logic — it never bypasses validation or writes directly to the database. Feature 3 additionally requires a small separate always-on service to handle WhatsApp sending — see its section below for why. Feature 4 is read-only, so it carries the least risk of the four — it never writes anything, only reads and summarizes.
+All five features share the same bot and the same user linking/authorization system. Features 1 and 2 follow the same principle: the bot is a thin input layer that calls into the app's existing business logic — it never bypasses validation or writes directly to the database. Feature 3 additionally requires a small separate always-on service to handle WhatsApp sending — see its section below for why. Feature 4 is read-only, so it carries the least risk of the five — it never writes anything, only reads and summarizes. Feature 5 follows the same "thin input layer" principle as Features 1 & 2, restricted to Owner/Admin like Feature 3.
 
 ## Confirmed Stack (from codebase inspection — build against this directly, no further discovery needed)
 - **Backend runtime**: Node.js 22 on Firebase Cloud Functions, using `firebase-admin` and the `grammy` Telegram bot framework.
@@ -24,6 +25,7 @@ All four features share the same bot and the same user linking/authorization sys
   - UI grid: `src/pages/RentDetails.jsx`
   - Calculation helpers: `src/lib/utils.ts` — `computeFinancialsForMonth`, `computeWaterForMonth`
   - Mutation handler: `src/contexts/DataContext.tsx` — `updateRentStatus` (see exact formula in Feature 2 below)
+  - **Expense tab**: location, Firestore collection/field structure, and add/save function are **not yet confirmed** — Feature 5 below tells AntiGravity exactly what to find before building.
 - **Deployment**:
   - Production runs in webhook mode via the deployed HTTPS Cloud Function `telegramWebhook` (already live, e.g. `https://us-central1-<project>.cloudfunctions.net/telegramWebhook`), running 24/7 serverless with Firebase Admin credentials already available in that environment.
   - Local development uses polling via `npm run bot:dev` (`scripts/telegram-bot-dev.js`).
@@ -32,7 +34,7 @@ All four features share the same bot and the same user linking/authorization sys
 **Before writing any code, still skim the files listed above** to confirm current formatting/conventions (e.g. exact monthKey generation, existing error-handling patterns in `updateRentStatus`) before adding new handlers, since implementation details can drift from this summary. Ask only if something in those files contradicts what's documented here.
 
 ## Goal
-Build a Telegram bot integration that lets an authorized user (a) submit a water meter reading, (b) update a unit's rent payment status, (c) send tenants their monthly breakdown via WhatsApp, and (d) ask quick read-only questions about rent/payment status — all via chat, validated against business rules, and using the exact same data model/pipeline as the existing manual-entry flows, so nothing downstream (billing, reports, tenant statements, Rent Status page) needs to change.
+Build a Telegram bot integration that lets an authorized user (a) submit a water meter reading, (b) update a unit's rent payment status, (c) send tenants their monthly breakdown via WhatsApp, (d) ask quick read-only questions about rent/payment status, and (e) log an expense into the Expense tab — all via chat, validated against business rules, and using the exact same data model/pipeline as the existing manual-entry flows, so nothing downstream (billing, reports, tenant statements, Rent Status page, Expense tab) needs to change.
 
 ---
 
@@ -246,9 +248,62 @@ Support both slash commands (for the command menu) and flexible free-text phrasi
 
 ---
 
-# Shared Technical Requirements (all four features)
-- All four features live in the same `grammy` bot instance, already wired into the `telegramWebhook` Cloud Function for production and `scripts/telegram-bot-dev.js` for local polling. Route incoming messages by shape: a message inside an active `/reading` conversation goes to Feature 1's handler; a message matching `<unit_code> <status keyword>` or starting with `/rent` goes to Feature 2's handler; a message starting with `/notify` goes to Feature 3's handler; a message matching one of Feature 4's query commands/keywords (`/pending`, `/rentonly`, `/summary`, `/total`, `/unit`, or their free-text equivalents) goes to Feature 4's handler; anything unrecognized falls through to a help message listing all capabilities.
-- No new hosting/deployment decision needed for Features 1, 2 & 4 — extend the existing webhook Cloud Function and dev polling script. Feature 3 is the one exception: it needs the separate always-on WhatsApp-sending service described above, in addition to the existing Cloud Functions setup.
+# Feature 5: Expense Entry
+
+## Goal
+Let the Owner/Admin log an expense (category, amount, optional note) straight into the app's existing Expense tab via a quick chat message, instead of opening the app to add it manually.
+
+## Before Building — Confirm the Expense Data Model
+Unlike Features 1 & 2, **the Expense tab's exact schema hasn't been inspected yet.** Before writing any code, find and document:
+- Where the Expense tab's UI component lives (likely alongside `RentDetails.jsx` under `src/pages/`).
+- The Firestore collection/document structure it reads from and writes to (likely a top-level `expenses` collection, but confirm — it may instead be a subcollection or a map on a different document).
+- The exact fields an expense record has today (category, amount, date, description/note, who logged it, any others).
+- The existing add/save function for expenses (the Feature 5 equivalent of `updateRentStatus`) — call this directly rather than writing to Firestore from the bot handler, same principle as every other feature in this spec.
+- Whether categories are drawn from a fixed list anywhere in the UI (e.g. a dropdown) even though they're stored as free text, and if so, what the existing category strings look like (exact spelling/casing) — this matters for the duplicate-category handling below.
+
+## Functional Requirements
+
+### 1. Trigger Format
+- `/expense <category> <amount> [description]` as the explicit command.
+- Free-text shortcut using the same message, without the leading `/expense` — e.g. "Plumbing repair 1500 fixed the leak in G02".
+- Parsing approach: find the first numeric token in the message — everything before it is the **category**, everything after it is the optional **description**. This works for both the slash command and free text without needing rigid punctuation (no need for the user to type commas or colons).
+- If no numeric token is found in the message, ask for the amount rather than guessing or rejecting outright.
+- If the numeric token is the very first word (no category text before it), ask for a category rather than saving one as blank.
+
+### 2. Category Handling (free text, but consistency matters)
+- Trim and normalize casing lightly (e.g. capitalize first letter) to match however the existing Expense tab formats categories — confirm the exact convention from the UI/schema inspection above rather than assuming.
+- Since categories are free text, typos and near-duplicates are the main risk (e.g. "Plumbing" vs "plumbing" vs "Plumbng"). Before saving a new category string, compare it against categories already used in the last N expense records (case-insensitive, and a simple fuzzy/typo check if straightforward to add). If a close-but-not-exact match exists, ask for confirmation before creating what might be an accidental new variant: "Did you mean 'Plumbing' (used 4 times before)? [Yes, use that] [No, save as 'Plumbng']."
+- If no close match exists, just save the new category as typed — don't block genuinely new categories.
+
+### 3. Amount Validation
+- Reject non-numeric or zero/negative amounts with a clear message, same tone as the other features' validation errors.
+- No fixed upper sanity-check threshold is specified here since I don't have typical expense ranges to compare against — if the Expense tab or its data has an obvious existing pattern (e.g. most expenses under some amount), flag unusually large one-off entries for confirmation the same way Feature 1 flags unusual meter jumps; otherwise skip this check rather than inventing a threshold.
+
+### 4. Date
+- Default to today's date (and whatever month/period grouping the Expense tab actually uses, once confirmed).
+- Support an optional explicit date override if the schema/UI already supports backdating expenses, e.g. "Plumbing repair 1500 fixed leak — 15 Aug".
+
+### 5. Saving
+- Call the existing Expense tab's add/save function directly (found during the inspection step above) rather than writing to Firestore independently from the bot handler.
+- Record metadata (Telegram user, app user, timestamp) the same way as the other features' audit trails.
+
+### 6. Confirmation & Undo (safety net, not a gate)
+- Because there's no photo/receipt requirement and this is meant to be fast for a trusted Owner/Admin, don't require a yes/no confirmation before every save — that would slow down the exact convenience this feature is for.
+- Instead, always echo back exactly what was recorded after saving: category, amount, date, and (if easy to compute from existing data) a running total of expenses for the current month — so a typo is immediately visible.
+- Add an `/undo` command that removes the **most recently added expense by that user**, valid only within a short window (e.g. 10 minutes) — a safety net for the no-confirmation fast path, not a general-purpose edit/delete tool. If nothing was added by that user in the window, tell them there's nothing to undo.
+
+### 7. Authorization
+- Restrict `/expense` and `/undo` to Owner/Admin only, same tier as `/notify` — reuse the same linking/authorization system, just gate these two commands the same way.
+
+### 8. Audit Trail
+- Log every expense entry attempt and every `/undo` (unit N/A here — it's portfolio-level, not per-unit) with Telegram user, timestamp, and what was recorded/removed, consistent with the other features' audit logging.
+
+---
+
+# Shared Technical Requirements (all five features)
+- All five features live in the same `grammy` bot instance, already wired into the `telegramWebhook` Cloud Function for production and `scripts/telegram-bot-dev.js` for local polling. Route incoming messages by shape: a message inside an active `/reading` conversation goes to Feature 1's handler; a message matching `<unit_code> <status keyword>` or starting with `/rent` goes to Feature 2's handler; a message starting with `/notify` goes to Feature 3's handler; a message matching one of Feature 4's query commands/keywords (`/pending`, `/rentonly`, `/summary`, `/total`, `/unit`, or their free-text equivalents) goes to Feature 4's handler; a message starting with `/expense`, `/undo`, or matching the "text amount text" shape goes to Feature 5's handler; anything unrecognized falls through to a help message listing all capabilities.
+- No new hosting/deployment decision needed for Features 1, 2, 4 & 5 — extend the existing webhook Cloud Function and dev polling script. Feature 3 is the one exception: it needs the separate always-on WhatsApp-sending service described above, in addition to the existing Cloud Functions setup.
+- **Routing disambiguation**: Feature 2's free-text shape ("`<unit_code>` `<status keyword>` [amount]") and Feature 5's free-text shape ("`<category text>` `<amount>` [description]") can both start with a word followed by a number. Disambiguate by checking whether the **first token matches a known unit/room code** — if it does, route to Feature 2; if it doesn't, route to Feature 5. This means unit codes and expense category names should ideally not collide (e.g. don't name an expense category "G01") — worth a quick mental note, not a technical enforcement.
 - Store the bot token using whatever mechanism `telegramWebhook` already uses to read it in production (Firebase Functions config/secrets) and whatever `.env`/local config `telegram-bot-dev.js` reads for local dev — never hard-code it, and don't introduce a second secrets mechanism. The WhatsApp-sending service's shared API key follows the same principle: environment variable/secret, never hard-coded, and never logged in plaintext.
 - For the Telegram-to-app-user linking data (chat_id ↔ app user), add a new Firestore collection (e.g. `telegramLinks`, keyed by `chat_id` or app user ID) rather than a SQL-style migration, consistent with the rest of the schema being Firestore-native.
 - Add input sanitization on all incoming Telegram message text before using it in Firestore queries or business logic.
@@ -270,11 +325,13 @@ Register a command list with Telegram via `bot.api.setMyCommands(...)` (grammy) 
 | `/summary` | Overview: counts by status + collected vs. expected total |
 | `/total` | This month's collected vs. expected total |
 | `/unit` | Look up one unit's current status (prompts for unit code) |
+| `/expense` | Log an expense (category, amount, note) — Owner/Admin only |
+| `/undo` | Remove your most recent expense entry (within 10 min) — Owner/Admin only |
 | `/help` | List all commands and example phrasings for each |
 
 - Free-text shortcuts (`G01 Rent Received`, `101: 1041.2`, etc.) should keep working exactly as specified above — the command menu is a discoverability aid on top of them, not a replacement.
 - `/help` should double as a living reference: list the three rent statuses and example phrasings, and the meter-reading formats (single and bulk), so a new staff member can learn the bot without asking anyone.
-- `/notify` is admin-only (Feature 3, section 7) — use grammy's per-scope command support (`setMyCommands` with a `scope`) so regular staff don't see `/notify` in their menu at all, while Owner/Admin accounts do.
+- `/notify`, `/expense`, and `/undo` are admin-only (Feature 3 section 7, Feature 5 sections 7 & 6) — use grammy's per-scope command support (`setMyCommands` with a `scope`) so regular staff don't see these in their menu at all, while Owner/Admin accounts do.
 - Re-register the command list on every deploy (or check it's idempotent to call `setMyCommands` repeatedly) so menu changes ship automatically with code changes, rather than needing a manual one-off API call.
 
 ## Conversation Flow Example
@@ -368,6 +425,23 @@ User: total rent for Jul
 Bot: Jul 2026: ₹83,175 collected of ₹85,900 expected (97%)
 ```
 
+**Expense entry example:**
+```
+User: Plumbing repair 1500 fixed the leak in G02
+Bot: ✅ Logged: Plumbing repair — ₹1,500 — "fixed the leak in G02" — 4 Sep 2026.
+Total expenses this month: ₹4,200.
+
+User: Plumbng 800
+Bot: Did you mean "Plumbing" (used 5 times before)? [Yes, use that] [No, save as "Plumbng"]
+
+User: [taps Yes, use that]
+Bot: ✅ Logged: Plumbing — ₹800 — 4 Sep 2026.
+Total expenses this month: ₹5,000.
+
+User: /undo
+Bot: ✅ Removed: Plumbing — ₹800 — logged 1 minute ago.
+```
+
 ## Edge Cases to Handle
 - User sends a reading without going through `/reading` first (no context) → prompt them to start the flow properly.
 - User sends the wrong data type (text instead of number).
@@ -394,19 +468,26 @@ Bot: Jul 2026: ₹83,175 collected of ₹85,900 expected (97%)
 - `/unit <code>` for an unrecognized unit code → list the unit codes the user manages, same pattern as Feature 2.
 - A staff account with a narrow permission scope asks for `/summary` → scope the summary to only their units, don't leak portfolio-wide figures they're not authorized to see.
 - Free-text message that's ambiguous between a query and an actual status update (e.g. could "G01 pending" be read as a question or as a command to mark it Pending?) → treat `/rent`-style status-change keywords and query keywords as distinct enough vocabularies that this shouldn't collide, but if genuinely ambiguous, prefer asking for clarification over silently mutating data — a wrong read on a query is far less costly than a wrong read on a write.
+- Expense message with no numeric token at all → ask for the amount rather than failing silently.
+- Expense message where the amount is the first word (no category text before it) → ask for a category.
+- Expense category that's a close-but-not-exact match to an existing one → ask for confirmation before saving, to avoid near-duplicate category strings accumulating over time.
+- `/expense` or `/undo` used by a non-admin/non-owner account → reject clearly, same as `/notify`.
+- `/undo` called with nothing logged by that user in the last 10 minutes → tell them there's nothing to undo, don't undo someone else's or an older entry.
+- Expense free text that happens to start with a real unit code (e.g. "G01 500 misc repair") → per the routing disambiguation rule above, this should route to Feature 2 first since G01 is a known unit code; if that produces a confusing result in practice, prefer requiring `/expense` explicitly for anything that could be misread this way.
 
 ## Testing
 - Write tests for: the validation logic (lower reading, huge jump, near-zero consumption, duplicate cycle), the linking flow, unauthorized access rejection, and bulk entry (mixed valid/invalid lines, unauthorized unit in a batch, all-flagged batch).
 - Write tests for Feature 2: message parsing (all three status keyword groups, unrecognized unit, unrecognized status phrase), authorization scoping, no-op on already-set status, downgrade confirmation (Paid → Rent Only/Pending), `"None"`-month rejection, and amount cross-check (matching computed value, mismatched value, no amount given).
 - Write tests for Feature 3: message composition against known fixture data (verify it matches `computeFinancialsForMonth` output), admin-only authorization, duplicate-notification warning, missing-phone-number skip, `"None"`-month rejection, and bulk-batch partial failure handling (one bad number shouldn't stop the rest). Mock the WhatsApp-sending service's HTTP endpoint in tests rather than hitting a real WhatsApp session.
 - Write tests for Feature 4: correct aggregation of collected vs. expected totals against fixture data, `"None"`-month exclusion, per-unit lookup for valid/invalid unit codes, and permission scoping (staff sees only their units, owner sees everything).
+- Write tests for Feature 5: amount/category extraction from free text (including edge cases with no number, or number-first), near-duplicate category detection, admin-only authorization, `/undo` within and outside the time window, and the Feature 2/Feature 5 routing disambiguation (a message starting with a real unit code should never be misrouted to expense entry).
 - Provide a way to test locally against a test bot token before pointing at the production bot.
 
 ## Deliverables
-1. Working bot code integrated into the existing app codebase (not a standalone side-project), covering all four features, deployed via the existing `telegramWebhook` Cloud Function and runnable locally via `npm run bot:dev`.
-2. Any new Firestore collections needed (e.g. `telegramLinks` for chat_id-to-user linking, and audit log collections for meter readings, rent status changes, and WhatsApp notifications sent) — no SQL migrations, this is Firestore.
-3. A short README section explaining: how to create the Telegram bot via BotFather, where the bot token is configured for both production (Cloud Functions config/secrets) and local dev (`.env` used by `telegram-bot-dev.js`), how to run it locally, the linking flow for onboarding new staff, the accepted message formats for meter readings and rent status updates, and — for Feature 3 — how to set up and run the WhatsApp-sending service, including the one-time QR login step and where its session data persists.
-4. A summary of what existing files/modules were touched or reused (especially `DataContext.tsx`, `utils.ts`, and whatever new Cloud Function handler file is added), so I can review the diff easily.
+1. Working bot code integrated into the existing app codebase (not a standalone side-project), covering all five features, deployed via the existing `telegramWebhook` Cloud Function and runnable locally via `npm run bot:dev`.
+2. Any new Firestore collections needed (e.g. `telegramLinks` for chat_id-to-user linking, and audit log collections for meter readings, rent status changes, WhatsApp notifications sent, and expense entries/undos) — no SQL migrations, this is Firestore.
+3. A short README section explaining: how to create the Telegram bot via BotFather, where the bot token is configured for both production (Cloud Functions config/secrets) and local dev (`.env` used by `telegram-bot-dev.js`), how to run it locally, the linking flow for onboarding new staff, the accepted message formats for meter readings, rent status updates, and expense entries, and — for Feature 3 — how to set up and run the WhatsApp-sending service, including the one-time QR login step and where its session data persists.
+4. A summary of what existing files/modules were touched or reused (especially `DataContext.tsx`, `utils.ts`, the Expense tab's component/service once located, and whatever new Cloud Function handler file is added), so I can review the diff easily.
 5. The `/` command menu registered and visible in Telegram (verify by opening the bot chat and tapping the menu button, not just by reading the code).
 6. The separate WhatsApp-sending service (Feature 3) as its own small deployable unit, with clear setup instructions and a note on hosting cost/complexity so the owner can decide where to run it.
 
@@ -417,3 +498,5 @@ Bot: Jul 2026: ₹83,175 collected of ₹85,900 expected (97%)
 1. The exact field name for tenant phone numbers in the `properties` collection (it's confirmed to exist — check the actual field name, e.g. `phone`, `phoneNumber`, `whatsappNumber`).
 2. Where to host the always-on WhatsApp-sending service — propose the simplest/cheapest option given the rest of the stack is Firebase (e.g. a small Cloud Run service with `min-instances=1`), and confirm with me before provisioning anything that costs money.
 3. The exact wording of the breakdown message — I've provided a reasonable default template in the conversation example; treat it as a starting point and make it trivially editable, not final copy.
+
+**For Feature 5**, the Expense tab's schema hasn't been inspected at all yet (unlike Rent Status, which was confirmed in detail) — please explore it first as described in that section, and confirm with me: the exact Firestore structure found, the exact category-normalization convention already in use, and whether backdating expenses is something the existing UI supports (which determines whether the optional date-override parsing is worth building now or can wait).

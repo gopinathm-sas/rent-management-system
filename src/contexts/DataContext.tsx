@@ -6,11 +6,12 @@ import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteD
 import { db } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
 import { computeWaterForMonth, getDefaultWaterRateForRoom, isFirstOccupancyMonth, getProratedRent, isLastDayOfMonth, getMonthKey, isMonthBeforeJoinDate, isEvictionMonth } from '../lib/utils';
-import { Tenant, Expense, RoomData, AppSettings } from '../types';
+import { Tenant, Expense, RoomData, AppSettings, DiaryNote } from '../types';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
     expenses: Expense[];
+    diaryNotes: DiaryNote[];
     error: Error | null;
     debugUser: { email: string };
     rooms: Record<string, RoomData>;
@@ -26,6 +27,8 @@ interface DataContextType {
     updateTenant: (id: string, data: Partial<Tenant>) => Promise<void>;
     createTenant: (data: Omit<Tenant, 'id'>) => Promise<void>;
     updateSettings: (data: Partial<AppSettings>) => Promise<void>;
+    saveDiaryNote: (dateKey: string, data: Partial<DiaryNote>) => Promise<void>;
+    deleteDiaryNote: (dateKey: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -41,6 +44,7 @@ export function useData() {
 export function DataProvider({ children }: { children: ReactNode }) {
     const [tenants, setTenants] = useState<Record<string, Tenant>>({}); // This maps to 'properties' collection
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [diaryNotes, setDiaryNotes] = useState<DiaryNote[]>([]);
     const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [loadingState, setLoadingState] = useState({
         tenants: true,
@@ -180,11 +184,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
             console.error("Error fetching settings:", error);
         });
 
+        // Diary Notes Subscription
+        const qDiary = query(collection(db, 'diaryNotes'), orderBy('date', 'desc'));
+        const unsubDiary = onSnapshot(qDiary, (snapshot) => {
+            const list: DiaryNote[] = [];
+            snapshot.forEach(d => {
+                list.push({ id: d.id, ...d.data() } as DiaryNote);
+            });
+            setDiaryNotes(list);
+        }, (error) => {
+            console.error("Error fetching diary notes:", error);
+            showToast(`Error fetching diary notes: ${error.message}`, 'error');
+        });
+
         return () => {
             unsubTenants();
             unsubExpenses();
             unsubRooms();
             unsubSettings();
+            unsubDiary();
         };
     }, [currentUser]);
 
@@ -266,12 +284,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setSettings(prev => ({ ...prev, ...data }));
     };
 
+    const saveDiaryNoteHandler = async (dateKey: string, data: Partial<DiaryNote>) => {
+        const noteDocRef = doc(db, 'diaryNotes', dateKey);
+        const nowIso = new Date().toISOString();
+        const payload: Record<string, any> = {
+            ...data,
+            id: dateKey,
+            date: dateKey,
+            updatedAt: nowIso
+        };
+        if (data.createdAt === undefined) {
+            payload.createdAt = nowIso;
+        }
+        await setDoc(noteDocRef, payload, { merge: true });
+    };
+
+    const deleteDiaryNoteHandler = async (dateKey: string) => {
+        await deleteDoc(doc(db, 'diaryNotes', dateKey));
+    };
+
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
     const [error] = useState<Error | null>(null);
 
     const value: DataContextType = {
         tenants,
         expenses,
+        diaryNotes,
         error,
         debugUser: { email: 'Check AuthContext' },
         rooms,
@@ -286,7 +324,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteExpense: deleteExpenseHandler,
         updateTenant: updateTenantHandler,
         createTenant: createTenantHandler,
-        updateSettings: updateSettingsHandler
+        updateSettings: updateSettingsHandler,
+        saveDiaryNote: saveDiaryNoteHandler,
+        deleteDiaryNote: deleteDiaryNoteHandler
     };
 
     return (

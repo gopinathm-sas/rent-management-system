@@ -353,3 +353,54 @@ export function getRentRevisionDetails(tenantData: Tenant | null, today: Date = 
         isRecentlyCompleted
     };
 }
+
+/**
+ * Returns a local date key formatted as "YYYY-MM-DD".
+ */
+export function getLocalDateKey(d: Date = new Date()): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Formats a "YYYY-MM-DD" date string for diary display.
+ */
+export function formatDiaryDate(dateKey: string): string {
+    if (!dateKey) return '';
+    const parts = dateKey.split('-');
+    if (parts.length !== 3) return dateKey;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Formats a "YYYY-MM-DD" date string with weekday for editor modal.
+ */
+export function formatDiaryDateWithWeekday(dateKey: string): string {
+    if (!dateKey) return '';
+    const parts = dateKey.split('-');
+    if (parts.length !== 3) return dateKey;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Formats an ISO string to a short local time string (e.g. "8:15 PM").
+ */
+export function formatTimeShort(isoString?: string): string {
+    if (!isoString) return '';
+    try {
+        const d = new Date(isoString);
+        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    } catch {
+        return '';
+    }
+}
