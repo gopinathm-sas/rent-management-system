@@ -727,9 +727,21 @@ function parseExpenseDateString(dateStr, defaultYear = new Date().getFullYear())
 function parseExpenseInput(text, defaultYear, defaultMonthIndex) {
   if (!text || typeof text !== 'string') return null;
   let raw = text.trim();
+  const isExplicit = raw.toLowerCase().startsWith('/expense');
+
+  // If not an explicit /expense command:
+  if (!isExplicit) {
+    // 1. Multiline text is never an implicit expense (it's notes, bulk data, etc.)
+    if (raw.includes('\n')) return null;
+
+    // 2. If message contains notes, diary, account, or question words, it's not an expense
+    if (/\b(note|notes|important|files?|diary|dairy|journal|account|holder|ifsc|branch|password|wifi|save|remember|keep|what|when|where|who|why|how|did|tell|summary|summarise|summarize)\b/i.test(raw)) {
+      return null;
+    }
+  }
 
   // Remove leading /expense if present
-  if (raw.toLowerCase().startsWith('/expense')) {
+  if (isExplicit) {
     raw = raw.replace(/^\/expense\s*/i, '').trim();
     if (!raw) {
       return { ok: false, reason: 'empty_prompt' };
@@ -761,6 +773,10 @@ function parseExpenseInput(text, defaultYear, defaultMonthIndex) {
     const cleanTok = tokens[i].replace(/^[₹Rs\.]+/i, '').replace(/,/g, '');
     const num = Number(cleanTok);
     if (Number.isFinite(num) && num > 0 && !cleanTok.includes('-') && !cleanTok.includes('/')) {
+      // For implicit free-text expenses, numbers > 500000 are likely account/phone numbers, not expenses
+      if (!isExplicit && num > 500000) {
+        continue;
+      }
       amountIndex = i;
       amountVal = num;
       break;
@@ -787,6 +803,14 @@ function parseExpenseInput(text, defaultYear, defaultMonthIndex) {
 
   const rawCategory = tokens.slice(0, amountIndex).join(' ').trim();
   const note = tokens.slice(amountIndex + 1).join(' ').trim();
+
+  // For implicit expenses, ensure category matches a known category or typo
+  if (!isExplicit) {
+    const catCheck = findSimilarCategory(rawCategory);
+    if (!catCheck || (!catCheck.isExact && !catCheck.isTypo)) {
+      return null;
+    }
+  }
 
   const dateStr = customDate || `${nowParts.year}-${String(nowParts.monthIndex + 1).padStart(2, '0')}-${String(nowParts.day).padStart(2, '0')}`;
   const monthKey = getWaterMonthKey(targetYear, targetMonthIndex);
@@ -1203,6 +1227,19 @@ function createTelegramBot(token) {
       ctx.state = {};
     }
     ctx.state.telegramUser = telegramUser;
+
+    // Auto-clean any abnormal bogus expense (> 10000000) from accidental capture
+    try {
+      const snap = await admin.firestore().collection('expenses').where('amount', '>=', 10000000).get();
+      if (!snap.empty) {
+        for (const d of snap.docs) {
+          await d.ref.delete();
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
     return await next();
   });
 
