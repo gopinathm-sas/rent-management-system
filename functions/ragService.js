@@ -363,11 +363,168 @@ ${cleanQuestion}`;
   };
 }
 
+/**
+ * Processes plain conversational English from Telegram using Gemini AI.
+ * Classifies intent into LOG_NOTE, QUERY_DIARY, or GENERAL_CHAT,
+ * automatically saves notes into Firestore for today's date, or performs RAG Q&A.
+ */
+async function processAssistantMessage(text, {
+  apiKey,
+  firestore,
+  refDate = new Date()
+}) {
+  if (!text || !text.trim()) {
+    return {
+      action: 'GENERAL_CHAT',
+      reply: "Hello! I am your Personal Assistant. You can speak to me in plain English to record thoughts, tasks, or events into your diary, or ask questions about past notes."
+    };
+  }
+
+  const cleanText = text.trim();
+  const dateKey = formatDateKey(refDate);
+
+  // 1. Ask Gemini to classify and structure the message
+  const systemPrompt = `You are an intelligent Personal Assistant for a property owner's personal diary and daily manager.
+Analyze the user's message and determine their intent.
+
+Return a valid JSON object ONLY with the following schema:
+{
+  "intent": "LOG_NOTE" | "QUERY_DIARY" | "GENERAL_CHAT",
+  "cleanNote": "Clean, nicely phrased note of the user's activity/thought/event to record in the diary",
+  "tags": ["Maintenance", "Personal", "Room201"],
+  "assistantConfirmation": "A warm, concise 1-sentence confirmation that this was noted",
+  "searchQuery": "Normalized search question or summary request if querying",
+  "chatReply": "A friendly assistant reply if general chat"
+}
+
+INTENT RULES:
+- "LOG_NOTE": The user is expressing an action they did, meeting someone, something they observed, ordered, paid for, thought about, tasks done, things to remember, or telling you to note/remember something. Example: "Met Murugan for painting", "Ordered LED lights for corridor", "Paid 500 for motor repair", "Had a good discussion with G01 tenant".
+- "QUERY_DIARY": The user is asking to find, recall, check, or summarize past notes or events. Example: "Summarise today's notes", "What did I do yesterday?", "When did I meet electrician?", "Did I pay for painting?".
+- "GENERAL_CHAT": Greetings or general conversation. Example: "Hello", "How are you?", "Who are you?".
+
+USER MESSAGE:
+${cleanText}`;
+
+  const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_GEN_MODEL}:generateContent?key=${apiKey}`;
+  const genRes = await callGeminiApi(genUrl, {
+    contents: [{ parts: [{ text: systemPrompt }] }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 600
+    }
+  });
+
+  const rawJson = genRes.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
+  const cleanJsonStr = rawJson.replace(/```json|```/g, '').trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleanJsonStr);
+  } catch (err) {
+    console.warn("Could not parse AI assistant response as JSON:", rawJson);
+    parsed = { intent: "LOG_NOTE", cleanNote: cleanText, tags: ["Personal"], assistantConfirmation: "Noted in your diary." };
+  }
+
+  // 2. Handle LOG_NOTE: Save directly to Firestore diaryNotes/{dateKey}
+  if (parsed.intent === 'LOG_NOTE') {
+    const noteToSave = parsed.cleanNote || cleanText;
+    const tags = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['Personal'];
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true });
+
+    if (firestore) {
+      const docRef = firestore.collection('diaryNotes').doc(dateKey);
+      const snap = await docRef.get();
+
+      if (snap.exists) {
+        const current = snap.data();
+        const existingTags = Array.isArray(current.tags) ? [...current.tags] : [];
+        tags.forEach(t => {
+          if (!existingTags.some(curr => curr.toLowerCase() === t.toLowerCase())) {
+            existingTags.push(t);
+          }
+        });
+
+        const appendedContent = current.content
+          ? `${current.content}\n• [${timeStr}] ${noteToSave}`
+          : `• [${timeStr}] ${noteToSave}`;
+
+        await docRef.update({
+          content: appendedContent,
+          tags: existingTags,
+          updatedAt: now.toISOString()
+        });
+      } else {
+        await docRef.set({
+          id: dateKey,
+          date: dateKey,
+          content: `• [${timeStr}] ${noteToSave}`,
+          tags: tags,
+          color: 'yellow',
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        });
+      }
+    }
+
+    const tagsDisplay = tags.map(t => `#${t}`).join(' ');
+    const replyMsg = `📝 *${parsed.assistantConfirmation || "Noted in your diary!"}*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                     `• [${timeStr}] ${noteToSave}\n\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n` +
+                     `📅 *Date:* \`${dateKey}\`\n` +
+                     `🏷️ *Tags:* ${tagsDisplay}`;
+
+    return {
+      action: 'LOG_NOTE',
+      reply: replyMsg,
+      cleanNote: noteToSave,
+      tags,
+      dateKey
+    };
+  }
+
+  // 3. Handle QUERY_DIARY: Run RAG Search
+  if (parsed.intent === 'QUERY_DIARY') {
+    const q = parsed.searchQuery || cleanText;
+    const ragResult = await answerDiaryQuestion(q, {
+      apiKey,
+      firestore,
+      refDate
+    });
+
+    let replyMsg = `🤖 *AI Diary Assistant*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                   `${ragResult.answer}\n\n` +
+                   `━━━━━━━━━━━━━━━━━━━━\n`;
+
+    if (ragResult.sourceDates && ragResult.sourceDates.length > 0) {
+      const formattedDates = ragResult.sourceDates.map(d => `\`${d}\``).join(', ');
+      replyMsg += `📅 *Referenced Date(s):* ${formattedDates}\n`;
+    }
+
+    return {
+      action: 'QUERY_DIARY',
+      reply: replyMsg,
+      answer: ragResult.answer,
+      sourceDates: ragResult.sourceDates
+    };
+  }
+
+  // 4. Handle GENERAL_CHAT
+  return {
+    action: 'GENERAL_CHAT',
+    reply: parsed.chatReply || "Hello! I'm your Personal Assistant. Tell me anything to note down, or ask about your past entries!"
+  };
+}
+
 module.exports = {
   generateEmbedding,
   cosineSimilarity,
   resolveExplicitDate,
   answerDiaryQuestion,
+  processAssistantMessage,
   GEMINI_EMBED_MODEL,
   GEMINI_GEN_MODEL
 };
+

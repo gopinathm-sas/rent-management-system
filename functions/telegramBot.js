@@ -1,6 +1,6 @@
 const { Bot, InlineKeyboard } = require('grammy');
 const admin = require('firebase-admin');
-const { answerDiaryQuestion } = require('./ragService');
+const { answerDiaryQuestion, processAssistantMessage } = require('./ragService');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -2247,6 +2247,36 @@ function createTelegramBot(token) {
     }
   }
 
+  async function handleAssistantMessage(ctx, rawText) {
+    const text = (rawText || '').trim();
+    if (!text) return;
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      await ctx.reply("❌ Gemini API key is not configured for Personal Assistant.");
+      return;
+    }
+
+    try {
+      if (typeof ctx.replyWithChatAction === 'function') {
+        await ctx.replyWithChatAction('typing').catch(() => {});
+      }
+    } catch (_) {}
+
+    try {
+      const res = await processAssistantMessage(text, {
+        apiKey,
+        firestore: admin.firestore(),
+        refDate: getKolkataDateParts().dateObj
+      });
+
+      await ctx.reply(res.reply, { parse_mode: 'Markdown' });
+    } catch (err) {
+      console.error("AI Assistant error:", err);
+      await ctx.reply(`❌ *Assistant Error:* ${err.message || 'Could not process message.'}`);
+    }
+  }
+
   bot.command(['diary', 'dairy', 'note', 'journal'], async (ctx) => {
     await handleDiaryCommand(ctx, ctx.message?.text || '');
   });
@@ -2258,6 +2288,7 @@ function createTelegramBot(token) {
   bot.command(['ask', 'search', 'query', 'rag'], async (ctx) => {
     await handleDiaryAskCommand(ctx, ctx.message?.text || '');
   });
+
 
 
   // Helper to start reading flow for a specific room
@@ -3604,33 +3635,43 @@ function createTelegramBot(token) {
       }
     }
 
-    // 9. Default Help Response for unrecognized input
-    await ctx.reply(
-      "💡 *How would you like to interact?*\n\n" +
-      "*📖 Personal Diary:*\n" +
-      "• Send `/diary <any text>` (e.g. `/diary Spoke with electrician`)\n" +
-      "• Send `/diary` (or `/dairy`) to view today's notes\n" +
-      "• Send `/notes` to view recent past notes\n" +
-      "• Send `/ask <question>` (e.g. `/ask What did I discuss yesterday?`)\n\n" +
-      "*🚰 Water Meter Readings:*\n" +
-      "• Send /reading to pick a room from the menu.\n" +
-      "• Send \`/reading <room> <val>\` (e.g. \`/reading G01 104.5\`).\n" +
-      "• Send /bulk to paste multiple units at once.\n\n" +
-      "*💰 Rent Payment Status:*\n" +
-      "• Send \`G01 Rent Received\` ➔ Sets Rent Only\n" +
-      "• Send \`G01 Paid\` ➔ Sets Paid (Rent + Water)\n" +
-      "• Send \`G01 Pending\` ➔ Reverts to Pending\n" +
-      "• Send /rent for interactive menu.\n\n" +
-      "*🧾 Expense Logging (Owner/Admin):*\n" +
-      "• Send \`/expense Plumbing 1500 fixed leak\` or \`EB Bill 2400\`\n" +
-      "• Send /undo to remove your recent expense entry (within 10 min)\n\n" +
-      "*📲 WhatsApp Notifications:*\n" +
-      "• Send \`/notify G01\` or \`/notify all\`\n\n" +
-      "*📊 Queries:*\n" +
-      "• Send /pending, /summary, /total, or `/unit G01`",
-      { parse_mode: 'Markdown' }
-    );
+    // 9. Explicit /help command
+    if (/^\/(help|start|menu|guide)\b/i.test(text) || /^help$/i.test(text)) {
+      await ctx.reply(
+        "💡 *Munirathnam Illam Bot & AI Assistant Guide*\n\n" +
+        "*🤖 Conversational AI Personal Assistant:*\n" +
+        "• Type or speak *anything in plain English* to log a note or ask a question!\n" +
+        "• *Example:* `Met Murugan today for painting room 201` (automatically recorded to diary)\n" +
+        "• *Example:* `Summarise today's notes` or `What did Murugan say?`\n\n" +
+        "*📖 Personal Diary Shortcuts:*\n" +
+        "• `/diary <text>` ➔ Write or append to today's note\n" +
+        "• `/diary` (or `/dairy`) ➔ View today's note\n" +
+        "• `/notes` ➔ View recent 5 days notes\n" +
+        "• `/ask <question>` ➔ Ask AI question directly\n\n" +
+        "*🚰 Water Meter Readings:*\n" +
+        "• /reading ➔ Pick room from interactive menu\n" +
+        "• `/reading G01 104.5` ➔ Direct room reading\n" +
+        "• /bulk ➔ Paste bulk readings for all units\n\n" +
+        "*💰 Rent Payment Status:*\n" +
+        "• `G01 Rent Received` ➔ Sets Rent Only\n" +
+        "• `G01 Paid` ➔ Sets Paid (Rent + Water)\n" +
+        "• `G01 Pending` ➔ Reverts to Pending\n" +
+        "• /rent ➔ Interactive rent menu\n\n" +
+        "*🧾 Expense Logging:*\n" +
+        "• `/expense Plumbing 1500 fixed leak` or `EB Bill 2400`\n" +
+        "• /undo ➔ Remove recent expense entry (within 10 min)\n\n" +
+        "*📊 Quick Queries:*\n" +
+        "• /pending, /summary, /total, or `/unit G01`",
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // 10. AI Personal Assistant for any plain conversational English
+    // (Intelligently classifies note vs question, automatically saves to diary, or answers from memory)
+    return await handleAssistantMessage(ctx, text);
   });
+
 
   return bot;
 }
