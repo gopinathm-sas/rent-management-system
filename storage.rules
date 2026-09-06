@@ -59,6 +59,14 @@ service firebase.storage {
         );
     }
 
+    // Personal Vault Documents (staff-only, any file type, up to 50MB)
+    match /vaultDocuments/{docId}/{fileName} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff()
+        && request.resource.size < 50 * 1024 * 1024;
+      allow delete: if isStaff();
+    }
+
     // Tenant upload link (Option 2) - invite-scoped path
     match /tenant-upload-invites/{inviteId}/{fileName} {
       function fileExtLower() {

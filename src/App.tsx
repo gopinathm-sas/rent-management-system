@@ -17,6 +17,7 @@ import TenantUpload from './pages/TenantUpload';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Diary from './pages/Diary';
+import Vault from './pages/Vault';
 
 import BiometricLock from './components/BiometricLock';
 import Login from './pages/Login';
@@ -85,6 +86,11 @@ function App() {
                             <Route path="/diary" element={
                                 <ProtectedRoute>
                                     <Layout><Diary /></Layout>
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/vault" element={
+                                <ProtectedRoute>
+                                    <Layout><Vault /></Layout>
                                 </ProtectedRoute>
                             } />
                             <Route path="/analytics" element={

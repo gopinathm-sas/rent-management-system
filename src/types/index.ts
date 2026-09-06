@@ -156,3 +156,34 @@ export interface ImportantNote {
     pinned?: boolean;
 }
 
+export type VaultExtractionStatus = 'pending' | 'success' | 'failed' | 'unsupported';
+
+export interface VaultDocument {
+    id: string;
+    title: string;              // Defaults to filename, editable
+    originalFilename: string;
+    storagePath: string;        // e.g. "vaultDocuments/{docId}/{filename}"
+    downloadUrl?: string;
+    contentType: string;        // e.g. "application/pdf", "image/jpeg"
+    sizeBytes: number;
+    uploadedAt: string;         // ISO timestamp
+    updatedAt?: string;         // ISO timestamp
+    extractionStatus: VaultExtractionStatus;
+    embeddingStatus?: 'pending' | 'success' | 'failed';
+    chunkCount?: number;
+    extractedTextSample?: string;
+    ocrUsed?: boolean;
+    error?: string;
+}
+
+export interface VaultChunk {
+    id: string;
+    documentId: string;
+    documentTitle: string;
+    chunkIndex: number;
+    text: string;
+    embedding?: number[];
+    createdAt?: string;
+}
+
+

@@ -116,6 +116,17 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // Personal Vault Documents & Vector Chunks
+    match /vaultDocuments/{docId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
+    match /vaultChunks/{chunkId} {
+      allow read: if isStaffOrViewer();
+      allow write: if isStaff();
+    }
+
     // Telegram Bot Integration
     match /telegramUsers/{chatId} {
       allow read, write: if isAdminUser();

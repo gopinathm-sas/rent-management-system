@@ -2,10 +2,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, deleteDoc, setDoc, where, getDocs, writeBatch } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
-import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote, ImportantNote } from '../types';
+import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote, ImportantNote, VaultDocument } from '../types';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
@@ -13,6 +14,7 @@ interface DataContextType {
     recurringExpenses: RecurringExpense[];
     diaryNotes: DiaryNote[];
     importantNotes: ImportantNote[];
+    vaultDocuments: VaultDocument[];
     error: Error | null;
     debugUser: { email: string };
     rooms: Record<string, RoomData>;
@@ -37,6 +39,9 @@ interface DataContextType {
     deleteDiaryNote: (dateKey: string) => Promise<void>;
     saveImportantNote: (id: string, data: Partial<ImportantNote>) => Promise<void>;
     deleteImportantNote: (id: string) => Promise<void>;
+    uploadVaultDocument: (file: File, customTitle?: string) => Promise<string>;
+    updateVaultDocumentTitle: (id: string, newTitle: string) => Promise<void>;
+    deleteVaultDocument: (id: string, storagePath?: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -55,6 +60,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
     const [diaryNotes, setDiaryNotes] = useState<DiaryNote[]>([]);
     const [importantNotes, setImportantNotes] = useState<ImportantNote[]>([]);
+    const [vaultDocuments, setVaultDocuments] = useState<VaultDocument[]>([]);
     const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
     const [loadingState, setLoadingState] = useState({
         tenants: true,
@@ -233,6 +239,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
             showToast(`Error fetching important notes: ${error.message}`, 'error');
         });
 
+        // Vault Documents Subscription
+        const qVault = query(collection(db, 'vaultDocuments'), orderBy('uploadedAt', 'desc'));
+        const unsubVault = onSnapshot(qVault, (snapshot) => {
+            const list: VaultDocument[] = [];
+            snapshot.forEach(d => {
+                list.push({ id: d.id, ...d.data() } as VaultDocument);
+            });
+            setVaultDocuments(list);
+        }, (error) => {
+            console.error("Error fetching vault documents:", error);
+            showToast(`Error fetching vault documents: ${error.message}`, 'error');
+        });
+
         return () => {
             unsubTenants();
             unsubExpenses();
@@ -241,6 +260,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             unsubSettings();
             unsubDiary();
             unsubImportant();
+            unsubVault();
         };
     }, [currentUser]);
 
@@ -398,6 +418,74 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await deleteDoc(doc(db, 'importantNotes', id));
     };
 
+    const uploadVaultDocumentHandler = async (file: File, customTitle?: string): Promise<string> => {
+        const docId = doc(collection(db, 'vaultDocuments')).id;
+        const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `vaultDocuments/${docId}/${sanitizedFilename}`;
+        const fileRef = storageRef(storage, path);
+
+        const uploadSnap = await uploadBytes(fileRef, file, {
+            contentType: file.type || 'application/octet-stream'
+        });
+        let downloadUrl = '';
+        try {
+            downloadUrl = await getDownloadURL(uploadSnap.ref);
+        } catch (_) {}
+
+        const nowIso = new Date().toISOString();
+        const docData: VaultDocument = {
+            id: docId,
+            title: customTitle?.trim() || file.name,
+            originalFilename: file.name,
+            storagePath: path,
+            downloadUrl: downloadUrl || undefined,
+            contentType: file.type || 'application/octet-stream',
+            sizeBytes: file.size,
+            uploadedAt: nowIso,
+            updatedAt: nowIso,
+            extractionStatus: 'pending',
+            embeddingStatus: 'pending',
+            chunkCount: 0
+        };
+
+        await setDoc(doc(db, 'vaultDocuments', docId), docData);
+        return docId;
+    };
+
+    const updateVaultDocumentTitleHandler = async (id: string, newTitle: string) => {
+        await updateDoc(doc(db, 'vaultDocuments', id), {
+            title: newTitle.trim(),
+            updatedAt: new Date().toISOString()
+        });
+    };
+
+    const deleteVaultDocumentHandler = async (id: string, storagePath?: string) => {
+        // 1. Delete Firestore vaultDocument
+        await deleteDoc(doc(db, 'vaultDocuments', id));
+
+        // 2. Delete all associated vaultChunks
+        try {
+            const chunksSnap = await getDocs(query(collection(db, 'vaultChunks'), where('documentId', '==', id)));
+            if (!chunksSnap.empty) {
+                const batch = writeBatch(db);
+                chunksSnap.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+        } catch (err) {
+            console.warn("Error deleting vaultChunks:", err);
+        }
+
+        // 3. Delete file in Firebase Storage if path available
+        if (storagePath) {
+            try {
+                const fileRef = storageRef(storage, storagePath);
+                await deleteObject(fileRef);
+            } catch (err) {
+                console.warn("Error deleting storage file:", err);
+            }
+        }
+    };
+
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
     const [error] = useState<Error | null>(null);
 
@@ -407,6 +495,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         recurringExpenses,
         diaryNotes,
         importantNotes,
+        vaultDocuments,
         error,
         debugUser: { email: 'Check AuthContext' },
         rooms,
@@ -430,7 +519,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         saveDiaryNote: saveDiaryNoteHandler,
         deleteDiaryNote: deleteDiaryNoteHandler,
         saveImportantNote: saveImportantNoteHandler,
-        deleteImportantNote: deleteImportantNoteHandler
+        deleteImportantNote: deleteImportantNoteHandler,
+        uploadVaultDocument: uploadVaultDocumentHandler,
+        updateVaultDocumentTitle: updateVaultDocumentTitleHandler,
+        deleteVaultDocument: deleteVaultDocumentHandler
     };
 
     return (

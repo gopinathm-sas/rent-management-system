@@ -13,7 +13,8 @@ import {
     Database,
     BarChart3,
     Settings as SettingsIcon,
-    BookOpen
+    BookOpen,
+    FolderLock
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -64,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
                     <NavItem to="/water" icon={Droplet} label="Water Bill" />
                     <NavItem to="/expenses" icon={Wallet} label="Expenses" />
                     <NavItem to="/diary" icon={BookOpen} label="Personal Diary" />
+                    <NavItem to="/vault" icon={FolderLock} label="Personal Vault" />
                     <div className="h-px bg-stone-100 my-2"></div>
                     <NavItem to="/admin" icon={UserIcon} label="Admin" />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" />
@@ -123,6 +125,13 @@ export default function Layout({ children }: LayoutProps) {
                             title="Personal Diary"
                         >
                             <BookOpen size={18} />
+                        </Link>
+                        <Link
+                            to="/vault"
+                            className={`p-1.5 rounded-xl transition-colors ${isActive('/vault') ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-slate-600 hover:text-slate-900'}`}
+                            title="Personal Vault"
+                        >
+                            <FolderLock size={18} />
                         </Link>
                         <Link
                             to="/settings"

@@ -447,7 +447,7 @@ ${cleanText}`;
     parsed = { intent: "LOG_NOTE", cleanNote: cleanText, tags: ["Personal"], assistantConfirmation: "Noted in your diary." };
   }
 
-  // 2. Handle SAVE_IMPORTANT_NOTE: Save directly to Firestore importantNotes
+  // 2. Handle SAVE_IMPORTANT_NOTE: Save or update directly in Firestore importantNotes
   if (parsed.intent === 'SAVE_IMPORTANT_NOTE') {
     const title = parsed.importantTitle || 'Important Note';
     const noteContent = parsed.cleanNote || cleanText;
@@ -455,13 +455,27 @@ ${cleanText}`;
     const category = parsed.category || 'General';
     const color = parsed.color || 'blue';
     const now = new Date();
+    const isUpdateIntent = /\b(update|change|replace|modify|edit|renew)\b/i.test(cleanText);
 
     let savedDocId = null;
+    let isUpdated = false;
 
     if (firestore) {
-      // Create new important note doc
-      const docRef = firestore.collection('importantNotes').doc();
-      savedDocId = docRef.id;
+      let existingDoc = null;
+      try {
+        const snap = await firestore.collection('importantNotes').get();
+        for (const d of snap.docs) {
+          const dData = d.data();
+          const dTitle = (dData.title || '').toLowerCase().trim();
+          const targetTitle = title.toLowerCase().trim();
+          if (dTitle && (dTitle === targetTitle || targetTitle.includes(dTitle) || dTitle.includes(targetTitle))) {
+            existingDoc = d;
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not query existing importantNotes:", err.message);
+      }
 
       let embedding = null;
       try {
@@ -470,22 +484,45 @@ ${cleanText}`;
         console.warn("Failed to generate embedding for important note:", err.message);
       }
 
-      await docRef.set({
-        id: savedDocId,
-        title,
-        content: noteContent,
-        category,
-        tags,
-        color,
-        embedding: embedding || null,
-        pinned: true,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
-      });
+      if (existingDoc && (isUpdateIntent || existingDoc.data().title?.toLowerCase() === title.toLowerCase())) {
+        // Update existing note
+        savedDocId = existingDoc.id;
+        isUpdated = true;
+        const existingData = existingDoc.data();
+        const mergedTags = Array.from(new Set([...(existingData.tags || []), ...tags]));
+
+        await existingDoc.ref.update({
+          title,
+          content: noteContent,
+          category,
+          tags: mergedTags,
+          color: existingData.color || color,
+          embedding: embedding || existingData.embedding || null,
+          updatedAt: now.toISOString()
+        });
+      } else {
+        // Create new important note doc
+        const docRef = firestore.collection('importantNotes').doc();
+        savedDocId = docRef.id;
+
+        await docRef.set({
+          id: savedDocId,
+          title,
+          content: noteContent,
+          category,
+          tags,
+          color,
+          embedding: embedding || null,
+          pinned: true,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        });
+      }
     }
 
     const tagsDisplay = tags.map(t => `#${t}`).join(' ');
-    const replyMsg = `📌 *Saved to Important Details: ${title}*\n` +
+    const headerPrefix = isUpdated ? `🔄 *Updated Important Note: ${title}*` : `📌 *Saved to Important Details: ${title}*`;
+    const replyMsg = `${headerPrefix}\n` +
                      `━━━━━━━━━━━━━━━━━━━━\n\n` +
                      `${noteContent}\n\n` +
                      `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -500,7 +537,8 @@ ${cleanText}`;
       content: noteContent,
       tags,
       category,
-      docId: savedDocId
+      docId: savedDocId,
+      isUpdated
     };
   }
 

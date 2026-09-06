@@ -1,6 +1,7 @@
-const { Bot, InlineKeyboard } = require('grammy');
+const { Bot, InlineKeyboard, InputFile } = require('grammy');
 const admin = require('firebase-admin');
 const { answerDiaryQuestion, processAssistantMessage } = require('./ragService');
+const { answerVaultQuestion, findMatchingVaultDocument, classifyVaultIntent } = require('./vaultService');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -1163,6 +1164,7 @@ async function saveExpenseEntry({ category, amount, date, note, monthKey, telegr
 // Command list for Telegram "/" native menu
 const BOT_COMMANDS = [
   { command: 'start', description: 'Welcome overview & quick guide' },
+  { command: 'vault', description: 'Personal Vault: search document details or request files' },
   { command: 'ask', description: 'Ask AI questions about your personal diary notes' },
   { command: 'diary', description: 'Write or view today\'s personal diary note' },
   { command: 'notes', description: 'Browse recent personal diary notes' },
@@ -1202,7 +1204,16 @@ function createTelegramBot(token) {
 
   const bot = new Bot(token);
 
-  // Authentication & Auto-Provision Middleware (Owner Direct Access)
+  // Global Error Handler for Telegram bot
+  bot.catch((err) => {
+    const ctx = err.ctx;
+    console.error(`[Telegram Bot Error] Error handling update ${ctx?.update?.update_id}:`, err.error || err);
+    try {
+      if (ctx?.reply) {
+        ctx.reply(`⚠️ An unexpected error occurred. Please try again.`).catch(() => {});
+      }
+    } catch (_) {}
+  });
   bot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id;
     if (!chatId) return;
@@ -1865,13 +1876,17 @@ function createTelegramBot(token) {
       billMessage: bill.formattedText
     });
 
+    const waDirectUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(bill.formattedText)}`;
+
     const previewMsg = `📲 *WhatsApp Message Preview for ${tenant.tenant} (${norm.roomId}) — ${monthKey}:*\n\n` +
                        `\`\`\`\n${bill.formattedText}\n\`\`\`\n\n` +
                        `📞 *Recipient Phone:* \`+${cleanPhone}\`\n\n` +
-                       `Send this breakdown now?`;
+                       `Choose an option below:`;
 
     const kb = new InlineKeyboard()
-      .text(`✅ Send to ${tenant.tenant}`, `conf_notify:single:${norm.roomNo}`)
+      .text(`🤖 Auto-Send via Service`, `conf_notify:single:${norm.roomNo}`)
+      .url(`💬 Open in WhatsApp (1-Tap)`, waDirectUrl)
+      .row()
       .text("❌ Cancel", "flow_cancel");
 
     await ctx.reply(previewMsg, { parse_mode: 'Markdown', reply_markup: kb });
@@ -2008,60 +2023,86 @@ function createTelegramBot(token) {
   }
 
   async function handleUndoExpense(ctx) {
-    const chatId = ctx.chat.id;
-    const telegramUser = ctx.state.telegramUser || await getTelegramUser(chatId);
+    try {
+      const chatId = ctx.chat.id;
+      const telegramUser = ctx.state?.telegramUser || await getTelegramUser(chatId);
 
-    // Gated to Owner / Admin
-    if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
-      await ctx.reply("⛔ Permission Denied: Only Owner or Admin can undo expenses.");
-      return;
+      // Gated to Owner / Admin
+      if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
+        await ctx.reply("⛔ Permission Denied: Only Owner or Admin can undo expenses.").catch(() => {});
+        return;
+      }
+
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+      let docs = [];
+      try {
+        const snap = await admin.firestore().collection('expenses')
+          .where('createdBy.chatId', '==', String(chatId))
+          .get();
+        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        console.warn('Failed to query expenses by createdBy.chatId, falling back to limit(50):', err);
+        const snap = await admin.firestore().collection('expenses').limit(50).get();
+        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+
+      // Sort in JavaScript descending by createdAt or date (No Firestore composite index needed)
+      docs.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      // Filter to entries logged within the last 10 minutes
+      const recentDocs = docs.filter(d => {
+        if (!d.createdAt) return true; // Include if timestamp format varies
+        return new Date(d.createdAt).getTime() >= new Date(tenMinutesAgo).getTime();
+      });
+
+      const latestExpense = recentDocs.length > 0 ? recentDocs[0] : (docs.length > 0 ? docs[0] : null);
+
+      if (!latestExpense) {
+        await ctx.reply("ℹ️ *Nothing to undo.* No expense entries were logged by you recently.", { parse_mode: 'Markdown' }).catch(() => {
+          return ctx.reply("ℹ️ Nothing to undo. No expense entries were logged by you recently.");
+        });
+        return;
+      }
+
+      await admin.firestore().collection('expenses').doc(latestExpense.id).delete();
+
+      // Record audit
+      await admin.firestore().collection('expenseAudit').add({
+        expenseId: latestExpense.id,
+        action: 'UNDO_DELETE',
+        category: latestExpense.category,
+        amount: latestExpense.amount,
+        date: latestExpense.date,
+        monthKey: latestExpense.monthKey,
+        deletedBy: {
+          chatId: String(chatId),
+          email: telegramUser.email || null,
+          name: telegramUser.firstName || 'Owner'
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      }).catch(err => console.warn('Audit record warning:', err));
+
+      const newMonthTotal = await getMonthlyExpenseTotal(latestExpense.monthKey);
+
+      const msg = `🗑️ *Expense Entry Undone!*\n\n` +
+        `• *Category:* ${latestExpense.category}\n` +
+        `• *Amount Removed:* *₹${Number(latestExpense.amount).toLocaleString('en-IN')}*\n` +
+        `• *Date:* ${latestExpense.date}\n` +
+        (latestExpense.note ? `• *Note:* _"${latestExpense.note}"_\n` : '') +
+        `\n📊 *Updated Expenses for ${latestExpense.monthKey}:* *₹${newMonthTotal.toLocaleString('en-IN')}*`;
+
+      await ctx.reply(msg, { parse_mode: 'Markdown' }).catch(() => {
+        return ctx.reply(`🗑️ Expense Entry Undone!\n\n• Category: ${latestExpense.category}\n• Amount Removed: ₹${Number(latestExpense.amount).toLocaleString('en-IN')}\n• Date: ${latestExpense.date}\n• Updated Expenses for ${latestExpense.monthKey}: ₹${newMonthTotal.toLocaleString('en-IN')}`);
+      });
+    } catch (err) {
+      console.error('Error in handleUndoExpense:', err);
+      await ctx.reply(`⚠️ Could not complete undo: ${err.message || 'Unknown error'}`).catch(() => {});
     }
-
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-
-    const snap = await admin.firestore().collection('expenses')
-      .where('createdBy.chatId', '==', String(chatId))
-      .where('createdAt', '>=', tenMinutesAgo)
-      .get();
-
-    if (snap.empty) {
-      await ctx.reply("ℹ️ *Nothing to undo.* No expense entries were logged by you in the last 10 minutes.", { parse_mode: 'Markdown' });
-      return;
-    }
-
-    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const latestExpense = docs[0];
-
-    await admin.firestore().collection('expenses').doc(latestExpense.id).delete();
-
-    // Record audit
-    await admin.firestore().collection('expenseAudit').add({
-      expenseId: latestExpense.id,
-      action: 'UNDO_DELETE',
-      category: latestExpense.category,
-      amount: latestExpense.amount,
-      date: latestExpense.date,
-      monthKey: latestExpense.monthKey,
-      deletedBy: {
-        chatId: String(chatId),
-        email: telegramUser.email || null,
-        name: telegramUser.firstName || 'Owner'
-      },
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    const newMonthTotal = await getMonthlyExpenseTotal(latestExpense.monthKey);
-
-    await ctx.reply(
-      `🗑️ *Expense Entry Undone!*\n\n` +
-      `• *Category:* ${latestExpense.category}\n` +
-      `• *Amount Removed:* *₹${Number(latestExpense.amount).toLocaleString('en-IN')}*\n` +
-      `• *Date:* ${latestExpense.date}\n` +
-      (latestExpense.note ? `• *Note:* _"${latestExpense.note}"_\n` : '') +
-      `\n📊 *Updated Expenses for ${latestExpense.monthKey}:* *₹${newMonthTotal.toLocaleString('en-IN')}*`,
-      { parse_mode: 'Markdown' }
-    );
   }
 
   bot.command('expense', async (ctx) => {
@@ -2308,19 +2349,33 @@ function createTelegramBot(token) {
         refDate: getKolkataDateParts().dateObj
       });
 
-      await ctx.reply(res.reply, { parse_mode: 'Markdown' });
+      await ctx.reply(res.reply, { parse_mode: 'Markdown' }).catch(async (mErr) => {
+        console.warn("Markdown reply failed, falling back to plain text:", mErr);
+        await ctx.reply(res.reply.replace(/[*_`]/g, '')).catch(() => {});
+      });
     } catch (err) {
       console.error("AI Assistant error:", err);
-      await ctx.reply(`❌ *Assistant Error:* ${err.message || 'Could not process message.'}`);
+      await ctx.reply(`❌ *Assistant Error:* ${err.message || 'Could not process message.'}`).catch(() => {
+        return ctx.reply(`❌ Assistant Error: ${err.message || 'Could not process message.'}`);
+      });
     }
   }
 
   async function handleImportantNotesList(ctx) {
-    const snap = await admin.firestore().collection('importantNotes')
-      .orderBy('updatedAt', 'desc')
-      .get();
+    let docs = [];
+    try {
+      const snap = await admin.firestore().collection('importantNotes').get();
+      docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => {
+        const tA = a.updatedAt ? new Date(a.updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tB = b.updatedAt ? new Date(b.updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tB - tA;
+      });
+    } catch (e) {
+      console.warn('Failed to load importantNotes:', e);
+    }
 
-    if (snap.empty) {
+    if (docs.length === 0) {
       await ctx.reply(
         `📌 *Important Details & Files*\n\n` +
         `_No important notes saved yet._\n\n` +
@@ -2328,15 +2383,16 @@ function createTelegramBot(token) {
         `_"Save to important notes: Bank account HDFC ... IFSC ..."_\n` +
         `_"Note my Wi-Fi password in important files: ..."_`,
         { parse_mode: 'Markdown' }
-      );
+      ).catch(() => {
+        return ctx.reply("📌 Important Details & Files\n\nNo important notes saved yet.");
+      });
       return;
     }
 
-    let msg = `📌 *Important Details & Files (${snap.size})*\n` +
+    let msg = `📌 *Important Details & Files (${docs.length})*\n` +
               `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-    snap.docs.forEach((doc) => {
-      const data = doc.data();
+    docs.forEach((data) => {
       const tagsDisplay = Array.isArray(data.tags) && data.tags.length > 0
         ? data.tags.map(t => `#${t}`).join(' ')
         : '';
@@ -2349,7 +2405,138 @@ function createTelegramBot(token) {
              `\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
     });
 
-    await ctx.reply(msg, { parse_mode: 'Markdown' });
+    await ctx.reply(msg, { parse_mode: 'Markdown' }).catch(async () => {
+      await ctx.reply(msg.replace(/[*_`]/g, '')).catch(() => {});
+    });
+  }
+
+  async function handleVaultCommand(ctx, rawText) {
+    const chatId = ctx.chat.id;
+    const telegramUser = ctx.state?.telegramUser || await getTelegramUser(chatId);
+
+    // Gated to Owner / Admin
+    if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
+      await ctx.reply("⛔ Permission Denied: Only Owner or Admin can access Personal Vault.").catch(() => {});
+      return;
+    }
+
+    const text = (rawText || '').replace(/^\/(vault|doc|docs|document|documents)\s*/i, '').trim();
+
+    if (!text) {
+      // Show summary of vault documents
+      let docs = [];
+      try {
+        const snap = await admin.firestore().collection('vaultDocuments').limit(10).get();
+        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+      } catch (_) {}
+
+      if (docs.length === 0) {
+        await ctx.reply(
+          `🔒 *Personal Vault Assistant*\n\n` +
+          `_Your Personal Vault is currently empty._\n\n` +
+          `💡 *How to use:*\n` +
+          `1. Upload documents (PDFs, scans, contracts, policies) in the WebApp **Personal Vault** tab.\n` +
+          `2. Ask questions: \`/vault What is the expiry date of my lease?\`\n` +
+          `3. Request files: \`/vault Send me my rental agreement\``,
+          { parse_mode: 'Markdown' }
+        ).catch(() => {});
+        return;
+      }
+
+      let msg = `🔒 *Personal Vault (${docs.length} Recent Documents)*\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n\n`;
+      docs.forEach(d => {
+        const statusIcon = d.extractionStatus === 'success' ? '🟢' : (d.extractionStatus === 'pending' ? '🟡' : '⚪');
+        msg += `${statusIcon} *${d.title}*\n` +
+               `  📁 \`${d.originalFilename || 'Document'}\` (${((d.sizeBytes || 0) / 1024).toFixed(1)} KB)\n`;
+      });
+      msg += `\n━━━━━━━━━━━━━━━━━━━━\n` +
+             `💡 *Commands:*\n` +
+             `• \`/vault <question>\` ➔ Grounded Q&A\n` +
+             `• \`/vault send <title>\` ➔ Download file to Telegram`;
+
+      await ctx.reply(msg, { parse_mode: 'Markdown' }).catch(async () => {
+        await ctx.reply(msg.replace(/[*_`]/g, '')).catch(() => {});
+      });
+      return;
+    }
+
+    const apiKey = getGeminiApiKey();
+    if (typeof ctx.replyWithChatAction === 'function') {
+      await ctx.replyWithChatAction('typing').catch(() => {});
+    }
+
+    // Classify intent
+    const { intent, searchTarget } = await classifyVaultIntent(text, { apiKey });
+
+    // 1. FILE_RETRIEVAL Intent
+    if (intent === 'FILE_RETRIEVAL') {
+      const { matches } = await findMatchingVaultDocument(searchTarget || text, { firestore: admin.firestore(), apiKey });
+
+      if (matches.length === 0) {
+        await ctx.reply(`⚠️ I couldn't find any document matching *"${searchTarget || text}"* in your Personal Vault.\n\n_Type \`/vault\` to view available documents._`, { parse_mode: 'Markdown' }).catch(() => {});
+        return;
+      }
+
+      if (matches.length === 1) {
+        const doc = matches[0];
+        const sizeMb = (doc.sizeBytes || 0) / (1024 * 1024);
+        if (sizeMb > 50) {
+          await ctx.reply(`⚠️ Document *${doc.title}* is ${sizeMb.toFixed(1)} MB, which exceeds Telegram's 50MB file transfer limit. Please download it directly from the WebApp.`, { parse_mode: 'Markdown' }).catch(() => {});
+          return;
+        }
+
+        const confirmMsg = `🔒 *Confirm Document Retrieval*\n\n` +
+                           `📄 *Document:* \`${doc.title}\`\n` +
+                           `📁 *File:* \`${doc.originalFilename || doc.title}\`\n` +
+                           `💾 *Size:* ${((doc.sizeBytes || 0) / 1024).toFixed(1)} KB\n\n` +
+                           `_Would you like me to send this file to this chat?_`;
+
+        const kb = new InlineKeyboard()
+          .text("✅ Yes, Send File", `conf_send_vault:${doc.id}`)
+          .text("❌ Cancel", "flow_cancel");
+
+        await ctx.reply(confirmMsg, { parse_mode: 'Markdown', reply_markup: kb }).catch(() => {});
+        return;
+      }
+
+      // Multiple matches -> disambiguation
+      let disambigMsg = `📄 *Multiple matching documents found:*\n\nPlease select which file you would like:`;
+      const kb = new InlineKeyboard();
+      matches.slice(0, 5).forEach((d) => {
+        kb.text(`📄 ${d.title.slice(0, 28)}`, `pick_vault_doc:${d.id}`).row();
+      });
+      kb.text("❌ Cancel", "flow_cancel");
+
+      await ctx.reply(disambigMsg, { parse_mode: 'Markdown', reply_markup: kb }).catch(() => {});
+      return;
+    }
+
+    // 2. CONTENT_QA Intent
+    try {
+      const qaRes = await answerVaultQuestion(text, {
+        firestore: admin.firestore(),
+        apiKey
+      });
+
+      let replyMsg = `🔒 *Personal Vault Answer:*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                     `${qaRes.answer}\n\n` +
+                     `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (qaRes.sources && qaRes.sources.length > 0) {
+        replyMsg += `📄 *Referenced Document(s):* ${qaRes.sources.map(s => `\`${s}\``).join(', ')}\n\n`;
+        replyMsg += `_💡 To receive the file, type: \`/vault send ${qaRes.sources[0]}\`_`;
+      }
+
+      await ctx.reply(replyMsg, { parse_mode: 'Markdown' }).catch(async () => {
+        await ctx.reply(replyMsg.replace(/[*_`]/g, '')).catch(() => {});
+      });
+    } catch (err) {
+      console.error("Vault Q&A error:", err);
+      await ctx.reply(`❌ *Vault Search Error:* ${err.message || 'Could not query vault.'}`).catch(() => {});
+    }
   }
 
   bot.command(['diary', 'dairy', 'note', 'journal'], async (ctx) => {
@@ -2366,6 +2553,10 @@ function createTelegramBot(token) {
 
   bot.command(['ask', 'search', 'query', 'rag'], async (ctx) => {
     await handleDiaryAskCommand(ctx, ctx.message?.text || '');
+  });
+
+  bot.command(['vault', 'doc', 'docs', 'document', 'documents'], async (ctx) => {
+    await handleVaultCommand(ctx, ctx.message?.text || '');
   });
 
 
@@ -2682,6 +2873,77 @@ function createTelegramBot(token) {
       return;
     }
 
+    // Personal Vault: Confirm & Send Document
+    if (data.startsWith('conf_send_vault:')) {
+      const docId = data.split(':')[1];
+      if (telegramUser?.role !== 'Owner' && telegramUser?.role !== 'Admin') {
+        await ctx.answerCallbackQuery({ text: "Permission Denied" });
+        return;
+      }
+
+      await ctx.answerCallbackQuery({ text: "Preparing document..." });
+      await ctx.editMessageText("⏳ *Downloading & preparing file from Vault...*", { parse_mode: 'Markdown' }).catch(() => {});
+
+      try {
+        const docSnap = await admin.firestore().collection('vaultDocuments').doc(docId).get();
+        if (!docSnap.exists) {
+          await ctx.editMessageText("❌ Document not found in Personal Vault.");
+          return;
+        }
+
+        const docData = docSnap.data();
+        const sizeMb = (docData.sizeBytes || 0) / (1024 * 1024);
+        if (sizeMb > 50) {
+          await ctx.editMessageText(`⚠️ Document *${docData.title}* is ${sizeMb.toFixed(1)} MB, exceeding Telegram's 50MB limit. Please download it from the WebApp.`, { parse_mode: 'Markdown' }).catch(() => {});
+          return;
+        }
+
+        const bucket = admin.storage().bucket();
+        const file = bucket.file(docData.storagePath);
+        const [fileBuffer] = await file.download();
+
+        const filename = docData.originalFilename || `${docData.title}.pdf`;
+        await ctx.replyWithDocument(new InputFile(fileBuffer, filename), {
+          caption: `🔒 *Personal Vault:* \`${docData.title}\``,
+          parse_mode: 'Markdown'
+        });
+
+        await ctx.editMessageText(`✅ *Document Dispatched:*\n\`${docData.title}\``, { parse_mode: 'Markdown' }).catch(() => {});
+      } catch (err) {
+        console.error("Error sending vault doc via Telegram:", err);
+        await ctx.editMessageText(`❌ *Failed to send document:* ${err.message || 'Storage error'}`).catch(() => {});
+      }
+      return;
+    }
+
+    // Personal Vault: Pick matching document from disambiguation list
+    if (data.startsWith('pick_vault_doc:')) {
+      const docId = data.split(':')[1];
+      try {
+        const docSnap = await admin.firestore().collection('vaultDocuments').doc(docId).get();
+        if (!docSnap.exists) {
+          await ctx.answerCallbackQuery({ text: "Document not found" });
+          return;
+        }
+        const doc = docSnap.data();
+        const confirmMsg = `🔒 *Confirm Document Retrieval*\n\n` +
+                           `📄 *Document:* \`${doc.title}\`\n` +
+                           `📁 *File:* \`${doc.originalFilename || doc.title}\`\n` +
+                           `💾 *Size:* ${((doc.sizeBytes || 0) / 1024).toFixed(1)} KB\n\n` +
+                           `_Would you like me to send this file to this chat?_`;
+
+        const kb = new InlineKeyboard()
+          .text("✅ Yes, Send File", `conf_send_vault:${doc.id || docId}`)
+          .text("❌ Cancel", "flow_cancel");
+
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(confirmMsg, { parse_mode: 'Markdown', reply_markup: kb });
+      } catch (_) {
+        await ctx.answerCallbackQuery({ text: "Error loading document" });
+      }
+      return;
+    }
+
     // Expense Category Confirmation Actions (Feature 5)
     if (data.startsWith('conf_exp:')) {
       const action = data.split(':')[1]; // 'suggested' or 'keep_typed'
@@ -2789,36 +3051,72 @@ function createTelegramBot(token) {
           return;
         }
 
-        await ctx.answerCallbackQuery({ text: "Sending WhatsApp..." });
-        await ctx.editMessageText(`⏳ *Sending WhatsApp message to ${tenant.tenant} (${session.roomId})...*`, { parse_mode: 'Markdown' });
+        await ctx.answerCallbackQuery({ text: "Processing WhatsApp..." });
+        await ctx.editMessageText(`⏳ *Processing WhatsApp message for ${tenant.tenant} (${session.roomId})...*`, { parse_mode: 'Markdown' });
 
+        // 1. Add to Firestore Queue for background worker
+        let queueDocId = null;
+        try {
+          const qRef = await admin.firestore().collection('whatsappQueue').add({
+            tenantId: tenant.id,
+            roomId: session.roomId,
+            roomNo: session.roomNo,
+            tenantName: tenant.tenant || 'Unknown',
+            phone: session.phone,
+            monthKey: session.monthKey,
+            message: session.billMessage,
+            status: 'PENDING',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          queueDocId = qRef.id;
+        } catch (qErr) {
+          console.warn("Queue write error:", qErr);
+        }
+
+        // 2. Attempt direct send via local microservice
         const sendRes = await sendWhatsAppViaMicroservice(session.phone, session.billMessage);
 
-        // Record Audit Trail
-        await admin.firestore().collection('whatsappAudit').add({
-          tenantId: tenant.id,
-          roomId: session.roomId,
-          roomNo: session.roomNo,
-          tenantName: tenant.tenant || 'Unknown',
-          phone: session.phone,
-          monthKey: session.monthKey,
-          status: sendRes.ok ? 'SENT' : 'FAILED',
-          messageId: sendRes.messageId || null,
-          error: sendRes.error || null,
-          sentBy: {
-            chatId: String(telegramUser.chatId),
-            email: telegramUser.email || null,
-            name: telegramUser.firstName || 'Owner'
-          },
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        await clearSession(chatId);
-
         if (sendRes.ok) {
+          if (queueDocId) {
+            await admin.firestore().collection('whatsappQueue').doc(queueDocId).update({
+              status: 'SENT',
+              messageId: sendRes.messageId || null
+            }).catch(() => {});
+          }
+
+          await admin.firestore().collection('whatsappAudit').add({
+            tenantId: tenant.id,
+            roomId: session.roomId,
+            roomNo: session.roomNo,
+            tenantName: tenant.tenant || 'Unknown',
+            phone: session.phone,
+            monthKey: session.monthKey,
+            status: 'SENT',
+            messageId: sendRes.messageId || null,
+            sentBy: {
+              chatId: String(telegramUser.chatId),
+              email: telegramUser.email || null,
+              name: telegramUser.firstName || 'Owner'
+            },
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          await clearSession(chatId);
           await ctx.reply(`✅ *WhatsApp Bill Sent Successfully!*\n\n👤 *Recipient:* ${tenant.tenant} (${session.roomId})\n📞 *Phone:* \`+${session.phone}\`\n📅 *Cycle:* ${session.monthKey}`, { parse_mode: 'Markdown' });
         } else {
-          await ctx.reply(`❌ *Failed to send WhatsApp message:*\n${sendRes.error}\n\n_Make sure the WhatsApp service is running (\`npm run whatsapp:dev\`)._`, { parse_mode: 'Markdown' });
+          await clearSession(chatId);
+          const waDirectUrl = `https://wa.me/${session.phone}?text=${encodeURIComponent(session.billMessage)}`;
+          const fallbackKb = new InlineKeyboard().url(`💬 Send via WhatsApp App Now (1-Tap)`, waDirectUrl);
+
+          await ctx.reply(
+            `📨 *Queued for Automated WhatsApp Delivery!*\n\n` +
+            `👤 *Recipient:* ${tenant.tenant} (${session.roomId})\n` +
+            `📞 *Phone:* \`+${session.phone}\`\n` +
+            `📅 *Cycle:* ${session.monthKey}\n\n` +
+            `_• If your WhatsApp service is running (\`npm run whatsapp:dev\`), it will dispatch automatically._\n` +
+            `_• Or tap the button below to send it directly from your WhatsApp right now:_`,
+            { parse_mode: 'Markdown', reply_markup: fallbackKb }
+          );
         }
         return;
       }
@@ -2828,55 +3126,54 @@ function createTelegramBot(token) {
         const { allTenants } = await getOccupiedTenants();
         const eligible = allTenants.filter(t => session.eligibleTenantIds.includes(t.id));
 
-        await ctx.answerCallbackQuery({ text: "Starting batch send..." });
-        await ctx.editMessageText(`⏳ *Sending WhatsApp bills to ${eligible.length} tenants... Please wait.*`, { parse_mode: 'Markdown' });
+        await ctx.answerCallbackQuery({ text: "Queuing batch..." });
+        await ctx.editMessageText(`⏳ *Queuing WhatsApp bills for ${eligible.length} tenants... Please wait.*`, { parse_mode: 'Markdown' });
 
-        let sentCount = 0;
-        let failCount = 0;
-        const results = [];
+        let directSent = 0;
+        let queuedCount = 0;
 
         for (const tenant of eligible) {
           const bill = formatTenantWhatsAppBill(tenant, session.year, session.monthIndex);
           const cleanPhone = normalizePhoneNumber(tenant.phone);
 
+          // Add to Queue
+          let qId = null;
+          try {
+            const qRef = await admin.firestore().collection('whatsappQueue').add({
+              tenantId: tenant.id,
+              roomId: tenant.roomId,
+              roomNo: tenant.roomNo,
+              tenantName: tenant.tenant || 'Unknown',
+              phone: cleanPhone,
+              monthKey: session.monthKey,
+              message: bill.formattedText,
+              status: 'PENDING',
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            qId = qRef.id;
+            queuedCount++;
+          } catch (e) {}
+
+          // Attempt direct send
           const sendRes = await sendWhatsAppViaMicroservice(cleanPhone, bill.formattedText);
-
-          await admin.firestore().collection('whatsappAudit').add({
-            tenantId: tenant.id,
-            roomId: tenant.roomId,
-            roomNo: tenant.roomNo,
-            tenantName: tenant.tenant || 'Unknown',
-            phone: cleanPhone,
-            monthKey: session.monthKey,
-            status: sendRes.ok ? 'SENT' : 'FAILED',
-            messageId: sendRes.messageId || null,
-            error: sendRes.error || null,
-            sentBy: {
-              chatId: String(telegramUser.chatId),
-              email: telegramUser.email || null,
-              name: telegramUser.firstName || 'Owner'
-            },
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-
           if (sendRes.ok) {
-            sentCount++;
-            results.push(`✅ Room ${tenant.roomId} (${tenant.tenant})`);
-          } else {
-            failCount++;
-            results.push(`❌ Room ${tenant.roomId} (${tenant.tenant}): ${sendRes.error}`);
+            directSent++;
+            if (qId) {
+              await admin.firestore().collection('whatsappQueue').doc(qId).update({
+                status: 'SENT',
+                messageId: sendRes.messageId || null
+              }).catch(() => {});
+            }
           }
-
-          // 2.5 second rate-limiting delay between messages
-          await new Promise(r => setTimeout(r, 2500));
         }
 
         await clearSession(chatId);
 
-        let finalReport = `📊 *WhatsApp Broadcast Complete (${session.monthKey})*\n\n` +
-                          `• Sent: *${sentCount}*\n` +
-                          `• Failed: *${failCount}*\n\n` +
-                          results.slice(0, 15).join('\n');
+        let finalReport = `📊 *WhatsApp Batch Update (${session.monthKey})*\n\n` +
+                          `• Total Processed: *${eligible.length}*\n` +
+                          `• Direct Dispatched: *${directSent}*\n` +
+                          `• Queued in Firestore: *${queuedCount}*\n\n` +
+                          `_Background worker (\`npm run whatsapp:dev\`) will auto-deliver any queued messages!_`;
 
         await ctx.reply(finalReport, { parse_mode: 'Markdown' });
         return;

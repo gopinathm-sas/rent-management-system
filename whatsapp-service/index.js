@@ -4,6 +4,7 @@ const cors = require('cors');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
@@ -18,12 +19,36 @@ let connectedPhone = null;
 
 console.log('🚀 Initializing WhatsApp Web Client...');
 
+const findChromeExecutable = () => {
+  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  const macPaths = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+  ];
+  if (process.platform === 'darwin') {
+    for (const p of macPaths) {
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return undefined;
+};
+
+const chromePath = findChromeExecutable();
+if (chromePath) {
+  console.log(`🌐 Using system browser at: ${chromePath}`);
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: path.resolve(__dirname, '.wwebjs_auth')
   }),
   puppeteer: {
     headless: true,
+    ...(chromePath ? { executablePath: chromePath } : {}),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -189,6 +214,112 @@ app.post('/send-whatsapp', async (req, res) => {
       ok: false,
       error: err.message || 'Failed to send WhatsApp message'
     });
+  }
+});
+
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin for Firestore Queue listener
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID || 'munirathnam-illam'
+    });
+    console.log('🔥 [Firebase] Initialized for whatsappQueue processing (Project: munirathnam-illam)');
+  } catch (err) {
+    console.warn('⚠️ [Firebase] Could not initialize Firebase Admin:', err.message);
+  }
+}
+
+// Queue Worker function to process pending WhatsApp reminders
+let isProcessingQueue = false;
+async function processWhatsappQueue() {
+  if (isProcessingQueue || clientStatus !== 'READY' || !admin.apps.length) return;
+  isProcessingQueue = true;
+
+  try {
+    const snap = await admin.firestore().collection('whatsappQueue')
+      .where('status', '==', 'PENDING')
+      .limit(10)
+      .get();
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const cleanDigits = String(data.phone).replace(/\D/g, '');
+      const chatId = cleanDigits.includes('@') ? cleanDigits : `${cleanDigits}@c.us`;
+
+      try {
+        console.log(`[Queue Worker] Sending WhatsApp to +${cleanDigits} (Room ${data.roomId || 'Unknown'})...`);
+        const isReg = await client.isRegisteredUser(chatId).catch(() => true);
+        if (!isReg) {
+          console.warn(`[Queue Worker] +${cleanDigits} is not registered on WhatsApp`);
+          await doc.ref.update({
+            status: 'FAILED',
+            error: 'Not registered on WhatsApp',
+            processedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          continue;
+        }
+
+        const sentMsg = await client.sendMessage(chatId, data.message);
+        console.log(`✅ [Queue Worker] Successfully sent to +${cleanDigits} (ID: ${sentMsg.id._serialized})`);
+
+        await doc.ref.update({
+          status: 'SENT',
+          messageId: sentMsg.id._serialized || null,
+          processedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add to audit trail
+        await admin.firestore().collection('whatsappAudit').add({
+          tenantId: data.tenantId || null,
+          roomId: data.roomId || null,
+          roomNo: data.roomNo || null,
+          tenantName: data.tenantName || 'Unknown',
+          phone: cleanDigits,
+          monthKey: data.monthKey || null,
+          status: 'SENT',
+          messageId: sentMsg.id._serialized || null,
+          source: 'QUEUE_WORKER',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (sendErr) {
+        console.error(`❌ [Queue Worker] Error sending to +${cleanDigits}:`, sendErr.message);
+        await doc.ref.update({
+          status: 'FAILED',
+          error: sendErr.message,
+          processedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch (qErr) {
+    console.error('[Queue Worker] Error polling queue:', qErr.message);
+  } finally {
+    isProcessingQueue = false;
+  }
+}
+
+// Start queue listener when client is ready
+client.on('ready', () => {
+  if (admin.apps.length) {
+    console.log('📡 [Queue Worker] Listening for pending WhatsApp reminders in Firestore...');
+    try {
+      admin.firestore().collection('whatsappQueue')
+        .where('status', '==', 'PENDING')
+        .onSnapshot(() => {
+          processWhatsappQueue().catch(() => {});
+        }, (err) => {
+          console.warn('[Queue Worker] Snapshot listener error:', err.message);
+        });
+    } catch (e) {
+      console.warn('[Queue Worker] Snapshot setup error:', e.message);
+    }
+    // Fallback interval polling every 10 seconds
+    setInterval(() => {
+      processWhatsappQueue().catch(() => {});
+    }, 10000);
   }
 });
 

@@ -582,13 +582,13 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
     const bot = getTelegramBotInstance();
     if (!bot) {
       console.warn('TELEGRAM_BOT_TOKEN is not configured in environment or functions config.');
-      return res.status(500).json({ error: 'Telegram Bot Token not configured' });
+      return res.status(200).send('Telegram Bot Token not configured');
     }
     const handler = webhookCallback(bot, 'express');
-    return handler(req, res);
+    return await handler(req, res);
   } catch (err) {
     console.error('Telegram webhook handler error:', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(200).send('OK');
   }
 });
 
@@ -722,6 +722,63 @@ exports.askDiaryAI = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', err.message || 'Error answering diary question');
   }
 });
+
+const { processVaultDocument, answerVaultQuestion } = require('./vaultService');
+
+/**
+ * Triggered automatically when a new document is added to vaultDocuments in Firestore
+ */
+exports.onVaultDocumentCreated = functions.firestore
+  .document('vaultDocuments/{docId}')
+  .onCreate(async (snap, context) => {
+    const docId = context.params.docId;
+    const data = snap.data();
+    if (!data || data.extractionStatus !== 'pending') return null;
+
+    const apiKey = getGeminiApiKey();
+    try {
+      await processVaultDocument(docId, {
+        firestore: admin.firestore(),
+        storage: admin.storage(),
+        apiKey
+      });
+      console.log(`[Vault] Successfully extracted & indexed vault doc ${docId}`);
+    } catch (err) {
+      console.error(`[Vault] Extraction error on vault doc ${docId}:`, err);
+    }
+    return null;
+  });
+
+/**
+ * HTTPS Callable Cloud Function: Ask questions about Personal Vault using RAG
+ */
+exports.askVaultAI = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to search personal vault.');
+  }
+
+  const question = typeof data?.question === 'string' ? data.question.trim() : '';
+  if (!question) {
+    throw new functions.https.HttpsError('invalid-argument', 'Question cannot be empty.');
+  }
+
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+
+  try {
+    const result = await answerVaultQuestion(question, {
+      apiKey,
+      firestore: admin.firestore()
+    });
+    return result;
+  } catch (err) {
+    console.error('askVaultAI error:', err);
+    throw new functions.https.HttpsError('internal', err.message || 'Error answering vault question');
+  }
+});
+
 
 
 
