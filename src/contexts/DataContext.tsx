@@ -42,6 +42,7 @@ interface DataContextType {
     uploadVaultDocument: (file: File, customTitle?: string) => Promise<string>;
     updateVaultDocumentTitle: (id: string, newTitle: string) => Promise<void>;
     deleteVaultDocument: (id: string, storagePath?: string) => Promise<void>;
+    reprocessVaultDocument: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -486,6 +487,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const reprocessVaultDocumentHandler = async (id: string) => {
+        await updateDoc(doc(db, 'vaultDocuments', id), {
+            extractionStatus: 'pending',
+            embeddingStatus: 'pending',
+            error: null,
+            updatedAt: new Date().toISOString()
+        });
+    };
+
     const [globalYear, setGlobalYear] = useState(new Date().getFullYear());
     const [error] = useState<Error | null>(null);
 
@@ -522,7 +532,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteImportantNote: deleteImportantNoteHandler,
         uploadVaultDocument: uploadVaultDocumentHandler,
         updateVaultDocumentTitle: updateVaultDocumentTitleHandler,
-        deleteVaultDocument: deleteVaultDocumentHandler
+        deleteVaultDocument: deleteVaultDocumentHandler,
+        reprocessVaultDocument: reprocessVaultDocumentHandler
     };
 
     return (

@@ -750,6 +750,60 @@ exports.onVaultDocumentCreated = functions.firestore
   });
 
 /**
+ * Triggered when a document is updated and its extractionStatus is reset to 'pending'
+ */
+exports.onVaultDocumentUpdated = functions.firestore
+  .document('vaultDocuments/{docId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data() || {};
+    const afterData = change.after.data() || {};
+    const docId = context.params.docId;
+
+    // Only process if status changed to 'pending' from something else
+    if (afterData.extractionStatus === 'pending' && beforeData.extractionStatus !== 'pending') {
+      const apiKey = getGeminiApiKey();
+      try {
+        await processVaultDocument(docId, {
+          firestore: admin.firestore(),
+          storage: admin.storage(),
+          apiKey
+        });
+        console.log(`[Vault] Successfully re-processed vault doc ${docId}`);
+      } catch (err) {
+        console.error(`[Vault] Extraction error on re-processing vault doc ${docId}:`, err);
+      }
+    }
+    return null;
+  });
+
+/**
+ * HTTPS Callable Cloud Function: Reprocess / retry a vault document
+ */
+exports.reprocessVaultDocument = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+  }
+  const docId = typeof data?.docId === 'string' ? data.docId.trim() : '';
+  if (!docId) {
+    throw new functions.https.HttpsError('invalid-argument', 'docId is required.');
+  }
+
+  const apiKey = getGeminiApiKey();
+  try {
+    const res = await processVaultDocument(docId, {
+      firestore: admin.firestore(),
+      storage: admin.storage(),
+      apiKey
+    });
+    return res;
+  } catch (err) {
+    console.error(`[Vault] Error in reprocessVaultDocument for ${docId}:`, err);
+    throw new functions.https.HttpsError('internal', err.message || 'Reprocessing failed');
+  }
+});
+
+
+/**
  * HTTPS Callable Cloud Function: Ask questions about Personal Vault using RAG
  */
 exports.askVaultAI = functions.https.onCall(async (data, context) => {

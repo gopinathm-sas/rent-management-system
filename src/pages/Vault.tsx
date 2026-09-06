@@ -22,12 +22,13 @@ import {
     AlertCircle,
     Info,
     HelpCircle,
-    Send
+    Send,
+    RotateCw
 } from 'lucide-react';
 import { VaultDocument } from '../types';
 
 export default function Vault() {
-    const { vaultDocuments, uploadVaultDocument, updateVaultDocumentTitle, deleteVaultDocument } = useData();
+    const { vaultDocuments, uploadVaultDocument, updateVaultDocumentTitle, deleteVaultDocument, reprocessVaultDocument } = useData();
     const { showToast } = useUI();
 
     const [activeTab, setActiveTab] = useState<'documents' | 'ask'>('documents');
@@ -154,6 +155,15 @@ export default function Vault() {
             });
         } finally {
             setAskingAi(false);
+        }
+    };
+
+    const handleRetry = async (docId: string) => {
+        try {
+            await reprocessVaultDocument(docId);
+            showToast('Retrying document extraction & indexing...', 'info');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to trigger retry', 'error');
         }
     };
 
@@ -330,10 +340,22 @@ export default function Vault() {
                                                         </span>
                                                     )}
                                                     {isFailed && (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                                                            <AlertCircle size={11} />
-                                                            Failed
-                                                        </span>
+                                                        <div className="flex items-center gap-1">
+                                                            <span
+                                                                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"
+                                                                title={doc.error || 'Extraction failed'}
+                                                            >
+                                                                <AlertCircle size={11} />
+                                                                Failed
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleRetry(doc.id)}
+                                                                className="p-1 rounded-lg text-rose-600 hover:text-rose-800 hover:bg-rose-100 transition"
+                                                                title="Retry Extraction"
+                                                            >
+                                                                <RotateCw size={12} />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

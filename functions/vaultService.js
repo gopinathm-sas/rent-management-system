@@ -1,7 +1,7 @@
 const admin = require('firebase-admin');
 
-const GEMINI_EMBED_MODEL = 'text-embedding-004';
-const GEMINI_GEN_MODEL = 'gemini-2.5-flash';
+const GEMINI_EMBED_MODEL = 'gemini-embedding-001';
+const GEMINI_GEN_MODEL = 'gemini-3.5-flash-lite';
 
 /**
  * Calls Gemini Developer API with fetch
@@ -23,7 +23,7 @@ async function callGeminiApi(url, payload) {
 }
 
 /**
- * Generates vector embedding for text using text-embedding-004
+ * Generates vector embedding for text using gemini-embedding-001
  */
 async function generateEmbedding(text, apiKey) {
   if (!text || typeof text !== 'string' || !text.trim()) return null;
@@ -83,9 +83,16 @@ async function extractTextFromBuffer(buffer, contentType, { apiKey, filename = '
   if (isPdf) {
     let nativeText = '';
     try {
-      const pdfParse = require('pdf-parse');
-      const parsed = await pdfParse(buffer);
-      nativeText = (parsed.text || '').trim();
+      const pdfModule = require('pdf-parse');
+      if (typeof pdfModule === 'function') {
+        const parsed = await pdfModule(buffer);
+        nativeText = (parsed.text || '').trim();
+      } else if (pdfModule && pdfModule.PDFParse) {
+        const parser = new pdfModule.PDFParse({ data: buffer });
+        await parser.load();
+        const res = await parser.getText();
+        nativeText = (typeof res === 'string' ? res : (res?.text || '')).trim();
+      }
     } catch (pdfErr) {
       console.warn('[VaultService] Native PDF parsing failed or incomplete:', pdfErr.message);
     }
