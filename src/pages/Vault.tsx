@@ -49,6 +49,9 @@ export default function Vault() {
     const [previewDoc, setPreviewDoc] = useState<VaultDocument | null>(null);
     const [previewTab, setPreviewTab] = useState<'document' | 'text'>('document');
     const [zoomLevel, setZoomLevel] = useState<number>(100);
+    const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfViewerEngine, setPdfViewerEngine] = useState<'native' | 'google'>('native');
 
     // AI Q&A state
     const [askQuestion, setAskQuestion] = useState('');
@@ -182,6 +185,7 @@ export default function Vault() {
         setPreviewDoc(doc);
         setPreviewTab('document');
         setZoomLevel(100);
+        setPdfViewerEngine('native');
     };
 
     const copyExtractedText = (text?: string) => {
@@ -189,6 +193,52 @@ export default function Vault() {
         navigator.clipboard.writeText(text);
         showToast('Extracted text copied to clipboard!', 'success');
     };
+
+    // Load PDF as blob URL for same-origin inline rendering in iframe/object
+    React.useEffect(() => {
+        if (!previewDoc) {
+            if (pdfBlobUrl) {
+                URL.revokeObjectURL(pdfBlobUrl);
+                setPdfBlobUrl(null);
+            }
+            return;
+        }
+
+        const isPdf = previewDoc.contentType.includes('pdf') || previewDoc.originalFilename.toLowerCase().endsWith('.pdf');
+        if (!isPdf || !previewDoc.downloadUrl) {
+            return;
+        }
+
+        let isMounted = true;
+        setPdfLoading(true);
+
+        fetch(previewDoc.downloadUrl)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+            })
+            .then(rawBlob => {
+                if (!isMounted) return;
+                const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(pdfBlob);
+                setPdfBlobUrl(blobUrl);
+                setPdfLoading(false);
+            })
+            .catch(err => {
+                console.warn('PDF blob conversion notice (using direct URL):', err);
+                if (isMounted) {
+                    setPdfLoading(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+            if (pdfBlobUrl) {
+                URL.revokeObjectURL(pdfBlobUrl);
+                setPdfBlobUrl(null);
+            }
+        };
+    }, [previewDoc?.id, previewDoc?.downloadUrl]);
 
     // Close preview on Escape key
     React.useEffect(() => {
@@ -732,11 +782,87 @@ export default function Vault() {
                                     {/* Handle PDFs */}
                                     {(previewDoc.contentType.includes('pdf') || previewDoc.originalFilename.toLowerCase().endsWith('.pdf')) ? (
                                         previewDoc.downloadUrl ? (
-                                            <iframe
-                                                src={`${previewDoc.downloadUrl}#toolbar=1`}
-                                                title={previewDoc.title}
-                                                className="w-full h-full rounded-2xl border-0"
-                                            />
+                                            <div className="flex flex-col h-full">
+                                                {/* PDF Toolbar */}
+                                                <div className="px-3 sm:px-4 py-2 bg-stone-50 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-[11px] text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                                                            <FileText size={13} className="text-rose-500" />
+                                                            PDF Reader
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5">
+                                                        {/* Engine Switcher */}
+                                                        <div className="flex items-center bg-stone-200/70 p-0.5 rounded-xl text-[11px] font-bold">
+                                                            <button
+                                                                onClick={() => setPdfViewerEngine('native')}
+                                                                className={`px-2.5 py-1 rounded-lg transition ${
+                                                                    pdfViewerEngine === 'native'
+                                                                        ? 'bg-white text-slate-900 shadow-2xs'
+                                                                        : 'text-slate-600 hover:text-slate-900'
+                                                                }`}
+                                                                title="Fast in-browser viewer"
+                                                            >
+                                                                Native
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setPdfViewerEngine('google')}
+                                                                className={`px-2.5 py-1 rounded-lg transition ${
+                                                                    pdfViewerEngine === 'google'
+                                                                        ? 'bg-white text-slate-900 shadow-2xs'
+                                                                        : 'text-slate-600 hover:text-slate-900'
+                                                                }`}
+                                                                title="Google Docs cloud viewer"
+                                                            >
+                                                                Google Viewer
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Open External Tab */}
+                                                        <a
+                                                            href={pdfBlobUrl || previewDoc.downloadUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-1.5 rounded-lg hover:bg-stone-200/70 text-slate-600 transition flex items-center gap-1 text-[11px] font-bold"
+                                                            title="Open in new window"
+                                                        >
+                                                            <ExternalLink size={13} />
+                                                            <span className="hidden md:inline">Open Tab</span>
+                                                        </a>
+                                                    </div>
+                                                </div>
+
+                                                {/* PDF Frame Container */}
+                                                <div className="flex-1 w-full h-full relative bg-stone-100">
+                                                    {pdfLoading && (
+                                                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-2xs text-slate-500 gap-2">
+                                                            <div className="size-6 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />
+                                                            <span className="text-xs font-bold text-slate-600">Loading PDF document...</span>
+                                                        </div>
+                                                    )}
+
+                                                    {pdfViewerEngine === 'native' ? (
+                                                        <object
+                                                            data={pdfBlobUrl || `${previewDoc.downloadUrl}#toolbar=1`}
+                                                            type="application/pdf"
+                                                            className="w-full h-full border-0"
+                                                        >
+                                                            <iframe
+                                                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewDoc.downloadUrl)}&embedded=true`}
+                                                                title={previewDoc.title}
+                                                                className="w-full h-full border-0"
+                                                            />
+                                                        </object>
+                                                    ) : (
+                                                        <iframe
+                                                            src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewDoc.downloadUrl)}&embedded=true`}
+                                                            title={previewDoc.title}
+                                                            className="w-full h-full border-0"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
                                         ) : (
                                             <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-500">
                                                 <AlertCircle className="text-amber-500 mb-2" size={32} />
