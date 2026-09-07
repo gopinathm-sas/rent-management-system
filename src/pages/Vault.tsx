@@ -23,7 +23,13 @@ import {
     Info,
     HelpCircle,
     Send,
-    RotateCw
+    RotateCw,
+    Eye,
+    ExternalLink,
+    ZoomIn,
+    ZoomOut,
+    Maximize2,
+    Copy
 } from 'lucide-react';
 import { VaultDocument } from '../types';
 
@@ -38,6 +44,11 @@ export default function Vault() {
     const [editingDocId, setEditingDocId] = useState<string | null>(null);
     const [editTitleValue, setEditTitleValue] = useState('');
     const [docToDelete, setDocToDelete] = useState<VaultDocument | null>(null);
+
+    // Preview Modal state
+    const [previewDoc, setPreviewDoc] = useState<VaultDocument | null>(null);
+    const [previewTab, setPreviewTab] = useState<'document' | 'text'>('document');
+    const [zoomLevel, setZoomLevel] = useState<number>(100);
 
     // AI Q&A state
     const [askQuestion, setAskQuestion] = useState('');
@@ -166,6 +177,30 @@ export default function Vault() {
             showToast(err.message || 'Failed to trigger retry', 'error');
         }
     };
+
+    const openPreview = (doc: VaultDocument) => {
+        setPreviewDoc(doc);
+        setPreviewTab('document');
+        setZoomLevel(100);
+    };
+
+    const copyExtractedText = (text?: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        showToast('Extracted text copied to clipboard!', 'success');
+    };
+
+    // Close preview on Escape key
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setPreviewDoc(null);
+                setDocToDelete(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -316,7 +351,11 @@ export default function Vault() {
                                         <div className="space-y-3">
                                             {/* Top Row: Icon & Status Badge */}
                                             <div className="flex items-start justify-between gap-2">
-                                                <div className="p-2.5 bg-stone-100 rounded-2xl">
+                                                <div
+                                                    onClick={() => openPreview(doc)}
+                                                    className="p-2.5 bg-stone-100 hover:bg-emerald-50 rounded-2xl cursor-pointer transition"
+                                                    title="Click to preview document"
+                                                >
                                                     {getFileIcon(doc.contentType, doc.originalFilename)}
                                                 </div>
 
@@ -386,7 +425,11 @@ export default function Vault() {
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-start justify-between group">
-                                                        <h4 className="text-sm font-black text-slate-900 leading-tight">
+                                                        <h4
+                                                            onClick={() => openPreview(doc)}
+                                                            className="text-sm font-black text-slate-900 leading-tight cursor-pointer hover:text-emerald-700 transition"
+                                                            title="Click to preview document"
+                                                        >
                                                             {doc.title}
                                                         </h4>
                                                         <button
@@ -408,7 +451,14 @@ export default function Vault() {
 
                                             {/* Text Sample preview if available */}
                                             {doc.extractedTextSample && (
-                                                <div className="p-2.5 bg-stone-50 rounded-2xl border border-stone-100 text-[11px] text-slate-600 line-clamp-2 italic font-serif">
+                                                <div
+                                                    onClick={() => {
+                                                        openPreview(doc);
+                                                        setPreviewTab('text');
+                                                    }}
+                                                    className="p-2.5 bg-stone-50 hover:bg-emerald-50/50 rounded-2xl border border-stone-100 text-[11px] text-slate-600 line-clamp-2 italic font-serif cursor-pointer transition"
+                                                    title="Click to view full extracted text"
+                                                >
                                                     "{doc.extractedTextSample}..."
                                                 </div>
                                             )}
@@ -424,16 +474,32 @@ export default function Vault() {
 
                                             <div className="flex items-center gap-1">
                                                 {doc.downloadUrl && (
-                                                    <a
-                                                        href={doc.downloadUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        download={doc.originalFilename}
-                                                        className="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
-                                                        title="Download File"
-                                                    >
-                                                        <Download size={15} />
-                                                    </a>
+                                                    <>
+                                                        <button
+                                                            onClick={() => openPreview(doc)}
+                                                            className="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                                                            title="Preview Document"
+                                                        >
+                                                            <Eye size={15} />
+                                                        </button>
+                                                        <a
+                                                            href={doc.downloadUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                                                            title="Open in New Tab"
+                                                        >
+                                                            <ExternalLink size={15} />
+                                                        </a>
+                                                        <a
+                                                            href={doc.downloadUrl}
+                                                            download={doc.originalFilename}
+                                                            className="p-2 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                                                            title="Download File"
+                                                        >
+                                                            <Download size={15} />
+                                                        </a>
+                                                    </>
                                                 )}
                                                 <button
                                                     onClick={() => setDocToDelete(doc)}
@@ -523,19 +589,282 @@ export default function Vault() {
                             {aiResponse.sources && aiResponse.sources.length > 0 && (
                                 <div className="pt-3 border-t border-stone-200/80 flex flex-wrap items-center gap-2">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Referenced Document(s):</span>
-                                    {aiResponse.sources.map((src, i) => (
-                                        <span
-                                            key={i}
-                                            className="px-2.5 py-1 bg-white border border-stone-200 rounded-xl text-[10px] font-bold text-emerald-800 flex items-center gap-1"
-                                        >
-                                            <FileText size={10} />
-                                            {src}
-                                        </span>
-                                    ))}
+                                    {aiResponse.sources.map((src, i) => {
+                                        const matchedDoc = vaultDocuments.find(d => d.title === src || d.originalFilename === src);
+                                        return (
+                                            <button
+                                                key={i}
+                                                onClick={() => {
+                                                    if (matchedDoc) {
+                                                        openPreview(matchedDoc);
+                                                    }
+                                                }}
+                                                className={`px-2.5 py-1 bg-white border border-stone-200 rounded-xl text-[10px] font-bold text-emerald-800 flex items-center gap-1 transition ${
+                                                    matchedDoc ? 'hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer shadow-2xs' : ''
+                                                }`}
+                                                title={matchedDoc ? 'Click to preview document' : undefined}
+                                            >
+                                                <FileText size={10} />
+                                                {src}
+                                                {matchedDoc && <Eye size={10} className="text-emerald-600 ml-0.5" />}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Document Preview Modal */}
+            {previewDoc && (
+                <div
+                    className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-150"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setPreviewDoc(null);
+                    }}
+                >
+                    <div className="bg-white rounded-3xl max-w-5xl w-full h-[90vh] shadow-2xl border border-stone-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+                        {/* Modal Header */}
+                        <div className="p-3 sm:px-6 sm:py-3.5 border-b border-stone-200 flex items-center justify-between gap-3 bg-stone-50/80">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="p-2 bg-white rounded-xl shadow-xs border border-stone-200 shrink-0">
+                                    {getFileIcon(previewDoc.contentType, previewDoc.originalFilename)}
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">
+                                        {previewDoc.title}
+                                    </h3>
+                                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">
+                                        <span className="font-mono truncate max-w-xs">{previewDoc.originalFilename}</span>
+                                        <span>•</span>
+                                        <span>{formatFileSize(previewDoc.sizeBytes)}</span>
+                                        <span>•</span>
+                                        <span>{new Date(previewDoc.uploadedAt).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* View Selector Tabs */}
+                            <div className="hidden sm:flex items-center gap-1 bg-stone-200/70 p-1 rounded-2xl">
+                                <button
+                                    onClick={() => setPreviewTab('document')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                        previewTab === 'document'
+                                            ? 'bg-white text-slate-900 shadow-xs'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <FileText size={13} />
+                                    Document Preview
+                                </button>
+                                <button
+                                    onClick={() => setPreviewTab('text')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                        previewTab === 'text'
+                                            ? 'bg-white text-emerald-800 shadow-xs'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Sparkles size={13} className="text-amber-500" />
+                                    Extracted Text
+                                </button>
+                            </div>
+
+                            {/* Header Action Buttons */}
+                            <div className="flex items-center gap-1">
+                                {previewDoc.downloadUrl && (
+                                    <>
+                                        <a
+                                            href={previewDoc.downloadUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-2 rounded-xl text-slate-600 hover:text-emerald-700 hover:bg-stone-200/70 transition"
+                                            title="Open in new window / tab"
+                                        >
+                                            <ExternalLink size={16} />
+                                        </a>
+                                        <a
+                                            href={previewDoc.downloadUrl}
+                                            download={previewDoc.originalFilename}
+                                            className="p-2 rounded-xl text-slate-600 hover:text-emerald-700 hover:bg-stone-200/70 transition"
+                                            title="Download original file"
+                                        >
+                                            <Download size={16} />
+                                        </a>
+                                    </>
+                                )}
+                                <button
+                                    onClick={() => setPreviewDoc(null)}
+                                    className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-stone-200/70 transition ml-1"
+                                    title="Close Preview (Esc)"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Mobile Tabs Switcher */}
+                        <div className="sm:hidden flex items-center justify-around border-b border-stone-200 bg-stone-50 p-1.5">
+                            <button
+                                onClick={() => setPreviewTab('document')}
+                                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                                    previewTab === 'document' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+                                }`}
+                            >
+                                <FileText size={13} /> Document
+                            </button>
+                            <button
+                                onClick={() => setPreviewTab('text')}
+                                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                                    previewTab === 'text' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-500'
+                                }`}
+                            >
+                                <Sparkles size={13} /> Extracted Text
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 bg-stone-100/60 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col">
+                            {previewTab === 'document' ? (
+                                <div className="flex-1 w-full h-full bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden flex flex-col">
+                                    {/* Handle PDFs */}
+                                    {(previewDoc.contentType.includes('pdf') || previewDoc.originalFilename.toLowerCase().endsWith('.pdf')) ? (
+                                        previewDoc.downloadUrl ? (
+                                            <iframe
+                                                src={`${previewDoc.downloadUrl}#toolbar=1`}
+                                                title={previewDoc.title}
+                                                className="w-full h-full rounded-2xl border-0"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-500">
+                                                <AlertCircle className="text-amber-500 mb-2" size={32} />
+                                                <p className="text-xs font-bold">PDF file URL is not available.</p>
+                                            </div>
+                                        )
+                                    ) : (previewDoc.contentType.startsWith('image/') || /\.(png|jpe?g|webp|heic|bmp|gif)$/i.test(previewDoc.originalFilename)) ? (
+                                        /* Handle Images with Zoom */
+                                        <div className="flex flex-col h-full">
+                                            {/* Image Toolbar */}
+                                            <div className="px-4 py-2 bg-stone-50 border-b border-stone-200 flex items-center justify-between text-xs text-slate-600">
+                                                <span className="font-bold text-[11px] text-slate-500">Image Preview</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        onClick={() => setZoomLevel(prev => Math.max(50, prev - 25))}
+                                                        className="p-1.5 rounded-lg hover:bg-stone-200/70 text-slate-600 transition"
+                                                        title="Zoom Out"
+                                                    >
+                                                        <ZoomOut size={14} />
+                                                    </button>
+                                                    <span className="font-mono text-[11px] font-bold min-w-10 text-center">{zoomLevel}%</span>
+                                                    <button
+                                                        onClick={() => setZoomLevel(prev => Math.min(300, prev + 25))}
+                                                        className="p-1.5 rounded-lg hover:bg-stone-200/70 text-slate-600 transition"
+                                                        title="Zoom In"
+                                                    >
+                                                        <ZoomIn size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setZoomLevel(100)}
+                                                        className="px-2 py-1 rounded-lg hover:bg-stone-200/70 text-[10px] font-bold text-slate-600 transition ml-1"
+                                                        title="Reset Zoom to 100%"
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-stone-900/5">
+                                                <img
+                                                    src={previewDoc.downloadUrl}
+                                                    alt={previewDoc.title}
+                                                    style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
+                                                    className="max-h-[70vh] max-w-full object-contain rounded-xl shadow-md transition-transform duration-100"
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (previewDoc.contentType.includes('text') || /\.(txt|csv|json|md)$/i.test(previewDoc.originalFilename)) ? (
+                                        /* Plain Text / Code View */
+                                        <div className="flex-1 p-6 overflow-auto bg-stone-900 text-stone-100 font-mono text-xs leading-relaxed rounded-2xl">
+                                            <pre className="whitespace-pre-wrap font-mono">
+                                                {previewDoc.extractedTextSample || "No plain text content available to preview."}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        /* Other Binary Files */
+                                        <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
+                                            <div className="p-4 bg-stone-100 rounded-3xl text-slate-600">
+                                                {getFileIcon(previewDoc.contentType, previewDoc.originalFilename)}
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-slate-800">
+                                                    In-browser preview is not supported for this file type
+                                                </h4>
+                                                <p className="text-xs text-slate-500 max-w-md mt-1">
+                                                    You can open this document in your device's native app or view the AI-extracted OCR text in the tab above.
+                                                </p>
+                                            </div>
+                                            {previewDoc.downloadUrl && (
+                                                <div className="flex gap-2">
+                                                    <a
+                                                        href={previewDoc.downloadUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
+                                                    >
+                                                        <ExternalLink size={14} /> Open in External App
+                                                    </a>
+                                                    <a
+                                                        href={previewDoc.downloadUrl}
+                                                        download={previewDoc.originalFilename}
+                                                        className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
+                                                    >
+                                                        <Download size={14} /> Download
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                /* Extracted OCR Text Tab */
+                                <div className="flex-1 bg-white rounded-2xl border border-stone-200 shadow-xs p-4 sm:p-6 overflow-hidden flex flex-col space-y-3">
+                                    <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                <Sparkles className="text-amber-500" size={15} />
+                                                AI Extracted Document Text
+                                            </span>
+                                            {previewDoc.extractionStatus === 'success' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                                    {previewDoc.chunkCount || 1} Chunks Indexed
+                                                </span>
+                                            )}
+                                        </div>
+                                        {previewDoc.extractedTextSample && (
+                                            <button
+                                                onClick={() => copyExtractedText(previewDoc.extractedTextSample)}
+                                                className="px-3 py-1 bg-stone-100 hover:bg-stone-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                                            >
+                                                <Copy size={12} /> Copy Text
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1 overflow-auto bg-stone-50 p-4 rounded-xl border border-stone-200/60 font-serif text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                        {previewDoc.extractedTextSample ? (
+                                            previewDoc.extractedTextSample
+                                        ) : (
+                                            <div className="text-center py-12 text-slate-400">
+                                                <Info className="mx-auto mb-2 text-slate-300" size={28} />
+                                                <p className="text-xs font-medium">No extracted text available for this document.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
