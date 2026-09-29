@@ -75,7 +75,7 @@ export default function WaterBill() {
         String(a.roomNo).localeCompare(String(b.roomNo), undefined, { numeric: true })
     );
 
-    const handleCellClick = (room, monthIndex, isFuture, canShowHistory, currentVal, existingReset, prevVal) => {
+    const handleCellClick = (room, monthIndex, isFuture, canShowHistory, currentVal, existingReset, prevVal, prevHistory) => {
         if (!canShowHistory && !isOccupiedRecord(findTenantForRoom(tenants, room.roomId))) return; // Ignore if vacant and no history
         if (isFuture) return;
 
@@ -84,7 +84,8 @@ export default function WaterBill() {
             monthIndex,
             currentVal,
             prevVal,
-            existingReset
+            existingReset,
+            prevHistory
         });
         setInputValue(currentVal ?? '');
         setIsResetChecked(!!existingReset); // Ensure boolean
@@ -124,10 +125,22 @@ export default function WaterBill() {
                 }
             }
 
+            const currentValInDb = tenant?.waterReadings?.[key];
+            const currentResetInDb = (tenant?.waterMeterReset || {})[key];
+
             const updatePayload = {
                 [`waterReadings.${key}`]: inputValue === '' ? null : readingNum,
                 [`waterMeterReset.${key}`]: !!isResetChecked // Ensure strictly boolean
             };
+
+            // Store previous entry in waterReadingsPrev if the value is changing
+            if (currentValInDb !== undefined && currentValInDb !== null && currentValInDb !== (inputValue === '' ? null : readingNum)) {
+                updatePayload[`waterReadingsPrev.${key}`] = {
+                    reading: currentValInDb,
+                    meterReset: !!currentResetInDb,
+                    updatedAt: new Date().toISOString()
+                };
+            }
 
             await updateDoc(doc(db, 'properties', tenant.id), updatePayload);
             setEditingCell(null);
@@ -135,6 +148,50 @@ export default function WaterBill() {
         } catch (e) {
             console.error(e);
             showToast("Error saving reading: " + e.message, "error");
+        }
+    };
+
+    // Undo / Revert single room water reading to its previous entry
+    const handleUndoSingleRoom = async (room, monthIndex) => {
+        try {
+            const tenant = findTenantForRoom(tenants, room.roomId);
+            if (!tenant || !tenant.id) throw new Error("Tenant record not found");
+
+            const key = getWaterMonthKey(year, monthIndex);
+            const prevHistory = tenant?.waterReadingsPrev?.[key];
+            const currentReading = tenant?.waterReadings?.[key];
+            const currentReset = (tenant?.waterMeterReset || {})[key];
+
+            if (!prevHistory || prevHistory.reading === undefined) {
+                showToast("No previous reading history available to restore", "info");
+                return;
+            }
+
+            const targetReading = prevHistory.reading;
+            const targetReset = !!prevHistory.meterReset;
+
+            const updatePayload = {
+                [`waterReadings.${key}`]: targetReading,
+                [`waterMeterReset.${key}`]: targetReset
+            };
+
+            // Swap with current value so the user can toggle/redo if needed
+            if (currentReading !== undefined && currentReading !== null) {
+                updatePayload[`waterReadingsPrev.${key}`] = {
+                    reading: currentReading,
+                    meterReset: !!currentReset,
+                    updatedAt: new Date().toISOString()
+                };
+            } else {
+                updatePayload[`waterReadingsPrev.${key}`] = deleteField();
+            }
+
+            await updateDoc(doc(db, 'properties', tenant.id), updatePayload);
+            setEditingCell(null);
+            showToast(`Reverted Room ${room.roomId} (${MONTHS[monthIndex]} ${year}) to ${targetReading}`, "success");
+        } catch (e) {
+            console.error(e);
+            showToast("Error reverting reading: " + e.message, "error");
         }
     };
 
@@ -459,14 +516,78 @@ export default function WaterBill() {
                                             const prev = getPrevYearMonth(year, idx);
                                             const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
                                             const prevVal = Number(tenant?.waterReadings?.[prevKey]);
+                                            const prevHistory = tenant?.waterReadingsPrev?.[key];
 
                                             return (
                                                 <td
                                                     key={idx}
-                                                    className={`px-1 py-2 border-r border-slate-100 h-16 align-middle ${cellClass}`}
-                                                    onClick={() => handleCellClick(room, idx, (canShowHistory && isFuture && isOccupied), canShowHistory, savedReading, isReset, prevVal)}
+                                                    className={`px-1 py-2 border-r border-slate-100 h-16 align-middle relative group ${cellClass}`}
+                                                    onClick={() => handleCellClick(room, idx, (canShowHistory && isFuture && isOccupied), canShowHistory, savedReading, isReset, prevVal, prevHistory)}
                                                 >
                                                     {cellContent}
+
+                                                    {/* Quick Undo Indicator Badge in Cell on Hover if previous history exists */}
+                                                    {canShowHistory && !isFuture && prevHistory && prevHistory.reading !== undefined && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleUndoSingleRoom(room, idx);
+                                                            }}
+                                                            className="absolute top-1 right-1 p-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                                                            title={`Revert to previous entry (${prevHistory.reading})`}
+                                                        >
+                                                            <Undo2 size={10} />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Rich Hover Card */}
+                                                    {canShowHistory && !isFuture && (
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col z-40 pointer-events-auto bg-slate-900 text-white text-xs rounded-2xl p-3 shadow-2xl border border-slate-700 w-56 whitespace-normal text-left backdrop-blur-md bg-slate-900/95 animate-in fade-in zoom-in-95 duration-150">
+                                                            <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-1.5">
+                                                                <span className="font-bold text-blue-300">Room {room.roomId} • {month}</span>
+                                                                <span className="text-[10px] text-slate-400 font-medium truncate max-w-[90px]">{displayName}</span>
+                                                            </div>
+                                                            <div className="space-y-1 text-[11px]">
+                                                                <div className="flex justify-between text-slate-300">
+                                                                    <span className="text-slate-400">Current Reading:</span>
+                                                                    <span className="font-mono font-bold text-white">{savedReading !== undefined && savedReading !== null ? savedReading : '—'}</span>
+                                                                </div>
+                                                                <div className="flex justify-between text-slate-400">
+                                                                    <span>Previous Baseline:</span>
+                                                                    <span className="font-mono text-slate-300">{Number.isFinite(prevVal) ? prevVal : '—'}</span>
+                                                                </div>
+                                                                {result.units !== null && result.amount !== null && (
+                                                                    <div className="flex justify-between items-center text-slate-300 pt-1 border-t border-slate-800">
+                                                                        <span className="text-slate-400">Consumption:</span>
+                                                                        <span className="font-bold text-emerald-400">{result.units} units (₹{result.amount})</span>
+                                                                    </div>
+                                                                )}
+                                                                {prevHistory && prevHistory.reading !== undefined && (
+                                                                    <div className="mt-2 pt-2 border-t border-slate-700 flex items-center justify-between gap-1 bg-amber-950/60 -mx-1 px-2 py-1.5 rounded-xl border border-amber-800/50">
+                                                                        <div className="text-[10px] text-amber-200">
+                                                                            <span className="text-amber-400 font-semibold">Previous: </span>
+                                                                            <span className="font-mono font-bold text-amber-100">{prevHistory.reading}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleUndoSingleRoom(room, idx);
+                                                                            }}
+                                                                            className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[10px] font-black flex items-center gap-1 shadow active:scale-95 transition-all cursor-pointer"
+                                                                            title={`Revert back to ${prevHistory.reading}`}
+                                                                        >
+                                                                            <Undo2 size={10} />
+                                                                            Undo
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Arrow */}
+                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 pointer-events-none" />
+                                                        </div>
+                                                    )}
                                                 </td>
                                             );
                                         })}
@@ -580,6 +701,25 @@ export default function WaterBill() {
                                     />
                                 </div>
                             </div>
+
+                            {/* Restore Previous Entry Banner (if available) */}
+                            {editingCell.prevHistory && editingCell.prevHistory.reading !== undefined && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-2 animate-in fade-in">
+                                    <div className="text-xs text-amber-900 leading-tight">
+                                        <div className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Previous Entry</div>
+                                        <div className="font-mono font-bold text-base text-amber-900 mt-0.5">{editingCell.prevHistory.reading}</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUndoSingleRoom(editingCell.room, editingCell.monthIndex)}
+                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                                        title={`Restore previous entry (${editingCell.prevHistory.reading})`}
+                                    >
+                                        <Undo2 size={13} />
+                                        <span>Restore</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Actions Footer */}

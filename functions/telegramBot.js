@@ -986,12 +986,24 @@ async function saveWaterReading({ tenant, roomNo, roomId, monthKey, readingNum, 
 
   const deltaResult = computeWaterReadingDelta(readingNum, prevVal, isReset, waterRate);
 
+  const currentValInDb = tenant.waterReadings?.[monthKey];
+  const currentResetInDb = tenant.waterMeterReset?.[monthKey];
+
   const updatePayload = {
     [`waterReadings.${monthKey}`]: readingNum,
     [`waterMeterReset.${monthKey}`]: !!isReset,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedBy: `telegram:${telegramUser.email || telegramUser.chatId}`
   };
+
+  // Track previous value so it can always be undone from the app
+  if (currentValInDb !== undefined && currentValInDb !== null && currentValInDb !== readingNum) {
+    updatePayload[`waterReadingsPrev.${monthKey}`] = {
+      reading: currentValInDb,
+      meterReset: !!currentResetInDb,
+      updatedAt: new Date().toISOString()
+    };
+  }
 
   await admin.firestore().collection('properties').doc(tenant.id).update(updatePayload);
 
