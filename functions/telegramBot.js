@@ -98,12 +98,29 @@ function getPrevYearMonth(year, monthIndex) {
 
 /**
  * Returns the active billing cycle for water meter readings and monthly billing.
- * (e.g. In September 2026, the active reading cycle is 2026-Aug, with 2026-Jul as baseline).
+ * Gateway rule:
+ * - Till the 12th of each month (day <= 12): Target is the previous month's usage (e.g. Sep 11 -> 2026-Aug cycle, with 2026-Jul baseline).
+ * - After the 12th of each month (day > 12): Target is the current calendar month's usage (e.g. Sep 13 -> 2026-Sep cycle, with 2026-Aug baseline).
  */
-function getActiveWaterCycleDateParts() {
-  const { year, monthIndex, day, dateObj } = getKolkataDateParts();
-  const cycleYM = getPrevYearMonth(year, monthIndex);
+function getActiveWaterCycleDateParts(refDate = null) {
+  const parts = refDate ? {
+    year: refDate.getFullYear(),
+    monthIndex: refDate.getMonth(),
+    day: refDate.getDate(),
+    dateObj: refDate
+  } : getKolkataDateParts();
+
+  const { year, monthIndex, day, dateObj } = parts;
+
+  // 12th Day Gateway:
+  // On or before the 12th (e.g. 1st - 12th) -> update previous month's reading
+  // After the 12th (e.g. 13th onwards) -> update current calendar month's reading
+  const isPreviousMonthGateway = (day <= 12);
+  const cycleYM = isPreviousMonthGateway
+    ? getPrevYearMonth(year, monthIndex)
+    : { year, monthIndex };
   const baselineYM = getPrevYearMonth(cycleYM.year, cycleYM.monthIndex);
+
   return {
     cycleYear: cycleYM.year,
     cycleMonthIndex: cycleYM.monthIndex,
@@ -115,7 +132,8 @@ function getActiveWaterCycleDateParts() {
     currentCalendarMonthIndex: monthIndex,
     currentCalendarKey: getWaterMonthKey(year, monthIndex),
     day,
-    dateObj
+    dateObj,
+    isPreviousMonthGateway
   };
 }
 

@@ -595,5 +595,53 @@ describe('Telegram Bot - Personal Diary Feature', () => {
       expect(isNaturalDiaryQuery("")).toBe(false);
     });
   });
+
+  describe('Water Meter Reading Cycle - 12th Day Gateway Rule', () => {
+    test('dates on or before 12th of month target previous month cycle', () => {
+      // Sep 11th, 2026 -> Target is August (2026-Aug) with July as baseline
+      const res11thSep = getActiveWaterCycleDateParts(new Date(2026, 8, 11)); // Month index 8 = Sep
+      expect(res11thSep.cycleKey).toBe('2026-Aug');
+      expect(res11thSep.baselineKey).toBe('2026-Jul');
+      expect(res11thSep.isPreviousMonthGateway).toBe(true);
+
+      // Sep 12th, 2026 -> Target is still August (2026-Aug)
+      const res12thSep = getActiveWaterCycleDateParts(new Date(2026, 8, 12));
+      expect(res12thSep.cycleKey).toBe('2026-Aug');
+      expect(res12thSep.baselineKey).toBe('2026-Jul');
+      expect(res12thSep.isPreviousMonthGateway).toBe(true);
+
+      // Sep 1st, 2026 -> Target is August (2026-Aug)
+      const res1stSep = getActiveWaterCycleDateParts(new Date(2026, 8, 1));
+      expect(res1stSep.cycleKey).toBe('2026-Aug');
+      expect(res1stSep.baselineKey).toBe('2026-Jul');
+    });
+
+    test('dates after 12th of month target current calendar month cycle', () => {
+      // Sep 13th, 2026 -> Target is September (2026-Sep) with August as baseline
+      const res13thSep = getActiveWaterCycleDateParts(new Date(2026, 8, 13));
+      expect(res13thSep.cycleKey).toBe('2026-Sep');
+      expect(res13thSep.baselineKey).toBe('2026-Aug');
+      expect(res13thSep.isPreviousMonthGateway).toBe(false);
+
+      // Sep 29th, 2026 -> Target is September (2026-Sep)
+      const res29thSep = getActiveWaterCycleDateParts(new Date(2026, 8, 29));
+      expect(res29thSep.cycleKey).toBe('2026-Sep');
+      expect(res29thSep.baselineKey).toBe('2026-Aug');
+      expect(res29thSep.isPreviousMonthGateway).toBe(false);
+    });
+
+    test('handles year boundaries correctly around January 12th', () => {
+      // Jan 5th, 2027 -> Target is Dec 2026 (2026-Dec) with Nov 2026 baseline
+      const resJan5 = getActiveWaterCycleDateParts(new Date(2027, 0, 5));
+      expect(resJan5.cycleKey).toBe('2026-Dec');
+      expect(resJan5.baselineKey).toBe('2026-Nov');
+
+      // Jan 13th, 2027 -> Target is Jan 2027 (2027-Jan) with Dec 2026 baseline
+      const resJan13 = getActiveWaterCycleDateParts(new Date(2027, 0, 13));
+      expect(resJan13.cycleKey).toBe('2027-Jan');
+      expect(resJan13.baselineKey).toBe('2026-Dec');
+    });
+  });
 });
+
 
