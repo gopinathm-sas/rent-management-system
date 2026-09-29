@@ -429,8 +429,8 @@ export default function WaterBill() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200">
+                <div className="overflow-x-auto pb-6">
                     <table className="w-full text-sm text-center whitespace-nowrap">
                         <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
                             <tr>
@@ -451,7 +451,7 @@ export default function WaterBill() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {roomList.map(room => {
+                            {roomList.map((room, roomIdx) => {
                                 const tenant = findTenantForRoom(tenants, room.roomId);
                                 const isOccupied = isOccupiedRecord(tenant);
                                 const hasWaterHistory = tenant?.waterReadings && Object.keys(tenant.waterReadings).length > 0;
@@ -517,6 +517,7 @@ export default function WaterBill() {
                                             const prevKey = getWaterMonthKey(prev.year, prev.monthIndex);
                                             const prevVal = Number(tenant?.waterReadings?.[prevKey]);
                                             const prevHistory = tenant?.waterReadingsPrev?.[key];
+                                            const isTopRow = roomIdx < 3;
 
                                             return (
                                                 <td
@@ -543,7 +544,7 @@ export default function WaterBill() {
 
                                                     {/* Rich Hover Card */}
                                                     {canShowHistory && !isFuture && (
-                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col z-40 pointer-events-auto bg-slate-900 text-white text-xs rounded-2xl p-3 shadow-2xl border border-slate-700 w-56 whitespace-normal text-left backdrop-blur-md bg-slate-900/95 animate-in fade-in zoom-in-95 duration-150">
+                                                        <div className={`absolute ${isTopRow ? 'top-full mt-2' : 'bottom-full mb-2'} left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col z-40 pointer-events-auto bg-slate-900 text-white text-xs rounded-2xl p-3 shadow-2xl border border-slate-700 w-56 whitespace-normal text-left backdrop-blur-md bg-slate-900/95 animate-in fade-in zoom-in-95 duration-150`}>
                                                             <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-1.5">
                                                                 <span className="font-bold text-blue-300">Room {room.roomId} • {month}</span>
                                                                 <span className="text-[10px] text-slate-400 font-medium truncate max-w-[90px]">{displayName}</span>
@@ -563,7 +564,7 @@ export default function WaterBill() {
                                                                         <span className="font-bold text-emerald-400">{result.units} units (₹{result.amount})</span>
                                                                     </div>
                                                                 )}
-                                                                {prevHistory && prevHistory.reading !== undefined && (
+                                                                {prevHistory && prevHistory.reading !== undefined ? (
                                                                     <div className="mt-2 pt-2 border-t border-slate-700 flex items-center justify-between gap-1 bg-amber-950/60 -mx-1 px-2 py-1.5 rounded-xl border border-amber-800/50">
                                                                         <div className="text-[10px] text-amber-200">
                                                                             <span className="text-amber-400 font-semibold">Previous: </span>
@@ -582,10 +583,17 @@ export default function WaterBill() {
                                                                             Undo
                                                                         </button>
                                                                     </div>
+                                                                ) : (
+                                                                    Number.isFinite(Number(savedReading)) && (
+                                                                        <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
+                                                                            <span className="text-[10px] text-slate-400">Click to edit / reset</span>
+                                                                            <span className="text-[10px] text-blue-400 font-bold">Edit ✏️</span>
+                                                                        </div>
+                                                                    )
                                                                 )}
                                                             </div>
                                                             {/* Arrow */}
-                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 pointer-events-none" />
+                                                            <div className={`absolute ${isTopRow ? 'bottom-full border-b-slate-900' : 'top-full border-t-slate-900'} left-1/2 -translate-x-1/2 border-4 border-transparent pointer-events-none`} />
                                                         </div>
                                                     )}
                                                 </td>
@@ -702,24 +710,47 @@ export default function WaterBill() {
                                 </div>
                             </div>
 
-                            {/* Restore Previous Entry Banner (if available) */}
-                            {editingCell.prevHistory && editingCell.prevHistory.reading !== undefined && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-2 animate-in fade-in">
-                                    <div className="text-xs text-amber-900 leading-tight">
-                                        <div className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Previous Entry</div>
-                                        <div className="font-mono font-bold text-base text-amber-900 mt-0.5">{editingCell.prevHistory.reading}</div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUndoSingleRoom(editingCell.room, editingCell.monthIndex)}
-                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
-                                        title={`Restore previous entry (${editingCell.prevHistory.reading})`}
-                                    >
-                                        <Undo2 size={13} />
-                                        <span>Restore</span>
-                                    </button>
+                            {/* Quick Undo & Revert Panel */}
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quick Actions & Undo</span>
                                 </div>
-                            )}
+                                <div className="flex flex-wrap gap-2 pt-0.5">
+                                    {editingCell.prevHistory && editingCell.prevHistory.reading !== undefined && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleUndoSingleRoom(editingCell.room, editingCell.monthIndex)}
+                                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                                            title={`Revert back to ${editingCell.prevHistory.reading}`}
+                                        >
+                                            <Undo2 size={13} />
+                                            <span>Undo to {editingCell.prevHistory.reading}</span>
+                                        </button>
+                                    )}
+                                    {Number.isFinite(editingCell.prevVal) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setInputValue(String(editingCell.prevVal))}
+                                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
+                                            title="Fill with previous month's baseline reading"
+                                        >
+                                            <Undo2 size={12} className="text-slate-400" />
+                                            <span>Use Baseline ({editingCell.prevVal})</span>
+                                        </button>
+                                    )}
+                                    {editingCell.currentVal !== null && editingCell.currentVal !== undefined && editingCell.currentVal !== '' && (
+                                        <button
+                                            type="button"
+                                            onClick={handleClearSingleRoom}
+                                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
+                                            title="Clear this month's reading"
+                                        >
+                                            <Trash2 size={12} />
+                                            <span>Clear Entry</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Actions Footer */}
