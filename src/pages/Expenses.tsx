@@ -161,16 +161,20 @@ export default function Expenses() {
                 });
             }
 
-            await addExpense({
+            const expensePayload: Omit<Expense, 'id'> = {
                 date,
                 category,
                 amount: Number(amount),
                 note: note.trim(),
                 monthKey,
-                recurringId: createdRecurringId,
                 source: isRecurring ? 'recurring_rule' : 'manual',
                 createdAt: new Date().toISOString()
-            });
+            };
+            if (createdRecurringId) {
+                expensePayload.recurringId = createdRecurringId;
+            }
+
+            await addExpense(expensePayload);
 
             if (isRecurring) {
                 const dayNum = Math.min(31, Math.max(1, Number(recurringDay) || d.getDate()));
@@ -324,22 +328,28 @@ export default function Expenses() {
 
         try {
             if (editingRecurringRule) {
-                await updateRecurringExpense(editingRecurringRule.id, {
+                const updatePayload: Partial<RecurringExpense> = {
                     category: ruleForm.category,
                     dayOfMonth: day,
-                    defaultAmount: amountNum,
                     noteTemplate: ruleForm.noteTemplate.trim()
-                });
+                };
+                if (amountNum !== undefined) {
+                    updatePayload.defaultAmount = amountNum;
+                }
+                await updateRecurringExpense(editingRecurringRule.id, updatePayload);
                 showToast("Recurring rule updated successfully", 'success');
             } else {
-                await addRecurringExpense({
+                const newRulePayload: Omit<RecurringExpense, 'id'> = {
                     category: ruleForm.category,
                     dayOfMonth: day,
-                    defaultAmount: amountNum,
                     noteTemplate: ruleForm.noteTemplate.trim(),
                     status: 'active',
                     createdAt: new Date().toISOString()
-                });
+                };
+                if (amountNum !== undefined) {
+                    newRulePayload.defaultAmount = amountNum;
+                }
+                await addRecurringExpense(newRulePayload);
                 showToast("New recurring rule added successfully", 'success');
             }
             setEditingRecurringRule(null);

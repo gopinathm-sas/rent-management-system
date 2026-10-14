@@ -318,8 +318,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    const cleanFirestoreData = <T extends Record<string, any>>(obj: T): T => {
+        const cleaned: Record<string, any> = {};
+        for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+                cleaned[key] = value;
+            }
+        }
+        return cleaned as T;
+    };
+
     const addExpenseHandler = async (expenseData: Omit<Expense, 'id'>) => {
-        await addDoc(collection(db, 'expenses'), expenseData);
+        await addDoc(collection(db, 'expenses'), cleanFirestoreData(expenseData));
     };
 
     const deleteExpenseHandler = async (id: string) => {
@@ -327,22 +337,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
 
     const updateExpenseHandler = async (id: string, data: Partial<Expense>) => {
-        await updateDoc(doc(db, 'expenses', id), data);
+        await updateDoc(doc(db, 'expenses', id), cleanFirestoreData(data));
     };
 
     const addRecurringExpenseHandler = async (data: Omit<RecurringExpense, 'id'>): Promise<string> => {
-        const docRef = await addDoc(collection(db, 'recurringExpenses'), {
+        const docRef = await addDoc(collection(db, 'recurringExpenses'), cleanFirestoreData({
             ...data,
             createdAt: new Date().toISOString()
-        });
+        }));
         return docRef.id;
     };
 
     const updateRecurringExpenseHandler = async (id: string, data: Partial<RecurringExpense>) => {
-        await updateDoc(doc(db, 'recurringExpenses', id), {
+        await updateDoc(doc(db, 'recurringExpenses', id), cleanFirestoreData({
             ...data,
             updatedAt: new Date().toISOString()
-        });
+        }));
     };
 
     const deleteRecurringExpenseHandler = async (id: string) => {
@@ -361,7 +371,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const d = new Date(updatedDate);
             payload.monthKey = getMonthKey(d.getFullYear(), d.getMonth());
         }
-        await updateDoc(doc(db, 'expenses', id), payload);
+        await updateDoc(doc(db, 'expenses', id), cleanFirestoreData(payload));
     };
 
     const dismissPendingExpenseHandler = async (id: string) => {
@@ -369,11 +379,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
 
     const updateTenantHandler = async (id: string, data: Partial<Tenant>) => {
-        await updateDoc(doc(db, 'properties', id), data);
+        await updateDoc(doc(db, 'properties', id), cleanFirestoreData(data));
     };
 
     const createTenantHandler = async (data: Omit<Tenant, 'id'>) => {
-        await addDoc(collection(db, 'properties'), data);
+        await addDoc(collection(db, 'properties'), cleanFirestoreData(data));
     };
 
     const updateSettingsHandler = async (data: Partial<AppSettings>) => {
