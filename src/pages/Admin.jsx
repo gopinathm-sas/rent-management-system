@@ -12,6 +12,7 @@ import { getClearedDocumentUploadFields, hasActiveDocumentUploadData } from '../
 import { analyzeBudgetSpreadsheet } from '../services/gemini';
 import { uploadToCloudinary } from '../services/cloudinary';
 import TelegramBotTab from '../components/TelegramBotTab';
+import GeminiQuotaTab from '../components/GeminiQuotaTab';
 
 export default function Admin() {
     const { rooms, tenants, loading } = useData();
@@ -67,6 +68,17 @@ export default function Admin() {
                         }`}
                     >
                         Telegram Bot
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('gemini')}
+                        className={`px-5 py-2.5 font-bold text-sm rounded-xl transition-all flex items-center gap-1.5 ${
+                            activeTab === 'gemini'
+                                ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-100'
+                                : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <Sparkles size={14} className={activeTab === 'gemini' ? 'text-indigo-600' : 'text-slate-400'} />
+                        <span>AI &amp; Credits</span>
                     </button>
                 </div>
             </div>
@@ -127,7 +139,13 @@ export default function Admin() {
 
             {activeTab === 'telegram' && (
                 <div className="animate-in fade-in duration-350">
-                    <TelegramBotTab showToast={showToast} />
+                    <TelegramBotTab showToast={showToast} onNavigateToAiTab={() => setActiveTab('gemini')} />
+                </div>
+            )}
+
+            {activeTab === 'gemini' && (
+                <div className="animate-in fade-in duration-350">
+                    <GeminiQuotaTab showToast={showToast} />
                 </div>
             )}
         </div>

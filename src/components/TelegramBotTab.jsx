@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Bot, Send, Key, UserCheck, Trash2, Copy, Check, Clock, RefreshCw, AlertCircle, ShieldCheck, Droplets, CreditCard, ArrowRight, MessageSquare } from 'lucide-react';
+import { Bot, Send, Key, UserCheck, Trash2, Copy, Check, Clock, RefreshCw, AlertCircle, ShieldCheck, Droplets, CreditCard, ArrowRight, MessageSquare, Sparkles } from 'lucide-react';
 
 function generateRandomCode(length = 6) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omit easily confused 0, O, 1, I
@@ -12,7 +12,7 @@ function generateRandomCode(length = 6) {
     return result;
 }
 
-export default function TelegramBotTab({ showToast }) {
+export default function TelegramBotTab({ showToast, onNavigateToAiTab }) {
     const [linkedUsers, setLinkedUsers] = useState([]);
     const [authCodes, setAuthCodes] = useState([]);
     const [waterAuditLogs, setWaterAuditLogs] = useState([]);
@@ -20,6 +20,7 @@ export default function TelegramBotTab({ showToast }) {
     const [whatsappAuditLogs, setWhatsappAuditLogs] = useState([]);
     const [auditFilter, setAuditFilter] = useState('all'); // 'all', 'water', 'rent', 'whatsapp'
     const [loading, setLoading] = useState(true);
+    const [geminiQuota, setGeminiQuota] = useState(null);
 
     // Code generator form state
     const [email, setEmail] = useState('');
@@ -67,12 +68,18 @@ export default function TelegramBotTab({ showToast }) {
             setLoading(false);
         });
 
+        // 6. Gemini Quota & Credits
+        const unsubQuota = onSnapshot(doc(db, 'settings', 'geminiQuota'), (snap) => {
+            setGeminiQuota(snap.exists() ? snap.data() : null);
+        }, (err) => console.error("Error fetching geminiQuota:", err));
+
         return () => {
             unsubUsers();
             unsubCodes();
             unsubWater();
             unsubRent();
             unsubWa();
+            unsubQuota();
         };
     }, []);
 
@@ -171,6 +178,54 @@ export default function TelegramBotTab({ showToast }) {
                     </div>
                 </div>
             </div>
+
+            {/* Gemini AI Quota Quick Status Banner */}
+            {(() => {
+                const todayKey = new Date().toISOString().slice(0, 10);
+                const todayUsage = geminiQuota?.dailyUsage?.[todayKey]?.requests || 0;
+                const isDepleted = geminiQuota?.status === 'depleted';
+                const isRateLimited = geminiQuota?.status === 'rate_limited';
+
+                return (
+                    <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isDepleted 
+                            ? 'bg-rose-50 border-rose-300 text-rose-900' 
+                            : 'bg-white border-slate-200 text-slate-800 shadow-sm'
+                    }`}>
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl text-white ${isDepleted ? 'bg-rose-500' : 'bg-indigo-600'}`}>
+                                <Sparkles size={18} />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Gemini AI Status:</span>
+                                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-md ${
+                                        isDepleted 
+                                            ? 'bg-rose-100 text-rose-800' 
+                                            : (isRateLimited ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
+                                    }`}>
+                                        <span className={`size-1.5 rounded-full ${isDepleted ? 'bg-rose-600' : (isRateLimited ? 'bg-amber-600' : 'bg-emerald-600')}`} />
+                                        {isDepleted ? 'Credits Depleted' : (isRateLimited ? 'Rate Limited' : 'Active & Healthy')}
+                                    </span>
+                                </div>
+                                <div className="text-xs text-slate-600 mt-0.5">
+                                    Today's AI Requests: <strong className="text-slate-900">{todayUsage.toLocaleString()}</strong> / 1,500 daily quota
+                                </div>
+                            </div>
+                        </div>
+
+                        {onNavigateToAiTab && (
+                            <button
+                                onClick={onNavigateToAiTab}
+                                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+                            >
+                                <span>AI &amp; Credits Monitor</span>
+                                <ArrowRight size={13} />
+                            </button>
+                        )}
+                    </div>
+                );
+            })()}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* 1. Generate Linking Code */}

@@ -1,8 +1,78 @@
-
+import { doc, setDoc, increment } from 'firebase/firestore';
+import { db } from './firebase';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+/**
+ * Record client-side Gemini usage in settings/geminiQuota
+ */
+export async function recordClientGeminiUsage(success = true, errorMsg = null) {
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        const month = today.slice(0, 7);
+        const updateData = {
+            lastUsedAt: new Date().toISOString(),
+            lastModel: GEMINI_MODEL,
+            [`dailyUsage.${today}.requests`]: increment(1),
+            [`monthlyUsage.${month}.requests`]: increment(1),
+            totalRequests: increment(1)
+        };
+        if (success) {
+            updateData.status = 'healthy';
+            updateData.lastError = null;
+        } else {
+            const str = String(errorMsg || '');
+            if (str.includes('depleted') || str.includes('credits') || str.includes('prepayment')) {
+                updateData.status = 'depleted';
+            } else if (str.includes('RESOURCE_EXHAUSTED') || str.includes('429')) {
+                updateData.status = 'rate_limited';
+            }
+            updateData.lastError = str || 'Unknown error';
+        }
+        await setDoc(doc(db, 'settings', 'geminiQuota'), updateData, { merge: true });
+    } catch (e) {
+        console.warn('Failed to record client Gemini usage:', e);
+    }
+}
+
+/**
+ * Test live Gemini API health, latency, and credit status
+ */
+export async function testGeminiHealth() {
+    const startTime = Date.now();
+    try {
+        if (!GEMINI_API_KEY) {
+            throw new Error("Gemini API key is not configured in VITE_GEMINI_API_KEY.");
+        }
+        const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "ping" }] }],
+                generationConfig: { maxOutputTokens: 5 }
+            })
+        });
+        const latency = Date.now() - startTime;
+        if (!response.ok) {
+            const errText = await response.text();
+            let msg = `HTTP ${response.status}: ${errText}`;
+            try {
+                const j = JSON.parse(errText);
+                if (j.error?.message) msg = j.error.message;
+            } catch (_) {}
+            await recordClientGeminiUsage(false, msg);
+            return { success: false, error: msg, latency, model: GEMINI_MODEL };
+        }
+        await recordClientGeminiUsage(true, null);
+        return { success: true, latency, model: GEMINI_MODEL };
+    } catch (err) {
+        const latency = Date.now() - startTime;
+        await recordClientGeminiUsage(false, err.message);
+        return { success: false, error: err.message, latency, model: GEMINI_MODEL };
+    }
+}
 
 
 /**
@@ -62,6 +132,8 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
 
         console.log("Gemini Raw Response:", text);
 
+        recordClientGeminiUsage(true);
+
         if (!text || text.includes('ERROR')) {
             return null;
         }
@@ -77,6 +149,7 @@ export async function getMeterReadingFromImage(base64Image, mimeType = "image/jp
 
     } catch (error) {
         console.error("Failed to analyze image with Gemini:", error);
+        recordClientGeminiUsage(false, error.message);
         throw error;
     }
 }
@@ -117,10 +190,15 @@ export async function analyzeReceipt(base64Image, mimeType = "image/jpeg") {
             })
         });
 
-        if (!response.ok) throw new Error("Gemini API request failed");
+        if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+            throw new Error(`Gemini API request failed (${response.status}): ${errBody}`);
+        }
 
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        recordClientGeminiUsage(true);
 
         // Remove potential markdown code blocks
         const jsonStr = text.replace(/```json|```/g, "").trim();
@@ -128,6 +206,7 @@ export async function analyzeReceipt(base64Image, mimeType = "image/jpeg") {
         return JSON.parse(jsonStr);
     } catch (error) {
         console.error("Receipt analysis failed:", error);
+        recordClientGeminiUsage(false, error.message);
         throw error;
     }
 }
@@ -182,12 +261,15 @@ export async function analyzeBudgetSpreadsheet(base64Image, mimeType = "image/jp
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
+        recordClientGeminiUsage(true);
+
         // Remove potential markdown code blocks
         const jsonStr = text.replace(/```json|```/g, "").trim();
 
         return JSON.parse(jsonStr);
     } catch (error) {
         console.error("Budget spreadsheet analysis failed:", error);
+        recordClientGeminiUsage(false, error.message);
         throw error;
     }
 }

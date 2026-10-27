@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { recordGeminiCall } = require('./geminiQuotaTracker');
 
 const GEMINI_EMBED_MODEL = 'gemini-embedding-001';
 const GEMINI_GEN_MODEL = 'gemini-3.5-flash-lite';
@@ -8,18 +9,34 @@ const GEMINI_GEN_MODEL = 'gemini-3.5-flash-lite';
  */
 async function callGeminiApi(url, payload) {
   const fetch = globalThis.fetch || require('node-fetch');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini API error (HTTP ${res.status}): ${errText}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      let errMsg = `Gemini API error (HTTP ${res.status}): ${errText}`;
+      try {
+        const j = JSON.parse(errText);
+        if (j.error?.message) errMsg = j.error.message;
+      } catch (_) {}
+      recordGeminiCall({ success: false, error: errMsg, model: GEMINI_GEN_MODEL });
+      throw new Error(errMsg);
+    }
+
+    const json = await res.json();
+    const tokens = json.usageMetadata?.totalTokenCount || 0;
+    recordGeminiCall({ success: true, tokens, model: GEMINI_GEN_MODEL });
+    return json;
+  } catch (err) {
+    if (!err.message.includes('HTTP')) {
+      recordGeminiCall({ success: false, error: err.message, model: GEMINI_GEN_MODEL });
+    }
+    throw err;
   }
-
-  return await res.json();
 }
 
 /**

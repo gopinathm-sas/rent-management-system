@@ -1,4 +1,5 @@
 const https = require('https');
+const { recordGeminiCall } = require('./geminiQuotaTracker');
 
 const GEMINI_EMBED_MODEL = 'gemini-embedding-001';
 const GEMINI_GEN_MODEL = 'gemini-3.5-flash-lite';
@@ -30,19 +31,28 @@ function callGeminiApi(url, payload) {
         try {
           const json = JSON.parse(body);
           if (res.statusCode >= 200 && res.statusCode < 300) {
+            const tokens = json.usageMetadata?.totalTokenCount || 0;
+            recordGeminiCall({ success: true, tokens, model: GEMINI_GEN_MODEL });
             resolve(json);
           } else {
-            reject(new Error(json.error?.message || `HTTP ${res.statusCode}: ${body}`));
+            const errMsg = json.error?.message || `HTTP ${res.statusCode}: ${body}`;
+            recordGeminiCall({ success: false, error: errMsg, model: GEMINI_GEN_MODEL });
+            reject(new Error(errMsg));
           }
         } catch (e) {
+          recordGeminiCall({ success: false, error: `Parse error: ${e.message}`, model: GEMINI_GEN_MODEL });
           reject(new Error(`Failed to parse Gemini response: ${body}`));
         }
       });
     });
 
-    req.on('error', (err) => reject(err));
+    req.on('error', (err) => {
+      recordGeminiCall({ success: false, error: err.message, model: GEMINI_GEN_MODEL });
+      reject(err);
+    });
     req.setTimeout(30000, () => {
       req.destroy();
+      recordGeminiCall({ success: false, error: 'Gemini API timeout after 30 seconds', model: GEMINI_GEN_MODEL });
       reject(new Error('Gemini API timeout after 30 seconds'));
     });
 
