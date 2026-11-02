@@ -7,6 +7,16 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import { db, storage } from '../services/firebase';
 import { IMMUTABLE_ROOMS_DATA, RENT_WATER_SERVICE_CHARGE, DEFAULT_APP_SETTINGS } from '../lib/constants';
 import { Tenant, Expense, RecurringExpense, RoomData, AppSettings, DiaryNote, ImportantNote, VaultDocument } from '../types';
+import {
+    isLastDayOfMonth,
+    getMonthKey,
+    isMonthBeforeJoinDate,
+    isEvictionMonth,
+    isFirstOccupancyMonth,
+    getProratedRent,
+    getDefaultWaterRateForRoom,
+    computeWaterForMonth
+} from '../lib/utils';
 
 interface DataContextType {
     tenants: Record<string, Tenant>;
@@ -278,7 +288,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
             // Prorate rent for first month of occupancy (joined mid-month)
             if (isFirstOccupancyMonth(tenantData, year, monthIndex) && tenantData?.joinDate) {
-                rent = getProratedRent(rent, tenantData.joinDate, deductionDays);
+                rent = getProratedRent(rent, tenantData.joinDate, year, monthIndex, deductionDays);
             }
 
             const effectiveWaterRate = Number(tenantData?.waterRate) || getDefaultWaterRateForRoom(tenantData.roomNo);
@@ -293,7 +303,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         } else if (newStatus === 'Rent Only') {
             let rent = Number(tenantData?.rent) || 0;
             if (isFirstOccupancyMonth(tenantData, year, monthIndex) && tenantData?.joinDate) {
-                rent = getProratedRent(rent, tenantData.joinDate, deductionDays);
+                rent = getProratedRent(rent, tenantData.joinDate, year, monthIndex, deductionDays);
             }
             updatePayload[`paymentHistory.${key}`] = 'Rent Only';
             updatePayload[`paymentTotals.${key}`] = rent;

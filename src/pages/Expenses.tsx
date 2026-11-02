@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { getMonthKey, MONTHS } from '../lib/utils';
 import ReceiptScanner from '../components/ReceiptScanner';
-import { RecurringExpense } from '../types';
+import { Expense, RecurringExpense } from '../types';
 
 const DEFAULT_CATEGORIES = [
     "House Keeping Salary",
@@ -226,7 +226,7 @@ export default function Expenses() {
         const isConfirmed = await confirm({
             title: 'Dismiss Pending Expense?',
             message: `Dismiss ${item.category} for this month? The recurring rule will remain active for future months.`,
-            type: 'warning',
+            type: 'danger',
             confirmText: 'Dismiss'
         });
 

@@ -1375,7 +1375,7 @@ interface ImportantNoteEditorModalProps {
     initialNote: ImportantNote;
     allExistingTags: string[];
     onClose: () => void;
-    onSave: (noteId: string, data: Partial<ImportantNote>) => Promise<string>;
+    onSave: (noteId: string, data: Partial<ImportantNote>) => Promise<string | void>;
     onDelete: (noteId: string) => Promise<void>;
 }
 
